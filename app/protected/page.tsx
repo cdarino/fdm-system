@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { InfoIcon } from "lucide-react";
 import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
 import { Suspense } from "react";
+import { getUserPermissions } from "@/lib/permissions";
 
 async function UserDetails() {
   const supabase = await createClient();
@@ -14,6 +15,11 @@ async function UserDetails() {
   }
 
   return JSON.stringify(data.claims, null, 2);
+}
+
+async function UserPermissions() {
+  const permissions = await getUserPermissions();
+  return JSON.stringify(permissions, null, 2);
 }
 
 export default function ProtectedPage() {
@@ -31,6 +37,7 @@ export default function ProtectedPage() {
         <pre className="text-xs font-mono p-3 rounded border max-h-32 overflow-auto">
           <Suspense>
             <UserDetails />
+            <UserPermissions />
           </Suspense>
         </pre>
       </div>
