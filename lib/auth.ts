@@ -1,12 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
 
-export interface SignUpParams {
-  email: string;
-  password: string;
-  repeatPassword?: string;
-  redirectTo?: string;
-}
-
 export interface LoginParams {
   email: string;
   password: string;
@@ -19,38 +12,6 @@ export interface ResetPasswordParams {
 
 export interface UpdatePasswordParams {
   password: string;
-}
-
-/**
- * Sign up a new user using email & password.
- * Validates password matching and executes Supabase signUp.
- */
-export async function signUp({
-  email,
-  password,
-  repeatPassword,
-  redirectTo,
-}: SignUpParams) {
-  if (repeatPassword !== undefined && password !== repeatPassword) {
-    throw new Error("Passwords do not match");
-  }
-
-  const supabase = createClient();
-  const defaultRedirect =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/protected`
-      : undefined;
-
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: redirectTo ?? defaultRedirect,
-    },
-  });
-
-  if (error) throw error;
-  return data;
 }
 
 /**

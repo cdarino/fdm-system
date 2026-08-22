@@ -1,14 +1,12 @@
 /**
  * lib/actions/admin-register.ts
  *
- * Server Actions: register a new Supabase Auth user and manage role assignments.
+ * This file contains server actions for registering a new Supabase Auth user
+ * and managing role assignments.
+ * 
+ * Please note that the caller of any of the functions here should have 
+ * the "system.create" permission (provided by the `system_admin` role).
  *
- * Access control:
- *   - Caller must be authenticated.
- *   - Caller must have the "system.create" permission (granted to system_admin).
- *
- * Uses the service-role Admin API so sign-ups can remain disabled in the
- * Supabase project config while still allowing privileged user creation.
  */
 
 "use server";
