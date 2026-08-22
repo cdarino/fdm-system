@@ -5,7 +5,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.ts"
+    "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.ts",
+    "test:e2e": "tsx --env-file=.env.local scripts/e2e-user-flow.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.1",
