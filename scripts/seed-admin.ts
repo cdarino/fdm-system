@@ -9,7 +9,7 @@
  *
  * Required env vars (from .env.local):
  *   NEXT_PUBLIC_SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SECRET_KEY
  *   ADMIN_PASSWORD
  */
 
@@ -20,7 +20,7 @@ import { createClient } from "@supabase/supabase-js";
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 const ADMIN_EMAIL = "admin@example.com";
@@ -32,7 +32,7 @@ const ADMIN_ROLES = ["admin_staff", "system_admin"];
 
 const missing: string[] = [];
 if (!SUPABASE_URL) missing.push("NEXT_PUBLIC_SUPABASE_URL");
-if (!SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+if (!SERVICE_ROLE_KEY) missing.push("SUPABASE_SECRET_KEY");
 if (!ADMIN_PASSWORD) missing.push("ADMIN_PASSWORD");
 
 if (missing.length > 0) {

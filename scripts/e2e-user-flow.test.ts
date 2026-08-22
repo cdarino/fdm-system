@@ -21,7 +21,7 @@
  * Required env vars (from .env.local):
  *   NEXT_PUBLIC_SUPABASE_URL
  *   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_SECRET_KEY
  */
 import { createClient } from "@supabase/supabase-js";
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,11 +29,11 @@ import { createClient } from "@supabase/supabase-js";
 // ─────────────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY;
 const missing: string[] = [];
 if (!SUPABASE_URL) missing.push("NEXT_PUBLIC_SUPABASE_URL");
 if (!ANON_KEY) missing.push("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
-if (!SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+if (!SERVICE_ROLE_KEY) missing.push("SUPABASE_SECRET_KEY");
 if (missing.length > 0) {
   console.error(
     "❌  Missing required environment variables:\n" +
