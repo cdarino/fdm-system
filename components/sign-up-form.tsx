@@ -16,6 +16,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+// TODO: we may need to remove this component as we are no longer accepting
+// registers for new users. Only admins are allowed to do this.
+
+/** Client form that collects email, password, and repeat-password, calls `signUp`, 
+ * and redirects to `/auth/sign-up-success` on success. */
 export function SignUpForm({
   className,
   ...props

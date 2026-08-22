@@ -1,5 +1,7 @@
 import { TutorialStep } from "./tutorial-step";
 
+/** Ordered list of tutorial steps guiding the user through creating a Supabase 
+ * project and wiring up the required environment variables. */
 export function ConnectSupabaseSteps() {
   return (
     <ol className="flex flex-col gap-6">

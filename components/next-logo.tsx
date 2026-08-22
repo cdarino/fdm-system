@@ -1,3 +1,4 @@
+/** Renders the Next.js wordmark as an inline SVG. */
 export function NextLogo() {
   return (
     <svg

@@ -1,5 +1,7 @@
 import { Checkbox } from "../ui/checkbox";
 
+/** Renders a single checkable tutorial step with a title and arbitrary child 
+ * content; striking through the label when the checkbox is checked. */
 export function TutorialStep({
   title,
   children,

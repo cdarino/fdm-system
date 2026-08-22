@@ -1,6 +1,10 @@
 import { NextLogo } from "./next-logo";
 import { SupabaseLogo } from "./supabase-logo";
 
+/** 
+ * Landing-page hero section that displays the Supabase and Next.js logos with a 
+ * tagline linking to both project sites. 
+ */
 export function Hero() {
   return (
     <div className="flex flex-col gap-16 items-center">

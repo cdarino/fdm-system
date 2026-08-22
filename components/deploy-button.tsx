@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { Button } from "./ui/button";
 
+/** 
+ * Renders a "Deploy to Vercel" button that links to a pre-configured Vercel clone 
+ * flow for this project's template. 
+ */
 export function DeployButton() {
   return (
     <>

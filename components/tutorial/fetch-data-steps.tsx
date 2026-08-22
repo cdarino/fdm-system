@@ -49,6 +49,8 @@ export default function Page() {
 }
 `.trim();
 
+/** Ordered list of tutorial steps showing how to create tables, configure RLS, and 
+ * query Supabase data from both Server and Client components. */
 export function FetchDataSteps() {
   return (
     <ol className="flex flex-col gap-6">

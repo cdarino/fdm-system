@@ -15,6 +15,10 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useState } from "react";
 
+/** 
+ * Client form that accepts an email and calls `resetPassword`, then shows a success 
+ * message once the reset email has been sent. 
+ */
 export function ForgotPasswordForm({
   className,
   ...props

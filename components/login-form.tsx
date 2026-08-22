@@ -16,6 +16,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+/** 
+ * Client form that handles email/password login via `login`, redirecting to 
+ * `/protected` on success and showing inline errors on failure. 
+ */
 export function LoginForm({
   className,
   ...props

@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+/** Client form that accepts a new password and calls `updatePassword`, redirecting 
+ * to `/protected` on success. */
 export function UpdatePasswordForm({
   className,
   ...props

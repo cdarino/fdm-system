@@ -1,3 +1,4 @@
+/** Renders the Supabase wordmark as an inline SVG with gradient fills. */
 export function SupabaseLogo() {
   return (
     <svg

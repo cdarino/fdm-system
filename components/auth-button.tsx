@@ -3,6 +3,10 @@ import { Button } from "./ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "./logout-button";
 
+/** 
+ * Server component that checks the current session and renders a greeting with a 
+ * logout button if signed in, or Sign in / Sign up links if not. 
+*/
 export async function AuthButton() {
   const supabase = await createClient();
 

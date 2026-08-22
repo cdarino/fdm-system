@@ -36,6 +36,8 @@ const CheckIcon = () => (
   </svg>
 );
 
+/** Renders a styled pre block with a copy-to-clipboard button that toggles to a 
+ * checkmark icon for 2 seconds after copying. */
 export function CodeBlock({ code }: { code: string }) {
   const [icon, setIcon] = useState(CopyIcon);
 

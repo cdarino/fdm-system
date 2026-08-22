@@ -2,11 +2,13 @@ import Link from "next/link";
 import { TutorialStep } from "./tutorial-step";
 import { ArrowUpRight } from "lucide-react";
 
+/** Ordered list of tutorial steps for registering the first user, conditionally 
+ * including Vercel redirect URL configuration when deployed on Vercel. */
 export function SignUpUserSteps() {
   return (
     <ol className="flex flex-col gap-6">
       {process.env.VERCEL_ENV === "preview" ||
-      process.env.VERCEL_ENV === "production" ? (
+        process.env.VERCEL_ENV === "production" ? (
         <TutorialStep title="Set up redirect urls">
           <p>It looks like this App is hosted on Vercel.</p>
           <p className="mt-4">

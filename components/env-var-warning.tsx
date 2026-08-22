@@ -1,6 +1,10 @@
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 
+/** 
+ * Displays a warning badge and disabled auth buttons when required Supabase 
+ * environment variables are missing. 
+ */
 export function EnvVarWarning() {
   return (
     <div className="flex gap-4 items-center">

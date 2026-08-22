@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 
+/** 
+ * Client button that signs the current user out of Supabase and redirects them 
+ * to `/auth/login`. 
+ */
 export function LogoutButton() {
   const router = useRouter();
 
