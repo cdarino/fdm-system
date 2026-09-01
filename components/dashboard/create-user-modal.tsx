@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { X, Loader2 } from 'lucide-react';
-import { registerUser } from '@/lib/actions/admin-register';
+import { registerUser, listUsers } from '@/lib/actions/admin-register';
+import type { UserListItem } from '@/lib/actions/admin-register';
 import { getActiveRoles } from '@/lib/actions/admin-register';
 
 interface Role {
@@ -18,9 +19,10 @@ interface Role {
 interface CreateUserModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onUserCreated?: (user: UserListItem) => void;
 }
 
-export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
+export function CreateUserModal({ isOpen, onClose, onUserCreated }: CreateUserModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
@@ -56,6 +58,10 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
         throw new Error('Email and password are required');
       }
 
+      if (selectedRoles.length === 0) {
+        throw new Error('Please select at least one role');
+      }
+
       // Register the user with selected roles
       const result = await registerUser({
         email,
@@ -67,15 +73,24 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
         throw new Error(result?.error || 'Failed to create user');
       }
 
-      setSuccess(true);
+      // Try to fetch the created user's full data and notify parent
+      try {
+        const listResult = await listUsers();
+        if (listResult.success) {
+          const created = listResult.users.find((u) => u.id === result.userId);
+          if (created && typeof onUserCreated === 'function') {
+            onUserCreated(created);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to refresh users after creation:', err);
+      }
+
+      // Clear the form and close the modal so the parent can show a global success message
       setEmail('');
       setPassword('');
       setSelectedRoles([]);
-
-      // Close modal after 2 seconds
-      setTimeout(() => {
-        onClose();
-      }, 2000);
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user');
     } finally {
@@ -86,8 +101,8 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-md bg-white border-[#E2E7EC] rounded-2xl shadow-lg">
+    <div className="fixed inset-0 bg-black/20 flex items-center justify-center p-4 z-50">
+      <Card style={{ backgroundColor: '#ffffff', color: '#1A1D20' }} className="w-full max-w-md bg-white text-[#1A1D20] border-[#E2E7EC] rounded-2xl shadow-lg">
         <div className="p-6 border-b border-[#E2E7EC] flex items-center justify-between">
           <h2 className="text-xl font-bold text-[#1A1D20]">Create New User</h2>
           <button
@@ -157,6 +172,7 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
               Assign Roles
             </Label>
             <div className="space-y-2 max-h-48 overflow-y-auto">
+              
               {roles.length > 0 ? (
                 roles.map((role) => (
                   <label
@@ -188,6 +204,9 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
                 <p className="text-sm text-[#6C7E8E]">No roles available</p>
               )}
             </div>
+            {selectedRoles.length === 0 && (
+              <p className="text-xs text-[#6C7E8E] mt-1">Select at least one role.</p>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -203,7 +222,7 @@ export function CreateUserModal({ isOpen, onClose }: CreateUserModalProps) {
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || success}
+              disabled={isLoading || success || selectedRoles.length === 0}
               className="flex-1 bg-[#5BC4E7] text-white hover:bg-[#4AADE0] rounded-lg flex items-center justify-center gap-2"
             >
               {isLoading ? (
