@@ -23,10 +23,10 @@ export default async function DashboardLayout({
       </div>
 
       {/* Main Content */}
-      <div className="ml-60 flex flex-col">
+      <div className="ml-60 flex flex-col h-screen">
         <DashboardTopBar userEmail={user?.email} />
         <main className="flex-1 overflow-auto">
-          <div className="p-8">
+          <div className="p-8 flex flex-col min-h-full">
             {children}
           </div>
         </main>
