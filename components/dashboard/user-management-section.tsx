@@ -298,6 +298,9 @@ export function UserManagementSection({ users }: Props) {
   function handleRowClick(user: UserListItem) {
     setSelectedUser((prev) => (prev?.id === user.id ? null : user));
   }
+  const [userList, setUserList] = useState<UserListItem[]>(users);
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   return (
     <>
@@ -317,6 +320,7 @@ export function UserManagementSection({ users }: Props) {
             Create User
           </Button>
         </CardHeader>
+        {/* Success dialog appears as a centered overlay; rendered from parent root */}
 
         <CardContent className="p-0 flex flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto min-w-0">
@@ -329,14 +333,14 @@ export function UserManagementSection({ users }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.length === 0 ? (
+                {userList.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center py-10 text-[#6C7E8E]">
                       No users found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  users.map((user) => (
+                  userList.map((user) => (
                     <UserRow
                       key={user.id}
                       user={user}
@@ -355,7 +359,27 @@ export function UserManagementSection({ users }: Props) {
         </CardContent>
       </Card>
 
-      <CreateUserModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <CreateUserModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onUserCreated={(u) => {
+          setUserList((prev) => [u, ...prev.filter((p) => p.id !== u.id)]);
+          setSuccessMessage('User created successfully!');
+          setSuccessDialogOpen(true);
+          setTimeout(() => {
+            setSuccessDialogOpen(false);
+            setSuccessMessage(null);
+          }, 5000);
+        }}
+      />
+
+      {successDialogOpen && (
+        <div className="fixed inset-x-0 top-6 z-50 flex items-start justify-center ">
+          <div className="w-full max-w-sm p-6 bg-green-100 rounded-2xl border border-green-200 shadow-lg">
+            <h3 className="bg-green text-bold text-green-700 border-transparent hover:bg-green-100">{successMessage}</h3>
+          </div>
+        </div>
+      )}
     </>
   );
 }
