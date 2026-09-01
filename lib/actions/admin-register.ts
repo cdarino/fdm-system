@@ -29,10 +29,6 @@ export type RegisterUserResult =
   | { success: true; userId: string }
   | { success: false; error: string };
 
-export type AssignRolesResult =
-  | { success: true }
-  | { success: false; error: string };
-
 export interface RbacRole {
   id: string;
   name: string;
@@ -73,41 +69,6 @@ async function getAuthorizedCaller(): Promise<
 }
 
 /**
- * Assigns one or more RBAC roles to an existing user.
- *
- * - Requires the caller to have `system.create` permission.
- * - Safe to call multiple times (upserts on conflict).
- *
- * @param userId  UUID of the target user in auth.users.
- * @param roleIds Array of rbac.role.id values to assign.
- */
-export async function assignRoles(
-  userId: string,
-  roleIds: string[]
-): Promise<AssignRolesResult> {
-  const caller = await getAuthorizedCaller();
-  if ("error" in caller) return { success: false, error: caller.error };
-
-  if (!roleIds.length) return { success: true }; // nothing to do
-
-  const adminClient = createAdminClient();
-
-  const rows = roleIds.map((roleId) => ({ user_id: userId, role_id: roleId }));
-
-  const { error } = await adminClient
-    .schema("rbac")
-    .from("user_role")
-    .upsert(rows, { onConflict: "user_id,role_id" });
-
-  if (error) {
-    console.error("[assignRoles] error:", error.message);
-    return { success: false, error: error.message };
-  }
-
-  return { success: true };
-}
-
-/**
  * Creates a new Supabase Auth user and optionally assigns multiple roles.
  */
 export async function registerUser(
@@ -115,11 +76,9 @@ export async function registerUser(
 ): Promise<RegisterUserResult> {
   const { email, password, roleIds = [] } = params;
 
-  // 1. Auth + permission check
   const caller = await getAuthorizedCaller();
   if ("error" in caller) return { success: false, error: caller.error };
 
-  // 2. Create the user via the Admin API (bypasses disabled sign-ups)
   const adminClient = createAdminClient();
 
   const { data: createData, error: createError } =
@@ -136,15 +95,18 @@ export async function registerUser(
 
   const newUserId = createData.user.id;
 
-  // 3. Optionally assign roles (delegates to the standalone action)
   if (roleIds.length > 0) {
-    const roleResult = await assignRoles(newUserId, roleIds);
-    if (!roleResult.success) {
-      // Non-fatal: user was created; surface a clear message with the user ID.
-      const { error: roleError } = roleResult;
+    const rows = roleIds.map((roleId) => ({ user_id: newUserId, role_id: roleId }));
+    const { error: roleError } = await adminClient
+      .schema("rbac")
+      .from("user_role")
+      .upsert(rows, { onConflict: "user_id,role_id" });
+
+    if (roleError) {
+      console.error("[registerUser] role assignment error:", roleError.message);
       return {
         success: false,
-        error: `User created (${newUserId}), but role assignment failed: ${roleError}`,
+        error: `User created (${newUserId}), but role assignment failed: ${roleError.message}`,
       };
     }
   }
@@ -210,6 +172,50 @@ export async function toggleUser(userId: string, enable: boolean) {
   if (error_main) {
     console.error("[toggleUser] error: ", error_main.message);
     return { success: false, error: error_main.message };
+  }
+
+  return { success: true };
+}
+
+export type SetUserRolesResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Replaces all RBAC roles for a user with the provided set.
+ * Requires `system.create` permission.
+ */
+export async function setUserRoles(
+  userId: string,
+  roleIds: string[]
+): Promise<SetUserRolesResult> {
+  const caller = await getAuthorizedCaller();
+  if ("error" in caller) return { success: false, error: caller.error };
+
+  const adminClient = createAdminClient();
+
+  const { error: deleteError } = await adminClient
+    .schema("rbac")
+    .from("user_role")
+    .delete()
+    .eq("user_id", userId);
+
+  if (deleteError) {
+    console.error("[setUserRoles] delete error:", deleteError.message);
+    return { success: false, error: deleteError.message };
+  }
+
+  if (roleIds.length > 0) {
+    const rows = roleIds.map((roleId) => ({ user_id: userId, role_id: roleId }));
+    const { error: insertError } = await adminClient
+      .schema("rbac")
+      .from("user_role")
+      .insert(rows);
+
+    if (insertError) {
+      console.error("[setUserRoles] insert error:", insertError.message);
+      return { success: false, error: insertError.message };
+    }
   }
 
   return { success: true };
