@@ -37,6 +37,7 @@ export async function logout() {
 
 /**
  * Send password reset email.
+ * Note that this differs from updatePassword(), which directly changes the password of the currently logged in user.
  */
 export async function resetPassword({ email, redirectTo }: ResetPasswordParams) {
   const supabase = createClient();
@@ -55,6 +56,7 @@ export async function resetPassword({ email, redirectTo }: ResetPasswordParams) 
 
 /**
  * Update user password (when logged in or from reset flow).
+ * Note that this differs from resetPassword(), which sends an email to the user to reset their password.
  */
 export async function updatePassword({ password }: UpdatePasswordParams) {
   const supabase = createClient();
