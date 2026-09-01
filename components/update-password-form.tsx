@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 /** Client form that accepts a new password and calls `updatePassword`, redirecting 
- * to `/protected` on success. */
+ * to `/dashboard` on success. */
 export function UpdatePasswordForm({
   className,
   ...props
@@ -34,7 +34,7 @@ export function UpdatePasswordForm({
     try {
       await updatePassword({ password });
       // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
+      router.push("/dashboard");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
