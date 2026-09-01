@@ -1,12 +1,10 @@
 /**
  * lib/actions/admin-register.ts
  *
- * This file contains server actions for registering a new Supabase Auth user
- * and managing role assignments.
- * 
- * Please note that the caller of any of the functions here should have 
- * the "system.create" permission (provided by the `system_admin` role).
+ * Server actions for registering / managing Supabase Auth users and RBAC roles.
  *
+ * All functions require the caller to hold the `system.create` permission
+ * (granted by the `system_admin` role), except `getActiveRoles`.
  */
 
 "use server";
@@ -40,6 +38,17 @@ export interface RbacRole {
   name: string;
   description: string | null;
 }
+
+export interface UserListItem {
+  id: string;
+  email: string;
+  roles: Pick<RbacRole, "id" | "name">[];
+  isBanned: boolean;
+}
+
+export type ListUsersResult =
+  | { success: true; users: UserListItem[] }
+  | { success: false; error: string };
 
 async function getAuthorizedCaller(): Promise<
   { id: string } | { error: string }
@@ -197,5 +206,69 @@ export async function toggleUser(userId: string, enable: boolean) {
     return { success: false, error: error_main.message };
   }
 
-  return { success: true }
+  return { success: true };
+}
+
+/**
+ * Returns every Auth user with their email, assigned RBAC roles, and ban status.
+ * Requires `system.create` permission.
+ */
+export async function listUsers(): Promise<ListUsersResult> {
+  const caller = await getAuthorizedCaller();
+  if ("error" in caller) return { success: false, error: caller.error };
+
+  const adminClient = createAdminClient();
+
+  // Collect all auth users across pages
+  const allAuthUsers: { id: string; email: string; banned_until?: string | null }[] = [];
+  let page = 1;
+  const perPage = 1000;
+
+  while (true) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.error("[listUsers] listUsers error:", error.message);
+      return { success: false, error: error.message };
+    }
+
+    allAuthUsers.push(
+      ...data.users.map((u) => ({
+        id: u.id,
+        email: u.email ?? "",
+        banned_until: u.banned_until,
+      }))
+    );
+
+    if (data.users.length < perPage) break;
+    page++;
+  }
+
+  // Fetch all user→role mappings in one query
+  const { data: userRoles, error: rolesError } = await adminClient
+    .schema("rbac")
+    .from("user_role")
+    .select("user_id, role:role_id(id, name)")
+    .returns<{ user_id: string; role: Pick<RbacRole, "id" | "name">[] }[]>();
+
+  if (rolesError) {
+    console.error("[listUsers] user_role fetch error:", rolesError.message);
+    return { success: false, error: rolesError.message };
+  }
+
+  // Build a lookup: userId → roles[] (PostgREST always returns joins as arrays)
+  const rolesByUser = (userRoles ?? []).reduce((map, row) => {
+    if (row.role?.length) map.set(row.user_id, (map.get(row.user_id) ?? []).concat(row.role));
+    return map;
+  }, new Map<string, Pick<RbacRole, "id" | "name">[]>());
+
+  const now = new Date();
+  const users: UserListItem[] = allAuthUsers.map((u) => ({
+    id: u.id,
+    email: u.email,
+    roles: rolesByUser.get(u.id) ?? [],
+    // A user is considered banned when banned_until is set and in the future
+    isBanned: !!u.banned_until && new Date(u.banned_until) > now,
+  }));
+
+  return { success: true, users };
 }
