@@ -26,14 +26,7 @@ export function Hero() {
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
-              <Link href="#about">
-                <Button
-                  variant="outline"
-                  className="border-2 border-[#5BC4E7] text-[#5BC4E7] hover:bg-[#E2F4FA] rounded-lg px-10 py-6 text-lg font-semibold"
-                >
-                  Learn More
-                </Button>
-              </Link>
+              
             </div>
           </div>
 

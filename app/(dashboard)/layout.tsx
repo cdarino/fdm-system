@@ -12,11 +12,11 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-[#F5F3EC]">
       {/* Sidebar */}
-      <div className="fixed left-0 top-0 bottom-0 w-60 bg-white border-r border-[#E2E7EC] overflow-y-auto">
+      <div className="fixed left-0 top-0 bottom-0 w-60 bg-white border-r border-[#E2E7EC]">
         <div className="p-4 border-b border-[#E2E7EC]">
-          <div className="flex items-center space-x-2">
-            <FdmLogo className="h-12 w-16 object-contain flex-shrink-0" />
-            <span className="font-bold text-[#1A1D20]">First Davao Millennium<br/>Property Ventures Inc.</span>
+          <div className="flex flex-col items-center space-y-2">
+            <FdmLogo className="h-24 w-40 object-contain flex-shrink-0" />
+            <span className="font-bold text-[#1A1D20] text-center">First Davao Millennium<br/>Property Ventures Inc.</span>
           </div>
         </div>
         <SidebarNav />
