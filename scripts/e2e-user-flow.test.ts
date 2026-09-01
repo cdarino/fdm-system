@@ -13,7 +13,7 @@
  *   2. Log in as that user (via anon client — mirrors login() in lib/auth.ts)
  *   3. Update the user's password (via anon client — mirrors updatePassword() in lib/auth.ts)
  *   4. Log in again with the new password
- *   5. Assign roles to the user (via Admin API — mirrors assignRoles() in lib/actions/admin-register.ts)
+ *   5. Assign roles to the user (via Admin API — mirrors setUserRoles() in lib/actions/admin-register.ts)
  *
  * Usage:
  *   npx tsx --env-file=.env.local scripts/e2e-user-flow.test.ts
@@ -159,7 +159,7 @@ async function testAssignRoles(userId: string): Promise<void> {
   // Pick the first available role for the test
   const roleToAssign = roles[0];
   console.log(`      Assigning role: "${roleToAssign.name}" (${roleToAssign.id})`);
-  // 2. Upsert the user_role row — mirrors assignRoles() in lib/actions/admin-register.ts
+  // 2. Upsert the user_role row — mirrors role assignment in registerUser() in lib/actions/admin-register.ts
   const { error: upsertError } = await adminClient
     .schema("rbac")
     .from("user_role")
@@ -168,7 +168,7 @@ async function testAssignRoles(userId: string): Promise<void> {
       { onConflict: "user_id,role_id" }
     );
   if (upsertError) {
-    fail("assignRoles (upsert)", upsertError.message);
+    fail("upsert role", upsertError.message);
     throw new Error("Role assignment failed.");
   }
   // 3. Verify the assignment persisted
@@ -180,7 +180,7 @@ async function testAssignRoles(userId: string): Promise<void> {
     .eq("role_id", roleToAssign.id)
     .single();
   if (verifyError || !assigned) {
-    fail("assignRoles (verify)", verifyError?.message ?? "Row not found after upsert");
+    fail("verify role assignment", verifyError?.message ?? "Row not found after upsert");
     return;
   }
   pass(`Role "${roleToAssign.name}" assigned and verified`);
