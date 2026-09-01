@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { checkIsSystemAdmin } from '@/lib/actions/check-user';
 import { createClient } from '@/lib/supabase/server';
+import { QuickLinks } from '@/components/dashboard/quick-links';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ async function DashboardContent() {
       <div className="space-y-8">
         {/* Welcome Section */}
         <div className="bg-gradient-to-r from-[#E2F4FA] to-[#FFF9E5] rounded-2xl p-8 border border-[#E2E7EC]">
-          <h1 className="text-3xl font-bold text-[#1A1D20]">Welcome to FDM System</h1>
+          <h1 className="text-3xl font-bold text-[#1A1D20]">Welcome to the FDM System</h1>
           <p className="text-[#6C7E8E] mt-2">
             {isSystemAdmin
               ? "You have administrator access. Manage users and system settings from below."
@@ -95,23 +96,7 @@ async function DashboardContent() {
           </div>
 
           {/* Recent Activity */}
-          <div className="bg-white rounded-2xl p-6 border border-[#E2E7EC] shadow-sm">
-            <h3 className="text-lg font-bold text-[#1A1D20] mb-4">Quick Links</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <button className="p-4 bg-[#E2F4FA] hover:bg-[#D0ECFA] rounded-lg text-[#5BC4E7] font-medium transition-colors">
-                View Properties
-              </button>
-              <button className="p-4 bg-[#FFF9E5] hover:bg-[#FFEFCC] rounded-lg text-[#F5CE42] font-medium transition-colors">
-                View Reports
-              </button>
-              <button className="p-4 bg-[#F0F5F9] hover:bg-[#E0EBF3] rounded-lg text-[#6C7E8E] font-medium transition-colors">
-                Settings
-              </button>
-              <button className="p-4 bg-[#F0F5F9] hover:bg-[#E0EBF3] rounded-lg text-[#6C7E8E] font-medium transition-colors">
-                Help & Support
-              </button>
-            </div>
-          </div>
+          <QuickLinks />
         </div>
       </div>
     );

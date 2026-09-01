@@ -28,7 +28,7 @@ async function AdminContent() {
     const users = result.success ? result.users : [];
 
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6 flex-1">
         <h1 className="text-2xl font-bold text-[#1A1D20]">Administration</h1>
         <UserManagementSection users={users} />
       </div>
