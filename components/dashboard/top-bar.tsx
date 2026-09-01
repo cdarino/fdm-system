@@ -13,10 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface DashboardTopBarProps {
-  userName?: string;
+  userEmail?: string | null;
 }
 
-export function DashboardTopBar({ userName = 'User names' }: DashboardTopBarProps) {
+export function DashboardTopBar({ userEmail }: DashboardTopBarProps) {
+  const displayName = userEmail ? userEmail.split('@')[0] : 'Unknown';
+  const avatarInitial = displayName[0]?.toUpperCase() ?? '?';
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -53,9 +55,9 @@ export function DashboardTopBar({ userName = 'User names' }: DashboardTopBarProp
               variant="ghost"
               className="flex items-center space-x-2 text-[#1A1D20] hover:bg-[#F5F3EC]"
             >
-              <span className="text-sm font-medium">{userName}</span>
+              <span className="text-sm font-medium">{displayName}</span>
               <div className="w-8 h-8 bg-gradient-to-br from-yellow-300 to-yellow-400 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                U
+                {avatarInitial}
               </div>
             </Button>
           </DropdownMenuTrigger>

@@ -254,16 +254,16 @@ export async function listUsers(): Promise<ListUsersResult> {
     .schema("rbac")
     .from("user_role")
     .select("user_id, role:role_id(id, name)")
-    .returns<{ user_id: string; role: Pick<RbacRole, "id" | "name">[] }[]>();
+    .returns<{ user_id: string; role: Pick<RbacRole, "id" | "name"> | null }[]>();
 
   if (rolesError) {
     console.error("[listUsers] user_role fetch error:", rolesError.message);
     return { success: false, error: rolesError.message };
   }
 
-  // Build a lookup: userId → roles[] (PostgREST always returns joins as arrays)
+  // Build a lookup: userId → roles[] (FK join returns a single object per row, not an array)
   const rolesByUser = (userRoles ?? []).reduce((map, row) => {
-    if (row.role?.length) map.set(row.user_id, (map.get(row.user_id) ?? []).concat(row.role));
+    if (row.role) map.set(row.user_id, [...(map.get(row.user_id) ?? []), row.role]);
     return map;
   }, new Map<string, Pick<RbacRole, "id" | "name">[]>());
 

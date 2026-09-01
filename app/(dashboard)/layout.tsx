@@ -1,12 +1,14 @@
 import { SidebarNav } from '@/components/dashboard/sidebar-nav';
 import { DashboardTopBar } from '@/components/dashboard/top-bar';
 import { FdmLogo } from '@/components/fdm-logo';
+import { getUserInfo } from '@/lib/user';
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getUserInfo();
   return (
     <div className="min-h-screen bg-[#F5F3EC]">
       {/* Sidebar */}
@@ -22,7 +24,7 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <div className="ml-60 flex flex-col">
-        <DashboardTopBar />
+        <DashboardTopBar userEmail={user?.email} />
         <main className="flex-1 overflow-auto">
           <div className="p-8">
             {children}
