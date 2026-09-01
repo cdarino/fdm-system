@@ -64,7 +64,7 @@ function RoleBadges({ roles }: { roles: UserListItem['roles'] }) {
   );
 }
 
-function ToggleUserDialog({ user, open, onOpenChange }: { user: UserListItem; open: boolean; onOpenChange: (v: boolean) => void }) {
+function ToggleUserDialog({ user, open, onOpenChange, onToggle }: { user: UserListItem; open: boolean; onOpenChange: (v: boolean) => void; onToggle?: () => void }) {
   const router = useRouter();
   const [isToggling, setIsToggling] = useState(false);
 
@@ -73,6 +73,7 @@ function ToggleUserDialog({ user, open, onOpenChange }: { user: UserListItem; op
     await toggleUser(user.id, user.isBanned);
     setIsToggling(false);
     onOpenChange(false);
+    onToggle?.();
     router.refresh();
   }
 
@@ -104,8 +105,13 @@ function ToggleUserDialog({ user, open, onOpenChange }: { user: UserListItem; op
   );
 }
 
-function UserRow({ user, isSelected, onClick }: { user: UserListItem; isSelected: boolean; onClick: () => void }) {
+function UserRow({ user, isSelected, onClick, onUserUpdated }: { user: UserListItem; isSelected: boolean; onClick: () => void; onUserUpdated?: (updatedUser: UserListItem) => void }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  function handleToggle() {
+    const updatedUser = { ...user, isBanned: !user.isBanned };
+    onUserUpdated?.(updatedUser);
+  }
 
   return (
     <>
@@ -152,12 +158,12 @@ function UserRow({ user, isSelected, onClick }: { user: UserListItem; isSelected
         </TableCell>
       </TableRow>
 
-      <ToggleUserDialog user={user} open={confirmOpen} onOpenChange={setConfirmOpen} />
+      <ToggleUserDialog user={user} open={confirmOpen} onOpenChange={setConfirmOpen} onToggle={handleToggle} />
     </>
   );
 }
 
-function EditRolesDialog({ user, open, onOpenChange }: { user: UserListItem; open: boolean; onOpenChange: (v: boolean) => void }) {
+function EditRolesDialog({ user, open, onOpenChange, onRolesUpdated }: { user: UserListItem; open: boolean; onOpenChange: (v: boolean) => void; onRolesUpdated?: (updatedRoles: UserListItem['roles']) => void }) {
   const router = useRouter();
   const initialRoleIds = user.roles.map((r) => r.id);
   const [allRoles, setAllRoles] = useState<RbacRole[]>([]);
@@ -184,6 +190,8 @@ function EditRolesDialog({ user, open, onOpenChange }: { user: UserListItem; ope
     setIsPending(true);
     await setUserRoles(user.id, selectedRoleIds);
     setIsPending(false);
+    const updatedRoles = allRoles.filter((role) => selectedRoleIds.includes(role.id));
+    onRolesUpdated?.(updatedRoles);
     onOpenChange(false);
     router.refresh();
   }
@@ -237,9 +245,17 @@ function EditRolesDialog({ user, open, onOpenChange }: { user: UserListItem; ope
   );
 }
 
-function UserDetailPane({ user, onClose }: { user: UserListItem; onClose: () => void }) {
+function UserDetailPane({ user, onClose, onUserUpdated }: { user: UserListItem; onClose: () => void; onUserUpdated?: (updatedUser: UserListItem) => void }) {
   const [editRolesOpen, setEditRolesOpen] = useState(false);
   const [toggleOpen, setToggleOpen] = useState(false);
+
+  function handleRolesUpdated(updatedRoles: UserListItem['roles']) {
+    onUserUpdated?.({ ...user, roles: updatedRoles });
+  }
+
+  function handleToggle() {
+    onUserUpdated?.({ ...user, isBanned: !user.isBanned });
+  }
 
   return (
     <div className="flex flex-col w-72 shrink-0 border-l border-[#E2E7EC]">
@@ -284,8 +300,8 @@ function UserDetailPane({ user, onClose }: { user: UserListItem; onClose: () => 
         </div>
       </CardContent>
 
-      <EditRolesDialog user={user} open={editRolesOpen} onOpenChange={setEditRolesOpen} />
-      <ToggleUserDialog user={user} open={toggleOpen} onOpenChange={setToggleOpen} />
+      <EditRolesDialog user={user} open={editRolesOpen} onOpenChange={setEditRolesOpen} onRolesUpdated={handleRolesUpdated} />
+      <ToggleUserDialog user={user} open={toggleOpen} onOpenChange={setToggleOpen} onToggle={handleToggle} />
     </div>
   );
 }
@@ -345,6 +361,14 @@ export function UserManagementSection({ users }: Props) {
                       user={user}
                       isSelected={selectedUser?.id === user.id}
                       onClick={() => handleRowClick(user)}
+                      onUserUpdated={(updatedUser) => {
+                        setUserList((prev) =>
+                          prev.map((u) => (u.id === updatedUser.id ? updatedUser : u))
+                        );
+                        if (selectedUser?.id === updatedUser.id) {
+                          setSelectedUser(updatedUser);
+                        }
+                      }}
                     />
                   ))
                 )}
@@ -353,7 +377,16 @@ export function UserManagementSection({ users }: Props) {
           </div>
 
           {selectedUser && (
-            <UserDetailPane user={selectedUser} onClose={() => setSelectedUser(null)} />
+            <UserDetailPane
+              user={selectedUser}
+              onClose={() => setSelectedUser(null)}
+              onUserUpdated={(updatedUser) => {
+                setUserList((prev) =>
+                  prev.map((u) => (u.id === updatedUser.id ? updatedUser : u))
+                );
+                setSelectedUser(updatedUser);
+              }}
+            />
           )}
         </CardContent>
       </Card>
