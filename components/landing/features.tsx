@@ -5,17 +5,17 @@ const features = [
   {
     icon: Home,
     title: 'Conflict Features',
-    description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod.',
+    description: 'LHandle overlapping client claims and conflicting records with built-in conflict detection.',
   },
   {
     icon: Briefcase,
     title: 'Business Features',
-    description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod.',
+    description: 'Streamline core operations with tools for client management, installment tracking, and statement of account generation.',
   },
   {
     icon: Target,
     title: 'Complete Solution',
-    description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod.',
+    description: 'Manage the entire property lifecycle, from acquisition and contract signing to BIR submission, Registry of Deeds processing, and title release.',
   },
 ];
 
