@@ -8,11 +8,20 @@ import {
   LayoutDashboard,
   FileText,
   Settings,
+  Receipt,
+  CreditCard,
+  FileCheck,
+  ClipboardList,
 } from 'lucide-react';
 import { ComingSoonModal } from './coming-soon-modal';
 
 interface SidebarNavProps {
   isSystemAdmin?: boolean;
+  roleTabs?: {
+    title: string;
+    href: string;
+    comingSoon?: true;
+  }[];
 }
 
 const allNavigationItems = [
@@ -35,14 +44,22 @@ const allNavigationItems = [
   },
 ];
 
-export function SidebarNav({ isSystemAdmin = false }: SidebarNavProps) {
+// Map role tab titles to icons
+const ROLE_TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  'Invoicing & Billing': Receipt,
+  'Accounts Payable':   CreditCard,
+  'Contract Management': FileCheck,
+  'Operations Log':     ClipboardList,
+};
+
+export function SidebarNav({ isSystemAdmin = false, roleTabs = [] }: SidebarNavProps) {
   const pathname = usePathname();
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
     title: string;
   }>({
     isOpen: false,
-    title: 'Coming Soon!'
+    title: 'Coming Soon!',
   });
 
   const handleComingSoon = (title: string) => {
@@ -64,12 +81,12 @@ export function SidebarNav({ isSystemAdmin = false }: SidebarNavProps) {
             'w-full flex items-center space-x-3 px-4 py-2 rounded transition-colors text-sm font-medium',
             isActive
               ? 'bg-[#E2F4FA] text-[#5BC4E7]'
-              : 'text-[#6C7E8E] hover:bg-[#F5F3EC] hover:text-[#1A1D20]'
+              : 'text-[#6C7E8E] hover:bg-[#F5F3EC] hover:text-[#1A1D20]',
           );
 
           const content = (
             <button className={buttonClasses}>
-              <Icon className={cn("w-5 h-5", isActive && "text-yellow-500")} />
+              <Icon className={cn('w-5 h-5', isActive && 'text-yellow-500')} />
               <span>{item.title}</span>
             </button>
           );
@@ -81,10 +98,31 @@ export function SidebarNav({ isSystemAdmin = false }: SidebarNavProps) {
                   {content}
                 </div>
               ) : (
-                <Link href={item.href}>
-                  {content}
-                </Link>
+                <Link href={item.href}>{content}</Link>
               )}
+            </div>
+          );
+        })}
+
+        {/* Role-based tabs */}
+        {roleTabs.map((tab) => {
+          const Icon = ROLE_TAB_ICONS[tab.title] ?? FileText;
+          const isActive = pathname === tab.href;
+          const buttonClasses = cn(
+            'w-full flex items-center space-x-3 px-4 py-2 rounded transition-colors text-sm font-medium',
+            isActive
+              ? 'bg-[#E2F4FA] text-[#5BC4E7]'
+              : 'text-[#6C7E8E] hover:bg-[#F5F3EC] hover:text-[#1A1D20]',
+          );
+
+          return (
+            <div key={tab.href}>
+              <div onClick={() => handleComingSoon(tab.title)} className="cursor-pointer">
+                <button className={buttonClasses}>
+                  <Icon className="w-5 h-5" />
+                  <span>{tab.title}</span>
+                </button>
+              </div>
             </div>
           );
         })}

@@ -24,7 +24,7 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 const ADMIN_EMAIL = "admin@example.com";
-const ADMIN_ROLES = ["admin_staff", "system_admin"];
+const ADMIN_ROLES = ["system_admin"];
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -130,7 +130,21 @@ async function main() {
 
   console.log(`✅  Resolved roles: ${foundRoleNames.join(", ")}`);
 
-  // 3. Assign roles via rbac.user_role (upsert = safe to re-run)
+  // 3. Remove any stale role assignments (e.g., admin_staff was previously added)
+  const systemAdminRoleId = roles!.find((r) => r.name === 'system_admin')!.id;
+  const { error: deleteError } = await supabase
+    .schema('rbac')
+    .from('user_role')
+    .delete()
+    .eq('user_id', userId)
+    .neq('role_id', systemAdminRoleId);
+
+  if (deleteError) {
+    console.error('❌  Failed to clean up roles:', deleteError.message);
+    process.exit(1);
+  }
+
+  // 4. Assign roles via rbac.user_role (upsert = safe to re-run)
   const userRoleRows = roles!.map((role) => ({
     user_id: userId,
     role_id: role.id,

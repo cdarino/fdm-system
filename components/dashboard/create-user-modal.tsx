@@ -23,6 +23,8 @@ interface CreateUserModalProps {
 }
 
 export function CreateUserModal({ isOpen, onClose, onUserCreated }: CreateUserModalProps) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
@@ -54,6 +56,9 @@ export function CreateUserModal({ isOpen, onClose, onUserCreated }: CreateUserMo
     setIsLoading(true);
 
     try {
+      if (!firstName.trim() || !lastName.trim()) {
+        throw new Error('First name and last name are required');
+      }
       if (!email || !password) {
         throw new Error('Email and password are required');
       }
@@ -66,6 +71,8 @@ export function CreateUserModal({ isOpen, onClose, onUserCreated }: CreateUserMo
       const result = await registerUser({
         email,
         password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         roleIds: selectedRoles.length > 0 ? selectedRoles : undefined,
       });
 
@@ -87,6 +94,8 @@ export function CreateUserModal({ isOpen, onClose, onUserCreated }: CreateUserMo
       }
 
       // Clear the form and close the modal so the parent can show a global success message
+      setFirstName('');
+      setLastName('');
       setEmail('');
       setPassword('');
       setSelectedRoles([]);
@@ -128,6 +137,40 @@ export function CreateUserModal({ isOpen, onClose, onUserCreated }: CreateUserMo
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
+
+          {/* First Name & Last Name */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="firstName" className="text-[#1A1D20] font-medium text-sm">
+                First Name
+              </Label>
+              <Input
+                id="firstName"
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Juan"
+                required
+                disabled={isLoading || success}
+                className="bg-[#F5F3EC] border-[#E2E7EC] text-[#1A1D20] placeholder:text-[#A0A8B0] focus:border-[#5BC4E7] focus:ring-[#5BC4E7] rounded-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastName" className="text-[#1A1D20] font-medium text-sm">
+                Last Name
+              </Label>
+              <Input
+                id="lastName"
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Dela Cruz"
+                required
+                disabled={isLoading || success}
+                className="bg-[#F5F3EC] border-[#E2E7EC] text-[#1A1D20] placeholder:text-[#A0A8B0] focus:border-[#5BC4E7] focus:ring-[#5BC4E7] rounded-lg"
+              />
+            </div>
+          </div>
 
           {/* Email Field */}
           <div className="space-y-2">

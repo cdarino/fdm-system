@@ -32,8 +32,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CreateUserModal } from './create-user-modal';
-import { getActiveRoles, setUserRoles, toggleUser, deleteUser } from '@/lib/actions/admin-register';
+import { getActiveRoles, setUserRoles, toggleUser, deleteUser, updateUserProfile } from '@/lib/actions/admin-register';
 import type { RbacRole, UserListItem } from '@/lib/actions/admin-register';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 import {
   DropdownMenu,
@@ -284,13 +286,108 @@ function EditRolesDialog({ user, open, onOpenChange, onRolesUpdated }: { user: U
   );
 }
 
+function EditNameDialog({ user, open, onOpenChange, onNamesUpdated }: { user: UserListItem; open: boolean; onOpenChange: (v: boolean) => void; onNamesUpdated?: (firstName: string, lastName: string) => void }) {
+  const [firstName, setFirstName] = useState(user.firstName || '');
+  const [lastName, setLastName] = useState(user.lastName || '');
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setError(null);
+    }
+  }, [open, user.id, user.firstName, user.lastName]);
+
+  const isDirty = firstName !== (user.firstName || '') || lastName !== (user.lastName || '');
+
+  async function handleSave() {
+    if (!firstName.trim() || !lastName.trim()) {
+      setError('First name and last name are required');
+      return;
+    }
+
+    setIsPending(true);
+    setError(null);
+
+    const result = await updateUserProfile(user.id, firstName.trim(), lastName.trim());
+
+    setIsPending(false);
+
+    if (result.success) {
+      onNamesUpdated?.(firstName.trim(), lastName.trim());
+      onOpenChange(false);
+    } else {
+      setError(result.error || 'Failed to update names');
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Edit Name</DialogTitle>
+        </DialogHeader>
+        <p className="text-xs text-[#6C7E8E] break-all -mt-1">{user.email}</p>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="edit-firstName" className="text-xs text-[#6C7E8E] font-medium">
+              First Name
+            </Label>
+            <Input
+              id="edit-firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Enter first name"
+              className="mt-1.5 bg-[#F5F3EC] border-[#E2E7EC] text-[#1A1D20] placeholder:text-[#A0A8B0] focus:border-[#5BC4E7] focus:ring-[#5BC4E7] rounded-lg"
+            />
+          </div>
+          <div>
+            <Label htmlFor="edit-lastName" className="text-xs text-[#6C7E8E] font-medium">
+              Last Name
+            </Label>
+            <Input
+              id="edit-lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Enter last name"
+              className="mt-1.5 bg-[#F5F3EC] border-[#E2E7EC] text-[#1A1D20] placeholder:text-[#A0A8B0] focus:border-[#5BC4E7] focus:ring-[#5BC4E7] rounded-lg"
+            />
+          </div>
+          {error && (
+            <p className="text-xs text-red-600">{error}</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!isDirty || isPending || !firstName.trim() || !lastName.trim()}
+            onClick={handleSave}
+            className="bg-[#5BC4E7] text-white hover:bg-[#4AADE0]"
+          >
+            {isPending ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving...</> : 'Save'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function UserDetailPane({ user, onClose, onUserUpdated, onUserDeleted }: { user: UserListItem; onClose: () => void; onUserUpdated?: (updatedUser: UserListItem) => void; onUserDeleted?: () => void }) {
   const [editRolesOpen, setEditRolesOpen] = useState(false);
+  const [editNameOpen, setEditNameOpen] = useState(false);
   const [toggleOpen, setToggleOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   function handleRolesUpdated(updatedRoles: UserListItem['roles']) {
     onUserUpdated?.({ ...user, roles: updatedRoles });
+  }
+
+  function handleNamesUpdated(firstName: string, lastName: string) {
+    onUserUpdated?.({ ...user, firstName, lastName });
   }
 
   function handleToggle() {
@@ -313,6 +410,27 @@ function UserDetailPane({ user, onClose, onUserUpdated, onUserDeleted }: { user:
         <div>
           <p className="text-xs text-[#6C7E8E] font-medium uppercase tracking-wide mb-1">Email</p>
           <p className="text-sm text-[#1A1D20] break-all">{user.email}</p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[#6C7E8E] font-medium uppercase tracking-wide">First Name</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditNameOpen(true)}
+              className="h-6 px-2 text-xs text-[#5BC4E7] hover:text-[#3AAFE0] hover:bg-[#E2F4FA]"
+            >
+              <Settings2 className="w-3 h-3 mr-1" />
+              Edit
+            </Button>
+          </div>
+          <p className="text-sm text-[#1A1D20]">{user.firstName || '—'}</p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-xs text-[#6C7E8E] font-medium uppercase tracking-wide">Last Name</p>
+          <p className="text-sm text-[#1A1D20]">{user.lastName || '—'}</p>
         </div>
 
         <div className="space-y-2">
@@ -353,6 +471,7 @@ function UserDetailPane({ user, onClose, onUserUpdated, onUserDeleted }: { user:
         </div>
       </CardContent>
 
+      <EditNameDialog user={user} open={editNameOpen} onOpenChange={setEditNameOpen} onNamesUpdated={handleNamesUpdated} />
       <EditRolesDialog user={user} open={editRolesOpen} onOpenChange={setEditRolesOpen} onRolesUpdated={handleRolesUpdated} />
       <ToggleUserDialog user={user} open={toggleOpen} onOpenChange={setToggleOpen} onToggle={handleToggle} />
       <DeleteUserDialog user={user} open={deleteOpen} onOpenChange={setDeleteOpen} onDeleted={handleDeleted} />

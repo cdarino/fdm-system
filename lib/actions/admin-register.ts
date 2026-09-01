@@ -21,6 +21,8 @@ import { AuthError } from "@supabase/supabase-js";
 export interface RegisterUserParams {
   email: string;
   password: string;
+  firstName: string;
+  lastName: string;
   /** Zero or more rbac.role.id values to assign immediately after creation. */
   roleIds?: string[];
 }
@@ -38,6 +40,8 @@ export interface RbacRole {
 export interface UserListItem {
   id: string;
   email: string;
+  firstName: string;
+  lastName: string;
   roles: Pick<RbacRole, "id" | "name">[];
   isBanned: boolean;
 }
@@ -74,7 +78,7 @@ async function getAuthorizedCaller(): Promise<
 export async function registerUser(
   params: RegisterUserParams
 ): Promise<RegisterUserResult> {
-  const { email, password, roleIds = [] } = params;
+  const { email, password, firstName, lastName, roleIds = [] } = params;
 
   const caller = await getAuthorizedCaller();
   if ("error" in caller) return { success: false, error: caller.error };
@@ -86,6 +90,10 @@ export async function registerUser(
       email,
       password,
       email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+      },
     });
 
   if (createError) {
@@ -232,7 +240,13 @@ export async function listUsers(): Promise<ListUsersResult> {
   const adminClient = createAdminClient();
 
   // Collect all auth users across pages
-  const allAuthUsers: { id: string; email: string; banned_until?: string | null }[] = [];
+  const allAuthUsers: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    banned_until?: string | null;
+  }[] = [];
   let page = 1;
   const perPage = 1000;
 
@@ -246,7 +260,9 @@ export async function listUsers(): Promise<ListUsersResult> {
     allAuthUsers.push(
       ...data.users.map((u) => ({
         id: u.id,
-        email: u.email ?? "",
+        email: u.email ?? '',
+        first_name: (u.user_metadata as Record<string, string> | null)?.first_name ?? '',
+        last_name: (u.user_metadata as Record<string, string> | null)?.last_name ?? '',
         banned_until: u.banned_until,
       }))
     );
@@ -277,6 +293,8 @@ export async function listUsers(): Promise<ListUsersResult> {
   const users: UserListItem[] = allAuthUsers.map((u) => ({
     id: u.id,
     email: u.email,
+    firstName: u.first_name,
+    lastName: u.last_name,
     roles: rolesByUser.get(u.id) ?? [],
     // A user is considered banned when banned_until is set and in the future
     isBanned: !!u.banned_until && new Date(u.banned_until) > now,
@@ -318,6 +336,38 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
   if (deleteError) {
     console.error("[deleteUser] deleteUser error:", deleteError.message);
     return { success: false, error: deleteError.message };
+  }
+
+  return { success: true };
+}
+
+export type UpdateUserProfileResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Updates a user's first and last name in their auth metadata.
+ * Requires `system.create` permission.
+ */
+export async function updateUserProfile(
+  userId: string,
+  firstName: string,
+  lastName: string
+): Promise<UpdateUserProfileResult> {
+  const caller = await getAuthorizedCaller();
+  if ("error" in caller) return { success: false, error: caller.error };
+
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.auth.admin.updateUserById(userId, {
+    user_metadata: {
+      first_name: firstName,
+      last_name: lastName,
+    },
+  });
+
+  if (error) {
+    console.error("[updateUserProfile] error:", error.message);
+    return { success: false, error: error.message };
   }
 
   return { success: true };
