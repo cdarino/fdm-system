@@ -5,6 +5,12 @@ export interface LoginParams {
   password: string;
 }
 
+export interface SignUpParams {
+  email: string;
+  password: string;
+  repeatPassword?: string;
+}
+
 export interface ResetPasswordParams {
   email: string;
   redirectTo?: string;
@@ -22,6 +28,31 @@ export async function login({ email, password }: LoginParams) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Sign up a new user using email & password.
+ * Note: New user registration may be restricted. Contact admins for account creation.
+ */
+export async function signUp({ email, password, repeatPassword }: SignUpParams) {
+  if (repeatPassword !== undefined && password !== repeatPassword) {
+    throw new Error("Passwords do not match");
+  }
+
+  const supabase = createClient();
+  const emailRedirectTo =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/auth/confirm?next=/login`
+      : undefined;
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo },
   });
 
   if (error) throw error;
