@@ -284,3 +284,41 @@ export async function listUsers(): Promise<ListUsersResult> {
 
   return { success: true, users };
 }
+
+export type DeleteUserResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Permanently deletes a Supabase Auth user by their ID.
+ * Also removes any associated RBAC user_role rows.
+ * Requires `system.create` permission.
+ */
+export async function deleteUser(userId: string): Promise<DeleteUserResult> {
+  const caller = await getAuthorizedCaller();
+  if ("error" in caller) return { success: false, error: caller.error };
+
+  const adminClient = createAdminClient();
+
+  // Remove associated RBAC role mappings first (in case there is no ON DELETE CASCADE)
+  const { error: rolesError } = await adminClient
+    .schema("rbac")
+    .from("user_role")
+    .delete()
+    .eq("user_id", userId);
+
+  if (rolesError) {
+    console.error("[deleteUser] role cleanup error:", rolesError.message);
+    return { success: false, error: rolesError.message };
+  }
+
+  // Permanently delete the auth user
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
+
+  if (deleteError) {
+    console.error("[deleteUser] deleteUser error:", deleteError.message);
+    return { success: false, error: deleteError.message };
+  }
+
+  return { success: true };
+}

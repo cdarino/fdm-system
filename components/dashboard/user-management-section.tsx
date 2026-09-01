@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Plus, Settings2, X } from 'lucide-react';
+import { Loader2, Plus, Settings2, Trash2, X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +32,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CreateUserModal } from './create-user-modal';
-import { getActiveRoles, setUserRoles, toggleUser } from '@/lib/actions/admin-register';
+import { getActiveRoles, setUserRoles, toggleUser, deleteUser } from '@/lib/actions/admin-register';
 import type { RbacRole, UserListItem } from '@/lib/actions/admin-register';
 
 import {
@@ -98,6 +98,45 @@ function ToggleUserDialog({ user, open, onOpenChange, onToggle }: { user: UserLi
             className={user.isBanned ? 'bg-[#5BC4E7] hover:bg-[#4AADE0] text-white' : 'bg-destructive hover:bg-destructive/90 text-white'}
           >
             {isToggling ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving...</> : user.isBanned ? 'Activate' : 'Deactivate'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function DeleteUserDialog({ user, open, onOpenChange, onDeleted }: { user: UserListItem; open: boolean; onOpenChange: (v: boolean) => void; onDeleted?: () => void }) {
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function handleConfirm() {
+    setIsDeleting(true);
+    const result = await deleteUser(user.id);
+    setIsDeleting(false);
+    if (result.success) {
+      onOpenChange(false);
+      onDeleted?.();
+      router.refresh();
+    }
+  }
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete user?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will permanently remove <strong>{user.email}</strong> from the system. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isDeleting}
+            onClick={handleConfirm}
+            className="bg-destructive hover:bg-destructive/90 text-white"
+          >
+            {isDeleting ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Deleting...</> : 'Delete User'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -210,7 +249,7 @@ function EditRolesDialog({ user, open, onOpenChange, onRolesUpdated }: { user: U
             allRoles.map((role) => (
               <label
                 key={role.id}
-                className="flex items-start gap-3 p-3 bg-[#F9FAFB] rounded-lg border border-[#E2E7EC] hover:border-[#5BC4E7] hover:bg-[#E2F4FA] cursor-pointer transition-colors"
+                className="flex items-start gap-3 p-3 bg-[#F5F3EC] rounded-lg border border-[#E2E7EC] hover:border-[#5BC4E7] hover:bg-[#E2F4FA] cursor-pointer transition-colors"
               >
                 <input
                   type="checkbox"
@@ -245,9 +284,10 @@ function EditRolesDialog({ user, open, onOpenChange, onRolesUpdated }: { user: U
   );
 }
 
-function UserDetailPane({ user, onClose, onUserUpdated }: { user: UserListItem; onClose: () => void; onUserUpdated?: (updatedUser: UserListItem) => void }) {
+function UserDetailPane({ user, onClose, onUserUpdated, onUserDeleted }: { user: UserListItem; onClose: () => void; onUserUpdated?: (updatedUser: UserListItem) => void; onUserDeleted?: () => void }) {
   const [editRolesOpen, setEditRolesOpen] = useState(false);
   const [toggleOpen, setToggleOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   function handleRolesUpdated(updatedRoles: UserListItem['roles']) {
     onUserUpdated?.({ ...user, roles: updatedRoles });
@@ -255,6 +295,10 @@ function UserDetailPane({ user, onClose, onUserUpdated }: { user: UserListItem; 
 
   function handleToggle() {
     onUserUpdated?.({ ...user, isBanned: !user.isBanned });
+  }
+
+  function handleDeleted() {
+    onUserDeleted?.();
   }
 
   return (
@@ -297,11 +341,21 @@ function UserDetailPane({ user, onClose, onUserUpdated }: { user: UserListItem; 
           >
             {user.isBanned ? 'Activate User' : 'Deactivate User'}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDeleteOpen(true)}
+            className="w-full bg-white border-[#E2E7EC] text-[#1A1D20] hover:bg-[#FEE2E2] hover:text-[#991B1B] hover:border-[#FCA5A5]"
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Delete User
+          </Button>
         </div>
       </CardContent>
 
       <EditRolesDialog user={user} open={editRolesOpen} onOpenChange={setEditRolesOpen} onRolesUpdated={handleRolesUpdated} />
       <ToggleUserDialog user={user} open={toggleOpen} onOpenChange={setToggleOpen} onToggle={handleToggle} />
+      <DeleteUserDialog user={user} open={deleteOpen} onOpenChange={setDeleteOpen} onDeleted={handleDeleted} />
     </div>
   );
 }
@@ -319,10 +373,10 @@ export function UserManagementSection({ users }: Props) {
 
   return (
     <>
-      <Card className="flex flex-col flex-1 overflow-hidden">
+      <Card className="flex flex-col flex-1 overflow-hidden bg-white border-[#E2E7EC]">
         <CardHeader className="flex-row items-center justify-between space-y-0 shrink-0">
           <div>
-            <CardTitle className="text-xl">User Management</CardTitle>
+            <CardTitle className="text-xl text-[#1A1D20]">User Management</CardTitle>
             <CardDescription className="mt-1">
               Create and manage system users with role-based access control
             </CardDescription>
@@ -341,7 +395,7 @@ export function UserManagementSection({ users }: Props) {
           <div className="flex-1 overflow-y-auto min-w-0">
             <Table>
               <TableHeader className="sticky top-0 z-10">
-                <TableRow className="bg-[#F9FAFB] border-t border-[#E2E7EC]">
+                <TableRow className="bg-white border-t border-[#E2E7EC]">
                   <TableHead className="text-[#6C7E8E] font-semibold">Email</TableHead>
                   <TableHead className="text-[#6C7E8E] font-semibold">Roles</TableHead>
                   <TableHead className="text-[#6C7E8E] font-semibold">Status</TableHead>
@@ -385,6 +439,10 @@ export function UserManagementSection({ users }: Props) {
                   prev.map((u) => (u.id === updatedUser.id ? updatedUser : u))
                 );
                 setSelectedUser(updatedUser);
+              }}
+              onUserDeleted={() => {
+                setUserList((prev) => prev.filter((u) => u.id !== selectedUser.id));
+                setSelectedUser(null);
               }}
             />
           )}
