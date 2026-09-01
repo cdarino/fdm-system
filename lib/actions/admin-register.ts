@@ -14,6 +14,7 @@
 import { hasPermission } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { AuthError } from "@supabase/supabase-js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -162,4 +163,39 @@ export async function getActiveRoles(): Promise<RbacRole[]> {
   }
 
   return (data ?? []) as RbacRole[];
+}
+
+/*
+  Activates/deactives a user by their userId.
+  `true` is to activate.
+  `false is to deactivate.
+*/
+export async function toggleUser(userId: string, enable: boolean) {
+
+  const caller = await getAuthorizedCaller();
+  if ("error" in caller) return { success: false, error: caller.error };
+
+  const adminClient = createAdminClient();
+
+  let error_main: AuthError | null = null;
+
+  if (enable) {
+    let { error } = await adminClient.auth.admin.updateUserById(userId, {
+      // Workaround: to disable a user, ban them for a very long time.
+      ban_duration: '0h'
+    });
+    error_main = error;
+  } else {
+    let { error } = await adminClient.auth.admin.updateUserById(userId, {
+      ban_duration: '876000h'
+    });
+    error_main = error;
+  }
+
+  if (error_main) {
+    console.error("[toggleUser] error: ", error_main.message);
+    return { success: false, error: error_main.message };
+  }
+
+  return { success: true }
 }
