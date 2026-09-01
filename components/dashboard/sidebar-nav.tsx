@@ -11,7 +11,11 @@ import {
 } from 'lucide-react';
 import { ComingSoonModal } from './coming-soon-modal';
 
-const navigationItems = [
+interface SidebarNavProps {
+  isSystemAdmin?: boolean;
+}
+
+const allNavigationItems = [
   {
     title: 'Dashboard',
     href: '/dashboard',
@@ -27,10 +31,11 @@ const navigationItems = [
     title: 'Admin',
     href: '/dashboard/admin',
     icon: Settings,
+    systemAdminOnly: true,
   },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ isSystemAdmin = false }: SidebarNavProps) {
   const pathname = usePathname();
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
@@ -43,6 +48,10 @@ export function SidebarNav() {
   const handleComingSoon = (title: string) => {
     setModalState({ isOpen: true, title });
   };
+
+  const navigationItems = allNavigationItems.filter(
+    (item) => !item.systemAdminOnly || isSystemAdmin
+  );
 
   return (
     <div className="flex flex-col h-full">

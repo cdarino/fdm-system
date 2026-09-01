@@ -2,6 +2,7 @@ import { SidebarNav } from '@/components/dashboard/sidebar-nav';
 import { DashboardTopBar } from '@/components/dashboard/top-bar';
 import { FdmLogo } from '@/components/fdm-logo';
 import { getUserInfo } from '@/lib/user';
+import { getIsCurrentUserSystemAdmin } from '@/lib/actions/check-user';
 
 export default async function DashboardLayout({
   children,
@@ -9,6 +10,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const user = await getUserInfo();
+  const isSystemAdmin = await getIsCurrentUserSystemAdmin();
   return (
     <div className="min-h-screen bg-[#F5F3EC]">
       {/* Sidebar */}
@@ -19,7 +21,7 @@ export default async function DashboardLayout({
             <span className="font-bold text-[#1A1D20] text-center">First Davao Millennium<br/>Property Ventures Inc.</span>
           </div>
         </div>
-        <SidebarNav />
+        <SidebarNav isSystemAdmin={isSystemAdmin} />
       </div>
 
       {/* Main Content */}

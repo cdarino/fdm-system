@@ -304,7 +304,7 @@ function UserDetailPane({ user, onClose, onUserUpdated, onUserDeleted }: { user:
   return (
     <div className="flex flex-col w-72 shrink-0 border-l border-[#E2E7EC]">
       <CardHeader className="flex-row items-center justify-between space-y-0 py-4 border-b border-[#E2E7EC]">
-        <CardTitle className="text-sm">User Details</CardTitle>
+        <CardTitle className="text-sm text-[#1A1D20]">User Details</CardTitle>
         <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
           <X className="h-4 w-4" />
         </Button>
@@ -337,7 +337,7 @@ function UserDetailPane({ user, onClose, onUserUpdated, onUserDeleted }: { user:
             size="sm"
             variant={user.isBanned ? 'outline' : 'destructive'}
             onClick={() => setToggleOpen(true)}
-            className="w-full"
+            className={user.isBanned ? 'w-full bg-[#22C55E] border-[#22C55E] text-white hover:bg-[#16A34A] hover:border-[#16A34A]' : 'w-full'}
           >
             {user.isBanned ? 'Activate User' : 'Deactivate User'}
           </Button>
