@@ -192,7 +192,7 @@ export default function Page() {
                         <p> <code> npx shadcn@latest add spinner </code> </p>
                         <p> <a href="https://ui.shadcn.com/docs/components/base/spinner">(https://ui.shadcn.com/docs/components/base/spinner)</a> </p> <br />
 
-                        <p> Find other components here: <a href="https://ui.shadcn.com/docs/components">https://ui.shadcn.com/docs/components</a> </p>
+                        <p> Find other components and more info about them here: <a href="https://ui.shadcn.com/docs/components">https://ui.shadcn.com/docs/components</a> </p>
 
                     </section>
 
