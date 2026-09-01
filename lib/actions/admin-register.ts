@@ -85,10 +85,10 @@ export async function assignRoles(
   userId: string,
   roleIds: string[]
 ): Promise<AssignRolesResult> {
-  if (!roleIds.length) return { success: true }; // nothing to do
-
   const caller = await getAuthorizedCaller();
   if ("error" in caller) return { success: false, error: caller.error };
+
+  if (!roleIds.length) return { success: true }; // nothing to do
 
   const adminClient = createAdminClient();
 
@@ -157,6 +157,12 @@ export async function registerUser(
  * Called from Server Components to avoid an extra client round-trip.
  */
 export async function getActiveRoles(): Promise<RbacRole[]> {
+  const caller = await getAuthorizedCaller();
+  if ("error" in caller) {
+    console.error("[getActiveRoles] unauthorized:", caller.error);
+    return [];
+  }
+
   const adminClient = createAdminClient();
 
   const { data, error } = await adminClient
