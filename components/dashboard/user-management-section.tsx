@@ -16,6 +16,14 @@ import {
 import { CreateUserModal } from './create-user-modal';
 import type { UserListItem } from '@/lib/actions/admin-register';
 
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { MoreHorizontal } from 'lucide-react';
+
 interface Props {
   users: UserListItem[];
 }
@@ -39,15 +47,41 @@ function RoleBadges({ roles }: { roles: UserListItem['roles'] }) {
 
 function UserRow({ user }: { user: UserListItem }) {
   return (
-    <TableRow key={user.id}>
+    <TableRow key={user.id} className="group">
       <TableCell className="font-medium text-[#1A1D20]">{user.email}</TableCell>
       <TableCell><RoleBadges roles={user.roles} /></TableCell>
       <TableCell>
-        {user.isBanned ? (
-          <Badge variant="destructive" className="border-transparent">Banned</Badge>
-        ) : (
-          <Badge className="bg-green-100 text-green-700 border-transparent hover:bg-green-100">Active</Badge>
-        )}
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            {user.isBanned ? (
+              <Badge variant="destructive" className="border-transparent">Banned</Badge>
+            ) : (
+              <Badge className="bg-green-100 text-green-700 border-transparent hover:bg-green-100">Active</Badge>
+            )}
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label="Open user actions"
+                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded-md hover:bg-[#F3F4F6]"
+              >
+                <MoreHorizontal className="h-4 w-4 text-[#6C7E8E]" />
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="w-[160px]">
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  console.log(`${user.email} action: ${user.isBanned ? 'activate' : 'deactivate'}`);
+                }}
+              >
+                {user.isBanned ? 'Activate user' : 'Deactivate user'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </TableCell>
     </TableRow>
   );
