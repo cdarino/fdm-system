@@ -35,7 +35,16 @@ fdm-system/
 │   ├── actions/                # Server actions (auth guards, admin user/role management)
 │   ├── hooks/                  # Client-side React hooks
 │   └── supabase/               # Supabase client factories (browser, server, admin, proxy)
-├── scripts/                    # Standalone scripts (seeding, e2e tests)
+├── scripts/                    # Standalone scripts & test suite
+│   ├── seed-admin.ts           # Admin user seeding script
+│   └── tests/                  # Vitest E2E integration test suite
+│       ├── framework/          # Setup, session management, Next.js mocks
+│       ├── admin/              # User management & role tests
+│       ├── auth/               # Authentication & password tests
+│       ├── clients/            # Client CRUD & relationship tests
+│       ├── properties/         # Property lot & assignment tests
+│       ├── permissions/        # Permission & guard tests
+│       └── utils/              # Pure utilities & self-protection tests
 └── supabase/
     └── migrations/             # Ordered SQL migration files
 ```
@@ -87,3 +96,17 @@ Avoid Tailwind slash-opacity modifiers (e.g. `bg-primary/90`, `bg-success/10`) b
 ## Admin Panel Data Layer
 
 `lib/hooks/use-admin-users.ts` is the sole file that imports server actions and calls `router.refresh()` for the admin panel. UI components under `components/dashboard/` must not import from `lib/actions/` directly — consume data and mutations through the `useAdminUsers()` context hook instead.
+
+## Testing & E2E Test Suite
+
+Tests use **Vitest** and **`@faker-js/faker`** located under `scripts/tests/`. Rather than mocking backend queries, tests directly import and execute functions in `lib/` (Server Actions, auth functions, permission guards) against a real database using emulated sessions and cookies.
+
+- **Dual Environments**:
+  - **Remote Managed (Default)**: Tests run via `.env.test` against the cloud Supabase project with zero local container storage footprint.
+  - **Local Docker (Opt-in)**: Runs via `npm run test:e2e:local` pointing to `.env.test.local` if `supabase start` is running.
+- **Sequential Pacing**: `vitest.config.ts` enforces `fileParallelism: false` and `maxConcurrency: 1` to prevent database race conditions on shared tables and avoid GoTrue auth rate limits.
+- **Session & Headers Emulation**: `scripts/tests/framework/vitest.setup.ts` mocks `next/headers` (`cookies()`, `headers()`) and keeps an in-memory cookie jar synced with `@supabase/ssr`.
+- **Commands**:
+  - `npm run test:e2e` — run the full suite
+  - `npm run test:e2e:watch` — run Vitest interactive watch mode on file changes
+  - `npm run test:e2e:<suite>` (e.g. `test:e2e:clients`, `test:e2e:properties`, `test:e2e:auth`) — run a specific suite
