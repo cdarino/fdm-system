@@ -1,26 +1,48 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { RoleCheckboxList } from '@/components/dashboard/role-checkbox-list';
 import { Label } from '@/components/ui/label';
-import { X } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAdminUsers } from '@/lib/hooks/use-admin-users';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 
+const createUserSchema = z.object({
+  firstName: z.string().trim().min(1, 'First name is required'),
+  lastName: z.string().trim().min(1, 'Last name is required'),
+  email: z.string().trim().email('Please enter a valid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  roleIds: z.array(z.string()).min(1, 'Please select at least one role'),
+});
+
+type CreateUserFormData = z.infer<typeof createUserSchema>;
+
 export function useCreateUserForm() {
   const { roles, createUser, closeDialog } = useAdminUsers();
   const { state, execute } = useMutation(createUser);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const form = useForm<CreateUserFormData>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      roleIds: [],
+    },
+  });
 
   useEffect(() => {
     if (state.status === 'success') {
@@ -29,52 +51,17 @@ export function useCreateUserForm() {
     }
   }, [state.status, closeDialog]);
 
-  function handleRoleChange(id: string, checked: boolean) {
-    setSelectedRoles((prev) => (checked ? [...prev, id] : prev.filter((r) => r !== id)));
-  }
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setValidationError(null);
-
-    if (!firstName.trim() || !lastName.trim()) {
-      setValidationError('First name and last name are required');
-      return;
-    }
-    if (!email || !password) {
-      setValidationError('Email and password are required');
-      return;
-    }
-    if (selectedRoles.length === 0) {
-      setValidationError('Please select at least one role');
-      return;
-    }
-
-    execute({
-      email,
-      password,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      roleIds: selectedRoles,
-    });
-  }
+  const onSubmit = form.handleSubmit((data) => {
+    execute(data);
+  });
 
   const isPending = state.status === 'pending';
-  const displayError = validationError || (state.status === 'error' ? state.error : null);
+  const displayError = state.status === 'error' ? state.error : null;
 
   return {
+    form,
     roles,
-    firstName,
-    setFirstName,
-    lastName,
-    setLastName,
-    email,
-    setEmail,
-    password,
-    setPassword,
-    selectedRoles,
-    handleRoleChange,
-    handleSubmit,
+    onSubmit,
     closeDialog,
     isPending,
     displayError,
@@ -82,35 +69,21 @@ export function useCreateUserForm() {
 }
 
 export function CreateUserModal() {
-  const {
-    roles,
-    firstName,
-    setFirstName,
-    lastName,
-    setLastName,
-    email,
-    setEmail,
-    password,
-    setPassword,
-    selectedRoles,
-    handleRoleChange,
-    handleSubmit,
-    closeDialog,
-    isPending,
-    displayError,
-  } = useCreateUserForm();
+  const { form, roles, onSubmit, closeDialog, isPending, displayError } = useCreateUserForm();
+  const { register, control, watch, formState: { errors } } = form;
+  const selectedRoles = watch('roleIds') ?? [];
 
   return (
-    <div className="fixed inset-0 bg-[color-mix(in_srgb,black_20%,transparent)] flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-md bg-card text-foreground border-border rounded-2xl shadow-lg">
-        <div className="p-6 border-b border-border flex items-center justify-between">
-          <h2 className="text-xl font-bold text-foreground">Create New User</h2>
-          <button onClick={closeDialog} className="p-1 hover:bg-background rounded-lg transition-colors" disabled={isPending}>
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
-        </div>
+    <Dialog open={true} onOpenChange={(open) => !open && closeDialog()}>
+      <DialogContent
+        className="w-full max-w-md bg-card text-foreground border-border rounded-2xl shadow-lg p-0 gap-0"
+        showCloseButton={!isPending}
+      >
+        <DialogHeader className="p-6 border-b border-border">
+          <DialogTitle className="text-xl font-bold text-foreground">Create New User</DialogTitle>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={onSubmit} className="p-6 space-y-5">
           {displayError && (
             <div className="p-4 bg-[color-mix(in_srgb,var(--destructive)_10%,white)] border border-[color-mix(in_srgb,var(--destructive)_30%,white)] rounded-lg">
               <p className="text-sm text-destructive">{displayError}</p>
@@ -122,21 +95,19 @@ export function CreateUserModal() {
               id="firstName"
               label="First Name"
               type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
               placeholder="Juan"
-              required
               disabled={isPending}
+              error={errors.firstName?.message}
+              {...register('firstName')}
             />
             <FormField
               id="lastName"
               label="Last Name"
               type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
               placeholder="Dela Cruz"
-              required
               disabled={isPending}
+              error={errors.lastName?.message}
+              {...register('lastName')}
             />
           </div>
 
@@ -144,31 +115,45 @@ export function CreateUserModal() {
             id="email"
             label="Email Address"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             placeholder="user@example.com"
-            required
             disabled={isPending}
+            error={errors.email?.message}
+            {...register('email')}
           />
 
           <FormField
             id="password"
             label="Temporary Password"
             type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            required
             disabled={isPending}
             hint="User can change this after first login"
+            error={errors.password?.message}
+            {...register('password')}
           />
 
           <div className="space-y-3">
             <Label className="text-foreground font-medium text-sm">Assign Roles</Label>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              <RoleCheckboxList roles={roles} selectedIds={selectedRoles} onChange={handleRoleChange} disabled={isPending} />
+              <Controller
+                name="roleIds"
+                control={control}
+                render={({ field }) => (
+                  <RoleCheckboxList
+                    roles={roles}
+                    selectedIds={field.value}
+                    onChange={(id, checked) => {
+                      const next = checked ? [...field.value, id] : field.value.filter((r) => r !== id);
+                      field.onChange(next);
+                    }}
+                    disabled={isPending}
+                  />
+                )}
+              />
             </div>
-            {selectedRoles.length === 0 && <p className="text-xs text-muted-foreground">Select at least one role.</p>}
+            {errors.roleIds?.message && (
+              <p className="text-xs text-destructive">{errors.roleIds.message}</p>
+            )}
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -192,7 +177,7 @@ export function CreateUserModal() {
             </LoadingButton>
           </div>
         </form>
-      </Card>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
