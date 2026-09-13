@@ -10,15 +10,12 @@ export interface RbacRole {
   description: string | null;
 }
 
-export type SetUserRolesResult =
-  | { success: true }
-  | { success: false; error: string };
+export type SetUserRolesResult = { success: true };
 
 export async function getActiveRoles(): Promise<RbacRole[]> {
   const caller = await getAuthorizedCaller();
   if ("error" in caller) {
-    console.error("[getActiveRoles] unauthorized:", caller.error);
-    return [];
+    throw new Error(caller.error);
   }
 
   const adminClient = createAdminClient();
@@ -31,8 +28,7 @@ export async function getActiveRoles(): Promise<RbacRole[]> {
     .order("name");
 
   if (error) {
-    console.error("[getActiveRoles] error:", error.message);
-    return [];
+    throw new Error(`Failed to fetch active roles: ${error.message}`);
   }
 
   return (data ?? []) as RbacRole[];
@@ -43,7 +39,7 @@ export async function setUserRoles(
   roleIds: string[]
 ): Promise<SetUserRolesResult> {
   const caller = await getAuthorizedCaller();
-  if ("error" in caller) return { success: false, error: caller.error };
+  if ("error" in caller) throw new Error(caller.error);
 
   const adminClient = createAdminClient();
   const uniqueRoleIds = Array.from(new Set(roleIds));
@@ -58,8 +54,7 @@ export async function setUserRoles(
       .maybeSingle<{ id: string }>();
 
     if (roleLookupError) {
-      console.error("[setUserRoles] role lookup error:", roleLookupError.message);
-      return { success: false, error: roleLookupError.message };
+      throw new Error(`Role lookup failed: ${roleLookupError.message}`);
     }
 
     const demoteError = checkSelfDemote(
@@ -69,7 +64,7 @@ export async function setUserRoles(
       uniqueRoleIds,
     );
     if (demoteError) {
-      return { success: false, error: demoteError };
+      throw new Error(demoteError);
     }
   }
 
@@ -81,8 +76,7 @@ export async function setUserRoles(
     });
 
   if (rpcError) {
-    console.error("[setUserRoles] error:", rpcError.message);
-    return { success: false, error: rpcError.message };
+    throw new Error(`Failed to set user roles: ${rpcError.message}`);
   }
 
   return { success: true };

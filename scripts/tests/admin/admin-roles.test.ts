@@ -35,9 +35,8 @@ describe("Admin Roles & User Role Inspection Actions", () => {
     await runTrackedCleanups();
   });
 
-  it("getActiveRoles returns empty array when unauthenticated", async () => {
-    const roles = await getActiveRoles();
-    expect(roles).toEqual([]);
+  it("getActiveRoles rejects when unauthenticated", async () => {
+    await expect(getActiveRoles()).rejects.toThrow(/You must be logged in|unauthorized/i);
   });
 
   it("getActiveRoles returns all system roles for authorized admin", async () => {
@@ -54,12 +53,7 @@ describe("Admin Roles & User Role Inspection Actions", () => {
   });
 
   it("setUserRoles rejects unauthorized caller", async () => {
-    const res = await setUserRoles(tempUser.id, []);
-
-    expect(res.success).toBe(false);
-    if (!res.success) {
-      expect(res.error).toContain("You must be logged in");
-    }
+    await expect(setUserRoles(tempUser.id, [])).rejects.toThrow(/You must be logged in|unauthorized/i);
   });
 
   it("setUserRoles prevents admin from removing their own system_admin role", async () => {
@@ -69,11 +63,7 @@ describe("Admin Roles & User Role Inspection Actions", () => {
     const roles = await getActiveRoles();
     const billingRole = roles.find((r) => r.name === "billing_staff")!;
 
-    const res = await setUserRoles(adminId, [billingRole.id]);
-    expect(res.success).toBe(false);
-    if (!res.success) {
-      expect(res.error).toBe(SELF_DEMOTE_ERROR);
-    }
+    await expect(setUserRoles(adminId, [billingRole.id])).rejects.toThrow(SELF_DEMOTE_ERROR);
   });
 
   it("setUserRoles assigns roles to a target user and updates their permissions", async () => {

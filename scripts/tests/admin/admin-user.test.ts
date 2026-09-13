@@ -15,7 +15,6 @@ import {
   getTestAdminClient,
   createTemporaryUser,
   runTrackedCleanups,
-  trackCleanup,
   type TemporaryUser,
 } from "../framework/session";
 
@@ -50,17 +49,14 @@ describe("Admin User Management Actions", () => {
   });
 
   it("registerUser rejects when unauthenticated", async () => {
-    const res = await registerUser({
-      email: faker.internet.email(),
-      password: "TempPassword123!",
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
-    });
-
-    expect(res.success).toBe(false);
-    if (!res.success) {
-      expect(res.error).toContain("You must be logged in");
-    }
+    await expect(
+      registerUser({
+        email: faker.internet.email(),
+        password: "TempPassword123!",
+        firstName: faker.person.firstName(),
+        lastName: faker.person.lastName(),
+      })
+    ).rejects.toThrow(/You must be logged in|unauthorized/i);
   });
 
   it("registerUser creates a user with metadata and roles when authorized as admin", async () => {
@@ -84,9 +80,6 @@ describe("Admin User Management Actions", () => {
     expect(res.success).toBe(true);
     if (res.success) {
       createdUserIds.push(res.userId);
-      trackCleanup(async () => {
-        await deleteUser(res.userId);
-      });
 
       const listRes = await listUsers();
       expect(listRes.success).toBe(true);
@@ -115,32 +108,26 @@ describe("Admin User Management Actions", () => {
     expect(first.success).toBe(true);
     if (first.success) createdUserIds.push(first.userId);
 
-    const second = await registerUser({
-      email: existingEmail,
-      password: "ValidPassword123!",
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
-    });
-
-    expect(second.success).toBe(false);
-    if (!second.success) {
-      expect(second.error).toContain("already exists");
-    }
+    await expect(
+      registerUser({
+        email: existingEmail,
+        password: "ValidPassword123!",
+        firstName: faker.person.firstName(),
+        lastName: faker.person.lastName(),
+      })
+    ).rejects.toThrow(/already exists/i);
   });
 
   it("registerUser returns descriptive error on invalid email format", async () => {
     await loginAsAdmin();
-    const res = await registerUser({
-      email: "invalid-email-format",
-      password: "ValidPassword123!",
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
-    });
-
-    expect(res.success).toBe(false);
-    if (!res.success) {
-      expect(res.error).toContain("That email address is not valid");
-    }
+    await expect(
+      registerUser({
+        email: "invalid-email-format",
+        password: "ValidPassword123!",
+        firstName: faker.person.firstName(),
+        lastName: faker.person.lastName(),
+      })
+    ).rejects.toThrow(/That email address is not valid/i);
   });
 
   it("listUsers returns full user list with roles and ban flags for admin", async () => {
@@ -177,11 +164,7 @@ describe("Admin User Management Actions", () => {
     const adminSession = await loginAsAdmin();
     const adminId = adminSession.user.id;
 
-    const res = await toggleUser(adminId, false);
-    expect(res.success).toBe(false);
-    if (!res.success) {
-      expect(res.error).toBe(SELF_DEACTIVATE_ERROR);
-    }
+    await expect(toggleUser(adminId, false)).rejects.toThrow(SELF_DEACTIVATE_ERROR);
   });
 
   it("toggleUser deactivates and reactivates a target user", async () => {
@@ -212,11 +195,7 @@ describe("Admin User Management Actions", () => {
     const adminSession = await loginAsAdmin();
     const adminId = adminSession.user.id;
 
-    const res = await deleteUser(adminId);
-    expect(res.success).toBe(false);
-    if (!res.success) {
-      expect(res.error).toBe(SELF_DELETE_ERROR);
-    }
+    await expect(deleteUser(adminId)).rejects.toThrow(SELF_DELETE_ERROR);
   });
 
   it("deleteUser removes user and their associated roles", async () => {

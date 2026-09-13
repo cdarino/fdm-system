@@ -109,7 +109,6 @@ export function AdminUsersProvider({
   useEffect(() => {
     Promise.all([listUsers(), getActiveRoles()])
       .then(([usersResult, rolesResult]) => {
-        if (!usersResult.success) throw new Error(usersResult.error);
         setUsers(usersResult.users);
         setRoles(rolesResult);
       })
@@ -131,7 +130,6 @@ export function AdminUsersProvider({
 
   async function createUser(params: RegisterUserParams): Promise<void> {
     const result = await registerUser(params);
-    if (!result.success) throw new Error(result.error);
     const newUser: UserListItem = {
       id: result.userId,
       email: params.email,
@@ -147,15 +145,13 @@ export function AdminUsersProvider({
   }
 
   async function updateUserName(userId: string, firstName: string, lastName: string): Promise<void> {
-    const result = await updateUserProfileAction(userId, firstName, lastName);
-    if (!result.success) throw new Error(result.error);
+    await updateUserProfileAction(userId, firstName, lastName);
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, firstName, lastName } : u)));
     router.refresh();
   }
 
   async function updateUserRoles(userId: string, roleIds: string[]): Promise<void> {
-    const result = await setUserRolesAction(userId, roleIds);
-    if (!result.success) throw new Error(result.error);
+    await setUserRolesAction(userId, roleIds);
     const updatedRoles = roles
       .filter((r) => roleIds.includes(r.id))
       .map(({ id, name }) => ({ id, name }));
@@ -164,15 +160,13 @@ export function AdminUsersProvider({
   }
 
   async function toggleUserStatus(userId: string, isBanned: boolean): Promise<void> {
-    const result = await toggleUserAction(userId, isBanned);
-    if (!result.success) throw new Error(result.error);
+    await toggleUserAction(userId, isBanned);
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isBanned: !isBanned } : u)));
     router.refresh();
   }
 
   async function deleteUser(userId: string): Promise<void> {
-    const result = await deleteUserAction(userId);
-    if (!result.success) throw new Error(result.error);
+    await deleteUserAction(userId);
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     if (selectedUserId === userId) setSelectedUserId(null);
     router.refresh();

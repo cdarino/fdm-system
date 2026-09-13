@@ -15,9 +15,10 @@ export interface RegisterUserParams {
   roleIds?: string[];
 }
 
-export type RegisterUserResult =
-  | { success: true; userId: string }
-  | { success: false; error: string };
+export type RegisterUserResult = {
+  success: true;
+  userId: string;
+};
 
 export interface UserListItem {
   id: string;
@@ -28,9 +29,10 @@ export interface UserListItem {
   isBanned: boolean;
 }
 
-export type ListUsersResult =
-  | { success: true; users: UserListItem[] }
-  | { success: false; error: string };
+export type ListUsersResult = {
+  success: true;
+  users: UserListItem[];
+};
 
 /**
  * Turns Supabase's raw auth errors into something an admin can act on.
@@ -63,7 +65,7 @@ export async function registerUser(
   const { email, password, firstName, lastName, roleIds = [] } = params;
 
   const caller = await getAuthorizedCaller();
-  if ("error" in caller) return { success: false, error: caller.error };
+  if ("error" in caller) throw new Error(caller.error);
 
   const adminClient = createAdminClient();
 
@@ -79,62 +81,49 @@ export async function registerUser(
     });
 
   if (createError) {
-    console.error("[registerUser] createUser error:", createError.message);
-    return { success: false, error: describeCreateUserError(createError) };
+    throw new Error(describeCreateUserError(createError));
   }
 
   const newUserId = createData.user.id;
 
   if (roleIds.length > 0) {
-    const rows = roleIds.map((roleId) => ({ user_id: newUserId, role_id: roleId }));
+    const uniqueRoleIds = Array.from(new Set(roleIds));
     const { error: roleError } = await adminClient
       .schema("rbac")
-      .from("user_role")
-      .upsert(rows, { onConflict: "user_id,role_id" });
+      .rpc("set_user_roles", {
+        p_user_id: newUserId,
+        p_role_ids: uniqueRoleIds,
+      });
 
     if (roleError) {
-      console.error("[registerUser] role assignment error:", roleError.message);
-      return {
-        success: false,
-        error: `User created (${newUserId}), but role assignment failed: ${roleError.message}`,
-      };
+      // Revert created auth user to maintain atomicity and avoid orphaned accounts
+      await adminClient.auth.admin.deleteUser(newUserId);
+      throw new Error(`Role assignment failed: ${roleError.message}`);
     }
   }
 
   return { success: true, userId: newUserId };
 }
 
-export async function toggleUser(userId: string, enable: boolean) {
+export async function toggleUser(userId: string, enable: boolean): Promise<{ success: true }> {
   const caller = await getAuthorizedCaller();
-  if ("error" in caller) return { success: false, error: caller.error };
+  if ("error" in caller) throw new Error(caller.error);
 
   // Guard against an admin locking themselves out. Enforced here rather than
   // only in the UI so it still holds if the action is called directly.
   const deactivateError = checkSelfDeactivate(caller.id, userId, enable);
   if (deactivateError) {
-    return { success: false, error: deactivateError };
+    throw new Error(deactivateError);
   }
 
   const adminClient = createAdminClient();
+  const ban_duration = enable ? "0h" : "876000h";
+  const { error } = await adminClient.auth.admin.updateUserById(userId, {
+    ban_duration,
+  });
 
-  let errorMain: AuthError | null = null;
-
-  if (enable) {
-    // Workaround: to re-enable a user, reset the ban duration to 0
-    const { error } = await adminClient.auth.admin.updateUserById(userId, {
-      ban_duration: "0h",
-    });
-    errorMain = error;
-  } else {
-    const { error } = await adminClient.auth.admin.updateUserById(userId, {
-      ban_duration: "876000h",
-    });
-    errorMain = error;
-  }
-
-  if (errorMain) {
-    console.error("[toggleUser] error: ", errorMain.message);
-    return { success: false, error: errorMain.message };
+  if (error) {
+    throw new Error(error.message);
   }
 
   return { success: true };
@@ -142,7 +131,7 @@ export async function toggleUser(userId: string, enable: boolean) {
 
 export async function listUsers(): Promise<ListUsersResult> {
   const caller = await getAuthorizedCaller();
-  if ("error" in caller) return { success: false, error: caller.error };
+  if ("error" in caller) throw new Error(caller.error);
 
   const adminClient = createAdminClient();
 
@@ -155,12 +144,12 @@ export async function listUsers(): Promise<ListUsersResult> {
   }[] = [];
   let page = 1;
   const perPage = 1000;
+  const maxPages = 10;
 
-  while (true) {
+  while (page <= maxPages) {
     const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
     if (error) {
-      console.error("[listUsers] listUsers error:", error.message);
-      return { success: false, error: error.message };
+      throw new Error(error.message);
     }
 
     allAuthUsers.push(
@@ -177,18 +166,24 @@ export async function listUsers(): Promise<ListUsersResult> {
     page++;
   }
 
-  const { data: userRoles, error: rolesError } = await adminClient
-    .schema("rbac")
-    .from("user_role")
-    .select("user_id, role:role_id(id, name)")
-    .returns<{ user_id: string; role: Pick<RbacRole, "id" | "name"> | null }[]>();
+  const userIds = allAuthUsers.map((u) => u.id);
+  let userRoles: { user_id: string; role: Pick<RbacRole, "id" | "name"> | null }[] = [];
 
-  if (rolesError) {
-    console.error("[listUsers] user_role fetch error:", rolesError.message);
-    return { success: false, error: rolesError.message };
+  if (userIds.length > 0) {
+    const { data: rolesData, error: rolesError } = await adminClient
+      .schema("rbac")
+      .from("user_role")
+      .select("user_id, role:role_id(id, name)")
+      .in("user_id", userIds)
+      .returns<{ user_id: string; role: Pick<RbacRole, "id" | "name"> | null }[]>();
+
+    if (rolesError) {
+      throw new Error(rolesError.message);
+    }
+    userRoles = rolesData ?? [];
   }
 
-  const rolesByUser = (userRoles ?? []).reduce((map, row) => {
+  const rolesByUser = userRoles.reduce((map, row) => {
     if (row.role) map.set(row.user_id, [...(map.get(row.user_id) ?? []), row.role]);
     return map;
   }, new Map<string, Pick<RbacRole, "id" | "name">[]>());
@@ -206,17 +201,15 @@ export async function listUsers(): Promise<ListUsersResult> {
   return { success: true, users };
 }
 
-export type DeleteUserResult =
-  | { success: true }
-  | { success: false; error: string };
+export type DeleteUserResult = { success: true };
 
 export async function deleteUser(userId: string): Promise<DeleteUserResult> {
   const caller = await getAuthorizedCaller();
-  if ("error" in caller) return { success: false, error: caller.error };
+  if ("error" in caller) throw new Error(caller.error);
 
   const selfDeleteError = checkSelfDelete(caller.id, userId);
   if (selfDeleteError) {
-    return { success: false, error: selfDeleteError };
+    throw new Error(selfDeleteError);
   }
 
   const adminClient = createAdminClient();
@@ -229,23 +222,19 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
     .eq("user_id", userId);
 
   if (rolesError) {
-    console.error("[deleteUser] role cleanup error:", rolesError.message);
-    return { success: false, error: rolesError.message };
+    throw new Error(`Role cleanup error: ${rolesError.message}`);
   }
 
   const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
 
   if (deleteError) {
-    console.error("[deleteUser] deleteUser error:", deleteError.message);
-    return { success: false, error: deleteError.message };
+    throw new Error(deleteError.message);
   }
 
   return { success: true };
 }
 
-export type UpdateUserProfileResult =
-  | { success: true }
-  | { success: false; error: string };
+export type UpdateUserProfileResult = { success: true };
 
 export async function updateUserProfile(
   userId: string,
@@ -253,7 +242,7 @@ export async function updateUserProfile(
   lastName: string
 ): Promise<UpdateUserProfileResult> {
   const caller = await getAuthorizedCaller();
-  if ("error" in caller) return { success: false, error: caller.error };
+  if ("error" in caller) throw new Error(caller.error);
 
   const adminClient = createAdminClient();
   const { error } = await adminClient.auth.admin.updateUserById(userId, {
@@ -264,8 +253,7 @@ export async function updateUserProfile(
   });
 
   if (error) {
-    console.error("[updateUserProfile] error:", error.message);
-    return { success: false, error: error.message };
+    throw new Error(error.message);
   }
 
   return { success: true };
