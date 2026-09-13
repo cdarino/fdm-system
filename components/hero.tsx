@@ -42,7 +42,7 @@ export function Hero() {
           Next.js
         </a>
       </p>
-      <div className="w-full p-[1px] bg-gradient-to-r from-transparent via-foreground/10 to-transparent my-8" />
+      <div className="w-full p-[1px] bg-gradient-to-r from-transparent via-[color-mix(in_srgb,var(--foreground)_10%,transparent)] to-transparent my-8" />
     </div>
   );
 }

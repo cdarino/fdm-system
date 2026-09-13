@@ -10,7 +10,7 @@ import { LoginForm, LoginFormFallback } from '@/components/login-form';
  */
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F5F3EC] to-[#E8F4FA] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-background to-sidebar-accent flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo & Branding */}
         <div className="text-center mb-8 space-y-3">
@@ -18,8 +18,8 @@ export default function LoginPage() {
             <FdmLogo className="h-24 w-36 object-contain" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-[#1A1D20]">FDM System</h1>
-            <p className="text-sm text-[#6C7E8E] mt-1">First Davao Millennium Property Ventures</p>
+            <h1 className="text-2xl font-bold text-foreground">FDM System</h1>
+            <p className="text-sm text-muted-foreground mt-1">First Davao Millennium Property Ventures</p>
           </div>
         </div>
 

@@ -11,7 +11,7 @@ export function ConnectSupabaseSteps() {
           <a
             href="https://app.supabase.com/project/_/settings/api"
             target="_blank"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
             rel="noreferrer"
           >
             database.new
@@ -34,7 +34,7 @@ export function ConnectSupabaseSteps() {
           <a
             href="https://app.supabase.com/project/_/settings/api"
             target="_blank"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
             rel="noreferrer"
           >
             your Supabase project&apos;s API Settings

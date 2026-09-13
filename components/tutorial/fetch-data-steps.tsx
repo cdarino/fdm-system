@@ -59,7 +59,7 @@ export function FetchDataSteps() {
           Head over to the{" "}
           <a
             href="https://supabase.com/dashboard/project/_/editor"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
             target="_blank"
             rel="noreferrer"
           >
@@ -70,7 +70,7 @@ export function FetchDataSteps() {
           following into the{" "}
           <a
             href="https://supabase.com/dashboard/project/_/sql/new"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
             target="_blank"
             rel="noreferrer"
           >
@@ -88,7 +88,7 @@ export function FetchDataSteps() {
           do this in the{" "}
           <a
             href="https://supabase.com/dashboard/project/_/editor"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
             target="_blank"
             rel="noreferrer"
           >
@@ -97,7 +97,7 @@ export function FetchDataSteps() {
           or via the{" "}
           <a
             href="https://supabase.com/dashboard/project/_/sql/new"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
             target="_blank"
             rel="noreferrer"
           >
@@ -114,7 +114,7 @@ export function FetchDataSteps() {
           You can learn more about RLS in the{" "}
           <a
             href="https://supabase.com/docs/guides/auth/row-level-security"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
             target="_blank"
             rel="noreferrer"
           >
@@ -143,7 +143,7 @@ export function FetchDataSteps() {
           Head over to the{" "}
           <a
             href="https://supabase.com/ui"
-            className="font-bold hover:underline text-foreground/80"
+            className="font-bold hover:underline text-[color-mix(in_srgb,var(--foreground)_80%,transparent)]"
           >
             Supabase UI library
           </a>{" "}

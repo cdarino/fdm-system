@@ -44,7 +44,7 @@ export function Hero() {
             <div className="flex flex-col gap-4 pt-4 sm:flex-row">
               <Button
                 asChild
-                className="h-auto rounded-lg bg-primary px-10 py-6 text-lg font-semibold text-primary-foreground hover:bg-[#4AADE0]"
+                className="h-auto rounded-lg bg-primary px-10 py-6 text-lg font-semibold text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
               >
                 <Link href="/login">
                   Get Started

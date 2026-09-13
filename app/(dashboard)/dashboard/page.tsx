@@ -21,9 +21,9 @@ async function DashboardContent() {
     return (
       <div className="space-y-8">
         {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-[#E2F4FA] to-[#FFF9E5] rounded-2xl p-8 border border-[#E2E7EC]">
-          <h1 className="text-3xl font-bold text-[#1A1D20]">Welcome to the FDM System</h1>
-          <p className="text-[#6C7E8E] mt-2">
+        <div className="bg-gradient-to-r from-sidebar-accent to-chart-4 rounded-2xl p-8 border border-border">
+          <h1 className="text-3xl font-bold text-foreground">Welcome to the FDM System</h1>
+          <p className="text-muted-foreground mt-2">
             {isSystemAdmin
               ? "You have administrator access. Manage users and system settings from below."
               : "Manage your properties and access reporting tools."}
@@ -32,14 +32,14 @@ async function DashboardContent() {
 
         {/* Admin Section - Only visible to System Admins */}
         {isSystemAdmin && (
-          <div className="bg-white rounded-2xl p-6 border border-[#E2E7EC] shadow-sm flex items-center justify-between">
+          <div className="bg-card text-card-foreground rounded-2xl p-6 border border-border shadow-sm flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[#1A1D20]">Administration</h2>
-              <p className="text-sm text-[#6C7E8E] mt-1">You have administrator access. Manage users and system settings.</p>
+              <h2 className="text-lg font-bold text-foreground">Administration</h2>
+              <p className="text-sm text-muted-foreground mt-1">You have administrator access. Manage users and system settings.</p>
             </div>
             <Link
               href="/dashboard/admin"
-              className="px-4 py-2 bg-[#5BC4E7] hover:bg-[#3AAFE0] text-white text-sm font-medium rounded-lg transition-colors"
+              className="px-4 py-2 bg-primary hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)] text-primary-foreground text-sm font-medium rounded-lg transition-colors"
             >
               Go to Admin Panel
             </Link>
@@ -48,41 +48,41 @@ async function DashboardContent() {
 
         {/* Regular Dashboard Content */}
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-[#1A1D20]">Dashboard Overview</h2>
+          <h2 className="text-2xl font-bold text-foreground">Dashboard Overview</h2>
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-2xl p-6 border border-[#E2E7EC] shadow-sm">
+            <div className="bg-card text-card-foreground rounded-2xl p-6 border border-border shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-[#6C7E8E] font-medium">Total Properties</p>
-                  <p className="text-3xl font-bold text-[#1A1D20] mt-2">12</p>
+                  <p className="text-sm text-muted-foreground font-medium">Total Properties</p>
+                  <p className="text-3xl font-bold text-foreground mt-2">12</p>
                 </div>
-                <div className="w-12 h-12 bg-[#E2F4FA] rounded-lg flex items-center justify-center text-2xl">
+                <div className="w-12 h-12 bg-sidebar-accent rounded-lg flex items-center justify-center text-2xl">
                   🏢
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 border border-[#E2E7EC] shadow-sm">
+            <div className="bg-card text-card-foreground rounded-2xl p-6 border border-border shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-[#6C7E8E] font-medium">Active Projects</p>
-                  <p className="text-3xl font-bold text-[#1A1D20] mt-2">8</p>
+                  <p className="text-sm text-muted-foreground font-medium">Active Projects</p>
+                  <p className="text-3xl font-bold text-foreground mt-2">8</p>
                 </div>
-                <div className="w-12 h-12 bg-[#FFF9E5] rounded-lg flex items-center justify-center text-2xl">
+                <div className="w-12 h-12 bg-chart-4 rounded-lg flex items-center justify-center text-2xl">
                   📊
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 border border-[#E2E7EC] shadow-sm">
+            <div className="bg-card text-card-foreground rounded-2xl p-6 border border-border shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-[#6C7E8E] font-medium">Team Members</p>
-                  <p className="text-3xl font-bold text-[#1A1D20] mt-2">5</p>
+                  <p className="text-sm text-muted-foreground font-medium">Team Members</p>
+                  <p className="text-3xl font-bold text-foreground mt-2">5</p>
                 </div>
-                <div className="w-12 h-12 bg-[#E2F4FA] rounded-lg flex items-center justify-center text-2xl">
+                <div className="w-12 h-12 bg-sidebar-accent rounded-lg flex items-center justify-center text-2xl">
                   👥
                 </div>
               </div>

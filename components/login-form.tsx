@@ -75,11 +75,11 @@ export function LoginForm() {
       )}
 
       {/* Login Card */}
-      <Card className="p-8 bg-white border-[#E2E7EC] rounded-2xl shadow-lg">
+      <Card className="p-8 bg-card border-border rounded-2xl shadow-lg">
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email Field */}
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-[#1A1D20] font-medium text-sm">
+            <Label htmlFor="email" className="text-foreground font-medium text-sm">
               Email Address
             </Label>
             <Input
@@ -89,14 +89,14 @@ export function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@example.com"
               required
-              className="bg-[#F9FAFB] border-[#E2E7EC] text-[#1A1D20] placeholder:text-[#A0A8B0] focus:border-[#5BC4E7] focus:ring-[#5BC4E7] rounded-lg"
+              className="bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary rounded-lg"
               disabled={isLoading}
             />
           </div>
 
           {/* Password Field */}
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-[#1A1D20] font-medium text-sm">
+            <Label htmlFor="password" className="text-foreground font-medium text-sm">
               Password
             </Label>
             <Input
@@ -106,7 +106,7 @@ export function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              className="bg-[#F9FAFB] border-[#E2E7EC] text-[#1A1D20] placeholder:text-[#A0A8B0] focus:border-[#5BC4E7] focus:ring-[#5BC4E7] rounded-lg"
+              className="bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary rounded-lg"
               disabled={isLoading}
             />
           </div>
@@ -115,7 +115,7 @@ export function LoginForm() {
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#5BC4E7] text-white hover:bg-[#4AADE0] rounded-lg h-11 font-semibold mt-6"
+            className="w-full bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)] rounded-lg h-11 font-semibold mt-6"
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
@@ -124,10 +124,10 @@ export function LoginForm() {
         {/* Divider */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-[#E2E7EC]" />
+            <div className="w-full border-t border-border" />
           </div>
           <div className="relative flex justify-center text-xs">
-            <span className="px-2 bg-white text-[#6C7E8E]">or</span>
+            <span className="px-2 bg-card text-muted-foreground">or</span>
           </div>
         </div>
 
@@ -136,7 +136,7 @@ export function LoginForm() {
           <Link href="/auth/forgot-password">
             <Button
               variant="ghost"
-              className="w-full text-[#F5CE42] hover:bg-[#FFF9E5] font-medium"
+              className="w-full text-secondary hover:bg-[color-mix(in_srgb,var(--secondary)_15%,white)] font-medium"
             >
               Forgot Password?
             </Button>
@@ -150,18 +150,18 @@ export function LoginForm() {
 /** Placeholder shown while the login form hydrates. Mirrors the card's footprint. */
 export function LoginFormFallback() {
   return (
-    <Card className="p-8 bg-white border-[#E2E7EC] rounded-2xl shadow-lg">
+    <Card className="p-8 bg-card border-border rounded-2xl shadow-lg">
       <div className="animate-pulse space-y-5">
         <div className="space-y-2">
-          <div className="h-4 w-28 rounded bg-[#E2E7EC]" />
-          <div className="h-9 w-full rounded-lg bg-[#F9FAFB] border border-[#E2E7EC]" />
+          <div className="h-4 w-28 rounded bg-border" />
+          <div className="h-9 w-full rounded-lg bg-background border border-border" />
         </div>
         <div className="space-y-2">
-          <div className="h-4 w-20 rounded bg-[#E2E7EC]" />
-          <div className="h-9 w-full rounded-lg bg-[#F9FAFB] border border-[#E2E7EC]" />
+          <div className="h-4 w-20 rounded bg-border" />
+          <div className="h-9 w-full rounded-lg bg-background border border-border" />
         </div>
-        <div className="h-11 w-full rounded-lg bg-[#E2E7EC] mt-6" />
-        <div className="h-9 w-full rounded-lg bg-[#F9FAFB]" />
+        <div className="h-11 w-full rounded-lg bg-border mt-6" />
+        <div className="h-9 w-full rounded-lg bg-background" />
       </div>
     </Card>
   );

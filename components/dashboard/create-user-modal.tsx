@@ -101,7 +101,7 @@ export function CreateUserModal() {
   } = useCreateUserForm();
 
   return (
-    <div className="fixed inset-0 bg-black/20 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-[color-mix(in_srgb,black_20%,transparent)] flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-md bg-card text-foreground border-border rounded-2xl shadow-lg">
         <div className="p-6 border-b border-border flex items-center justify-between">
           <h2 className="text-xl font-bold text-foreground">Create New User</h2>

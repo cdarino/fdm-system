@@ -23,7 +23,7 @@ export function Navbar() {
             <Button
               asChild
               variant="secondary"
-              className="font-semibold hover:bg-[#E5BD32]"
+              className="font-semibold hover:bg-[color-mix(in_srgb,var(--secondary)_85%,black)]"
             >
               <Link href="/login">Log In</Link>
             </Button>
