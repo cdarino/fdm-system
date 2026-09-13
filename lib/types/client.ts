@@ -89,11 +89,5 @@ export interface GetClientsParams {
   sortOrder?: 'asc' | 'desc';
 }
 
-export interface PaginatedResult<T> {
-  data: T[];
-  totalCount: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
+export type { PaginatedResult } from '@/lib/pagination';
 

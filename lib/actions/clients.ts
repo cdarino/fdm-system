@@ -18,16 +18,15 @@ import type {
   PaginatedResult,
 } from "@/lib/types/client";
 
+import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
+
 export async function getClients(
   params?: GetClientsParams
 ): Promise<PaginatedResult<Client>> {
   await requirePermission("clients.read");
   const supabase = await createSupabaseServerClient();
 
-  const page = Math.max(1, params?.page ?? 1);
-  const limit = Math.max(1, params?.limit ?? 10);
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
+  const { page, limit, from, to } = getPaginationOffsets(params);
 
   let query = supabase
     .from("client")
@@ -51,14 +50,7 @@ export async function getClients(
     throw new Error(`Failed to fetch clients: ${error.message}`);
   }
 
-  const totalCount = count ?? 0;
-  return {
-    data: data ?? [],
-    totalCount,
-    page,
-    limit,
-    totalPages: Math.ceil(totalCount / limit),
-  };
+  return buildPaginatedResult(data ?? [], count ?? 0, page, limit);
 }
 
 export async function getClientById(clientId: string): Promise<ClientWithDetails> {

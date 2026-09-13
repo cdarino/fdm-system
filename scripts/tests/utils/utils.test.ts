@@ -10,8 +10,27 @@ import {
   SELF_DELETE_ERROR,
   SELF_DEMOTE_ERROR,
 } from "@/lib/self-protection";
+import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
 describe("Utility and Pure Guard Functions", () => {
+  it("getPaginationOffsets computes SQL query range and clamps page/limit", () => {
+    expect(getPaginationOffsets()).toEqual({ page: 1, limit: 10, from: 0, to: 9 });
+    expect(getPaginationOffsets({ page: 2, limit: 10 })).toEqual({ page: 2, limit: 10, from: 10, to: 19 });
+    expect(getPaginationOffsets({ page: -5, limit: 0 }, 15)).toEqual({ page: 1, limit: 15, from: 0, to: 14 });
+    expect(getPaginationOffsets({ page: 3, limit: 25 })).toEqual({ page: 3, limit: 25, from: 50, to: 74 });
+  });
+
+  it("buildPaginatedResult constructs standardized paginated structure", () => {
+    const items = ["a", "b", "c"];
+    const res = buildPaginatedResult(items, 25, 2, 10);
+    expect(res).toEqual({
+      data: items,
+      totalCount: 25,
+      page: 2,
+      limit: 10,
+      totalPages: 3,
+    });
+  });
   it("roleLabel returns formatted human-readable labels for known roles", () => {
     expect(roleLabel("system_admin")).toBe("System Administrator");
     expect(roleLabel("admin_staff")).toBe("Admin Staff");

@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/actions/auth-guard";
-import type { PaginatedResult } from "@/lib/types/client";
+import { getPaginationOffsets, buildPaginatedResult, type PaginatedResult } from "@/lib/pagination";
 import type {
   PropertyLot,
   PropertyLotWithClient,
@@ -18,10 +18,7 @@ export async function getPropertyLots(
   await requirePermission("properties.read");
   const supabase = await createClient();
 
-  const page = Math.max(1, params?.page ?? 1);
-  const limit = Math.max(1, params?.limit ?? 10);
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
+  const { page, limit, from, to } = getPaginationOffsets(params);
 
   let query = supabase
     .from("property_lot")
@@ -60,14 +57,7 @@ export async function getPropertyLots(
     throw new Error(`Failed to fetch property lots: ${error.message}`);
   }
 
-  const totalCount = count ?? 0;
-  return {
-    data: data ?? [],
-    totalCount,
-    page,
-    limit,
-    totalPages: Math.ceil(totalCount / limit),
-  };
+  return buildPaginatedResult(data ?? [], count ?? 0, page, limit);
 }
 
 export async function getPropertyLotById(
