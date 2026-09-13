@@ -34,7 +34,8 @@ fdm-system/
 ├── lib/
 │   ├── actions/                # Server actions (auth guards, admin user/role management)
 │   ├── hooks/                  # Client-side React hooks
-│   └── supabase/               # Supabase client factories (browser, server, admin, proxy)
+│   ├── supabase/               # Supabase client factories (browser, server, admin, proxy)
+│   └── pagination.ts           # Shared offset & pagination calculation
 ├── scripts/                    # Standalone scripts & test suite
 │   ├── seed-admin.ts           # Admin user seeding script
 │   └── tests/                  # Vitest E2E integration test suite
@@ -96,6 +97,18 @@ Avoid Tailwind slash-opacity modifiers (e.g. `bg-primary/90`, `bg-success/10`) b
 ## Admin Panel Data Layer
 
 `lib/hooks/use-admin-users.ts` is the sole file that imports server actions and calls `router.refresh()` for the admin panel. UI components under `components/dashboard/` must not import from `lib/actions/` directly — consume data and mutations through the `useAdminUsers()` context hook instead.
+
+## Forms & Validation
+
+Use `react-hook-form` with `zod` via `@hookform/resolvers/zod`. Derive input types with `z.infer<typeof schema>` and pass field errors to `FormField`'s `error` prop.
+
+## Modals & Dialogs
+
+Always compose modals using `components/ui/dialog` (`Dialog`, `DialogContent`, etc.). Never hand-roll custom backdrop overlays.
+
+## Pagination
+
+Use `getPaginationOffsets()` and `buildPaginatedResult()` from `lib/pagination.ts` for database range queries and pagination metadata.
 
 ## Testing & E2E Test Suite
 
