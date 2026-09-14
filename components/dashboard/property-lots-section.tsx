@@ -34,6 +34,7 @@ import {
   type StatusFilter,
 } from '@/lib/hooks/use-property-lots';
 import type { PropertyLotWithClient, PropertyStatus } from '@/lib/types/property';
+import { STATUSES, STATUS_PILL } from '@/lib/status-colors';
 
 /** Matches the `duration-200` exit transition on DialogContent. */
 const DIALOG_EXIT_MS = 200;
@@ -42,30 +43,6 @@ const GUTTER = 'px-4 sm:px-6';
 const GUTTER_L = 'pl-4 sm:pl-6';
 const GUTTER_R = 'pr-4 sm:pr-6';
 
-/**
- * Status tints as complete class literals — tokens in globals.css are hex, so
- * slash-opacity would compile to invalid `rgb(#hex / alpha)`.
- */
-const STATUS_PILL: Record<PropertyStatus, { pill: string; dot: string }> = {
-  Open: {
-    pill: 'bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success',
-    dot: 'bg-success',
-  },
-  Reserved: {
-    pill: 'bg-sidebar-accent text-accent-blue-foreground',
-    dot: 'bg-primary',
-  },
-  Sold: {
-    pill: 'bg-row-active text-accent-gold-foreground',
-    dot: 'bg-row-accent',
-  },
-  Forfeited: {
-    pill: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive',
-    dot: 'bg-destructive',
-  },
-};
-
-const STATUSES: PropertyStatus[] = ['Open', 'Reserved', 'Sold', 'Forfeited'];
 
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',

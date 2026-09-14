@@ -76,6 +76,18 @@
     --accent-blue-foreground: #0A8DB8;
     --accent-gold-foreground: #AA880E;
 
+    /* Lot status fills for the site map (Sprint 2 / r29).
+       SVG presentation attributes take CSS values, not Tailwind classes, so
+       these exist as tokens rather than as utilities. Light mode tints the
+       status colour into white; dark mode tints it into the card instead, so
+       the plan does not become a grid of bright patches on a dark page.
+       The strong stroke for each status reuses the existing --success /
+       --primary / --row-accent / --destructive tokens. */
+    --status-open-fill: #E4F8EC;
+    --status-reserved-fill: #EBF8FC;
+    --status-sold-fill: #FDF6DD;
+    --status-forfeited-fill: #FDE8E8;
+
     --row-hover: #F5F3EC;
     --row-active: #FDF5D9;
     --row-panel-shadow: color-mix(in srgb, #000000 18%, transparent);
@@ -131,6 +143,13 @@
     --accent-blue-foreground: #5BC4E7;
     /* Not flipped: --chart-4 is pale in dark mode too. */
     --accent-gold-foreground: #AA880E;
+    /* Tinted into --card (#2A2D30) rather than white, so lot fills read as
+       shaded regions of the plan instead of glowing blocks. */
+    --status-open-fill: #284E3A;
+    --status-reserved-fill: #354E58;
+    --status-sold-fill: #575034;
+    --status-forfeited-fill: #553234;
+
     --row-hover: #35322C;
     --row-active: #4E4A33;
     --row-panel-shadow: color-mix(in srgb, #000000 55%, transparent);

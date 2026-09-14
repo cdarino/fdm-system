@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, Maximize2, TriangleAlert } from 'lucide-react';
 import {
@@ -14,7 +14,8 @@ import {
   AREA_TOLERANCE,
   type Ring,
 } from '@/lib/geometry';
-import type { SiteWithLots, PropertyLotWithClient } from '@/lib/types/property';
+import type { SiteWithLots, PropertyLotWithClient, PropertyStatus } from '@/lib/types/property';
+import { STATUSES, STATUS_SVG } from '@/lib/status-colors';
 
 /** A lot that actually has drawable geometry, resolved once up front. */
 interface DrawableLot {
@@ -61,6 +62,12 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     }
     return out;
   }, [site.lots]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { Open: 0, Reserved: 0, Sold: 0, Forfeited: 0 } as Record<PropertyStatus, number>;
+    for (const { lot } of drawable) counts[lot.status] += 1;
+    return counts;
+  }, [drawable]);
 
   const undrawnCount = site.lots.length - drawable.length;
   const warningCount = drawable.filter((d) => d.areaWarning !== null).length;
@@ -227,49 +234,127 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
         onPointerUp={endPan}
         onPointerCancel={endPan}
       >
-        {/* Overall land area */}
+        {/*
+          Drawn in passes — every fill first, then every stroke — rather than
+          one self-contained <polygon> per lot.
+
+          SVG centres a stroke on its path, so half of it falls outside the
+          shape. With one element per lot painted in order, each lot's fill
+          covered the outer half of its left-hand neighbour's stroke, so every
+          shared edge rendered at half width while the last lot in each row kept
+          a full-width edge. Separating the passes means no fill is ever painted
+          over a stroke.
+        */}
+
+        {/* Pass 1 — land area, then lot fills. These carry the hit-testing. */}
+        <polygon points={toSvgPoints(siteRing)} fill="var(--card)" stroke="none" />
+
+        {drawable.map(({ lot, ring }) => (
+          <polygon
+            key={lot.property_id}
+            points={toSvgPoints(ring)}
+            fill={STATUS_SVG[lot.status].fill}
+            stroke="none"
+            onPointerEnter={() => setHoveredId(lot.property_id)}
+            onPointerLeave={() => setHoveredId((id) => (id === lot.property_id ? null : id))}
+          />
+        ))}
+
+        {/* Pass 2 — lot outlines. Sorted so the hovered lot draws last and its
+            thicker outline is not crossed by a neighbour's hairline. */}
+        <g className="pointer-events-none">
+          {[...drawable]
+            .sort((a, b) =>
+              Number(a.lot.property_id === hoveredId) - Number(b.lot.property_id === hoveredId),
+            )
+            .map(({ lot, ring, areaWarning }) => {
+              const isHovered = lot.property_id === hoveredId;
+              return (
+                <Fragment key={lot.property_id}>
+                  <polygon
+                    points={toSvgPoints(ring)}
+                    fill="none"
+                    // Hover raises the outline to the status' own strong colour
+                    // rather than swapping the fill, so the status stays
+                    // readable while the lot is highlighted.
+                    stroke={isHovered ? STATUS_SVG[lot.status].stroke : 'var(--border)'}
+                    strokeWidth={isHovered ? lotStroke * 2.5 : lotStroke}
+                    strokeLinejoin="round"
+                    className="transition-[stroke] duration-100"
+                  />
+                  {/* An area mismatch is a dashed overlay rather than a coloured
+                      stroke: a red outline would be indistinguishable from a
+                      Forfeited lot's own colour. */}
+                  {areaWarning !== null && (
+                    <polygon
+                      points={toSvgPoints(ring)}
+                      fill="none"
+                      stroke="var(--destructive)"
+                      strokeWidth={lotStroke * 2}
+                      strokeDasharray={`${lotStroke * 6} ${lotStroke * 4}`}
+                      strokeLinejoin="round"
+                    />
+                  )}
+                </Fragment>
+              );
+            })}
+        </g>
+
+        {/* Pass 3 — the parcel outline last, so a lot drawn flush with the
+            boundary cannot clip it. */}
         <polygon
           points={toSvgPoints(siteRing)}
-          fill="var(--card)"
+          fill="none"
           stroke="var(--foreground)"
           strokeWidth={siteStroke}
           strokeLinejoin="round"
+          className="pointer-events-none"
         />
 
-        {/* Individual lot cuts */}
-        {drawable.map(({ lot, ring, label, centroid, areaWarning }) => {
-          const isHovered = lot.property_id === hoveredId;
-          return (
-            <g
+        {/* Pass 4 — labels. */}
+        <g className="pointer-events-none select-none">
+          {drawable.map(({ lot, label, centroid }) => (
+            <text
               key={lot.property_id}
-              onPointerEnter={() => setHoveredId(lot.property_id)}
-              onPointerLeave={() => setHoveredId((id) => (id === lot.property_id ? null : id))}
+              x={centroid[0]}
+              y={centroid[1]}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={labelSize}
+              fill="var(--muted-foreground)"
             >
-              <polygon
-                points={toSvgPoints(ring)}
-                // Status colouring is r29; the base plan stays neutral so the
-                // shapes and their divisions are what read.
-                fill={isHovered ? 'var(--row-active)' : 'var(--muted)'}
-                stroke={areaWarning !== null ? 'var(--destructive)' : 'var(--border)'}
-                strokeWidth={isHovered ? lotStroke * 2 : lotStroke}
-                strokeLinejoin="round"
-                className="transition-[fill] duration-100"
-              />
-              <text
-                x={centroid[0]}
-                y={centroid[1]}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontSize={labelSize}
-                fill="var(--muted-foreground)"
-                className="pointer-events-none select-none"
-              >
-                {label}
-              </text>
-            </g>
-          );
-        })}
+              {label}
+            </text>
+          ))}
+        </g>
+
       </svg>
+
+      {/* Legend. Counts come from the drawn lots only, so the numbers match
+          what is actually visible on the plan. */}
+      <div className="absolute left-3 top-3 rounded-lg border border-border bg-card p-2 shadow-sm">
+        <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Status
+        </p>
+        <ul className="space-y-0.5">
+          {STATUSES.map((status) => (
+            <li key={status} className="flex items-center gap-2 px-1 py-0.5">
+              <span
+                aria-hidden="true"
+                className="h-3 w-3 shrink-0 rounded-sm border"
+                style={{
+                  backgroundColor: STATUS_SVG[status].fill,
+                  borderColor: STATUS_SVG[status].stroke,
+                }}
+              />
+              <span className="text-xs text-foreground">{status}</span>
+              <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
+                {statusCounts[status]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* Zoom controls */}
       <div className="absolute right-3 top-3 flex flex-col gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">

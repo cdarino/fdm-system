@@ -95,6 +95,10 @@ export async function createPropertyLot(
       price_per_sqm: input.price_per_sqm,
       status: input.status ?? "Open",
       client_id: input.client_id ?? null,
+      // Geometry is set later by the lot editor; a lot may belong to a site
+      // before it has been drawn, which is what makes an "undrawn lots on this
+      // site" work queue possible.
+      site_id: input.site_id ?? null,
     })
     .select()
     .single<PropertyLot>();
