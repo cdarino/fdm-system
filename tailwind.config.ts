@@ -82,6 +82,14 @@ export default {
           DEFAULT: "var(--success)",
           foreground: "var(--success-foreground)",
         },
+        // Warm list-row interaction surfaces. See the note in globals.css for
+        // why these exist instead of reusing the cool --muted grey.
+        row: {
+          hover: "var(--row-hover)",
+          active: "var(--row-active)",
+          accent: "var(--row-accent)",
+          "accent-foreground": "var(--row-accent-foreground)",
+        },
         sidebar: {
           DEFAULT: "var(--sidebar)",
           foreground: "var(--sidebar-foreground)",

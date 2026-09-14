@@ -43,6 +43,23 @@
     --sidebar-accent-foreground: #5BC4E7;
     --sidebar-border: #E2E7EC;
     --sidebar-ring: #5BC4E7;
+    /* Row interaction surfaces.
+       --muted is a *cool* grey (#EDF0F3) which fights this palette's warm
+       cream background, so list rows use their own warm tokens instead.
+       Hover is the page cream. --row-active tints the selected ROW, which acts
+       as the header of an open block. The detail body below it stays on the
+       card colour and is set apart from the plain rows by structure instead of
+       fill — the gold rail down its left, and --row-panel-shadow cast downward
+       so the open block reads as lifted off the list. Tinting the body as well
+       made the whole block read as one flat slab.
+       --row-accent-foreground is a darkened gold because the brand gold
+       itself only reaches ~1.6:1 against a light warm surface. */
+    --row-hover: #F5F3EC;
+    --row-active: #FDF5D9;
+    --row-panel-shadow: color-mix(in srgb, #000000 18%, transparent);
+    --row-accent: #F5CE42;
+    --row-accent-foreground: #8A6D0B;
+
     /* Scrollbars. Derived from the palette so they recede instead of showing
        the browser's default grey. */
     --scrollbar-track: transparent;
@@ -86,6 +103,14 @@
     --sidebar-accent-foreground: #5BC4E7;
     --sidebar-border: #3A3D40;
     --sidebar-ring: #5BC4E7;
+    /* Row interaction surfaces (dark). Same roles, lifting warm off the card
+       rather than going cooler. The accent foreground can be the brand gold
+       directly here since it clears ~5:1 against the selected surface. */
+    --row-hover: #35322C;
+    --row-active: #4E4A33;
+    --row-panel-shadow: color-mix(in srgb, #000000 55%, transparent);
+    --row-accent: #F5CE42;
+    --row-accent-foreground: #F5CE42;
     --scrollbar-track: transparent;
     --scrollbar-thumb: #4A5157;
     --scrollbar-thumb-hover: #626A71;

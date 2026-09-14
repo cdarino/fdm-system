@@ -68,13 +68,13 @@ export function useCreateUserForm() {
   };
 }
 
-export function CreateUserModal() {
+export function CreateUserModal({ open }: { open: boolean }) {
   const { form, roles, onSubmit, closeDialog, isPending, displayError } = useCreateUserForm();
   const { register, control, watch, formState: { errors } } = form;
   const selectedRoles = watch('roleIds') ?? [];
 
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && closeDialog()}>
+    <Dialog open={open} onOpenChange={(next) => !next && closeDialog()}>
       <DialogContent
         className="w-full max-w-md bg-card text-foreground border-border rounded-2xl shadow-lg p-0 gap-0"
         showCloseButton={!isPending}
