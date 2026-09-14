@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { Plus, Search, X, LandPlot, SearchX, Map } from 'lucide-react';
+import { Plus, Search, X, LandPlot, SearchX, Map, ChevronDown, Check, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -14,6 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { useMutation } from '@/lib/hooks/use-mutation';
+import { toast } from 'sonner';
 import { CreatePropertyLotModal } from './create-property-lot-modal';
 import { PropertyRowsSkeleton } from './page-skeletons';
 import {
@@ -75,6 +85,71 @@ function StatusPill({ status }: { status: PropertyStatus }) {
   );
 }
 
+/**
+ * The status pill doubles as the control that changes it.
+ *
+ * Status is reversible and low-stakes, so there is no confirmation step — the
+ * toast is the feedback. A pending change disables the trigger so a second
+ * click cannot race the first.
+ */
+function StatusMenu({ lot }: { lot: PropertyLotWithClient }) {
+  const { updateLotStatus } = usePropertyLots();
+  const { state, execute } = useMutation(updateLotStatus);
+  const isPending = state.status === 'pending';
+
+  useEffect(() => {
+    if (state.status === 'error') {
+      toast.error(state.error);
+    }
+  }, [state]);
+
+  async function handleSelect(next: PropertyStatus) {
+    if (next === lot.status) return;
+    const ok = await execute(lot.property_id, next);
+    if (ok) {
+      toast.success(`${lotLabel(lot)} marked ${next}`);
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={isPending}>
+        <button
+          aria-label={`Change status of ${lotLabel(lot)}, currently ${lot.status}`}
+          className="group/status inline-flex items-center gap-1 rounded-full focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <StatusPill status={lot.status} />
+          {isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover/status:text-foreground" />
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[180px]" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Set status
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {STATUSES.map((status) => (
+          <DropdownMenuItem
+            key={status}
+            className="justify-between"
+            onSelect={(e) => { e.preventDefault(); void handleSelect(status); }}
+          >
+            <span className="inline-flex items-center gap-2">
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${STATUS_PILL[status].dot}`} />
+              {status}
+            </span>
+            {status === lot.status && <Check className="h-4 w-4" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function LotRow({ lot }: { lot: PropertyLotWithClient }) {
   return (
     <TableRow className="transition-colors duration-150 hover:bg-row-hover">
@@ -102,7 +177,7 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
           : <span className="text-muted-foreground">Unassigned</span>}
       </TableCell>
       <TableCell className={`py-4 pl-3 ${GUTTER_R}`}>
-        <StatusPill status={lot.status} />
+        <StatusMenu lot={lot} />
       </TableCell>
     </TableRow>
   );

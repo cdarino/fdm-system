@@ -10,7 +10,8 @@
  * Re-running it is safe: the site is matched by name and its lots are replaced.
  *
  * Usage:
- *   npm run seed:sample-site
+ *   npm run seed:sample-site          seed (or re-seed) the sample site
+ *   npm run seed:sample-site:clear    remove it and every lot on it
  *
  * Required env vars (from .env.local):
  *   NEXT_PUBLIC_SUPABASE_URL
@@ -30,7 +31,17 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const SITE_NAME = "Sample Subdivision — Phase 1";
+const SITE_NAME = "Sample Subdivision, Phase 1";
+
+/**
+ * Teardown matches on this prefix rather than on SITE_NAME exactly.
+ *
+ * Renaming the sample site used to strand the previous row: --clear looked for
+ * the new name, found nothing, and the old site stayed in the database with no
+ * obvious way to reach it. Matching the prefix removes every variant that has
+ * ever been seeded from this script.
+ */
+const SITE_NAME_PREFIX = "Sample Subdivision";
 
 /**
  * Local space is metres, origin top-left, Y growing DOWN to match SVG.
@@ -87,17 +98,72 @@ function ringArea(ring: [number, number][]): number {
   return Math.abs(twice) / 2;
 }
 
+const supabase = createClient(SUPABASE_URL!, SERVICE_ROLE_KEY!, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+/**
+ * Removes the sample site and its lots.
+ *
+ * Lots must go FIRST. property_lot.site_id is ON DELETE SET NULL, so dropping
+ * the site on its own would not cascade — it would leave the sample lots behind
+ * as orphans with a null site_id and their boundary still set, which then show
+ * up in the lot list with no way to tell where they came from.
+ */
+async function clearSampleSite(): Promise<void> {
+  const { data: sites, error: findError } = await supabase
+    .from("site")
+    .select("site_id, name")
+    .like("name", `${SITE_NAME_PREFIX}%`)
+    .returns<{ site_id: string; name: string }[]>();
+
+  if (findError) {
+    console.error(`❌  Failed to look up sites: ${findError.message}`);
+    process.exit(1);
+  }
+
+  if (!sites || sites.length === 0) {
+    console.log(`ℹ️   No site starting with "${SITE_NAME_PREFIX}" - nothing to remove.`);
+    return;
+  }
+
+  for (const site of sites) {
+    const { count, error: lotsError } = await supabase
+      .from("property_lot")
+      .delete({ count: "exact" })
+      .eq("site_id", site.site_id);
+
+    if (lotsError) {
+      console.error(`❌  Failed to delete lots for "${site.name}": ${lotsError.message}`);
+      process.exit(1);
+    }
+
+    const { error: siteError } = await supabase
+      .from("site")
+      .delete()
+      .eq("site_id", site.site_id);
+
+    if (siteError) {
+      console.error(`❌  Failed to delete site "${site.name}": ${siteError.message}`);
+      process.exit(1);
+    }
+
+    console.log(`✅  Removed ${count ?? 0} lot(s) and the site "${site.name}".`);
+  }
+}
+
 async function main() {
-  const supabase = createClient(SUPABASE_URL!, SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  if (process.argv.includes("--clear")) {
+    await clearSampleSite();
+    return;
+  }
 
   const { data: site, error: siteError } = await supabase
     .from("site")
     .upsert(
       {
         name: SITE_NAME,
-        description: "Development sample — replace once the real plan is traced.",
+        description: "Development sample, replace once the real plan is traced.",
         boundary: SITE_BOUNDARY,
       },
       { onConflict: "name" },

@@ -3,7 +3,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { getPropertyLots, createPropertyLot } from '@/lib/actions/properties';
+import { getPropertyLots, createPropertyLot, updatePropertyLot } from '@/lib/actions/properties';
 import type {
   PropertyLotWithClient,
   PropertyStatus,
@@ -32,6 +32,7 @@ interface PropertyLotsContextValue {
   openDialog: (dialog: PropertyDialog) => void;
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<void>;
+  updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<void>;
 }
 
 const PropertyLotsContext = createContext<PropertyLotsContextValue | null>(null);
@@ -106,6 +107,20 @@ export function PropertyLotsProvider({ children }: { children: ReactNode }) {
     [router],
   );
 
+  const updateLotStatus = useCallback(
+    async (propertyId: string, status: PropertyStatus): Promise<void> => {
+      const updated = await updatePropertyLot(propertyId, { status });
+      // The action returns a bare PropertyLot, so spread it OVER the existing
+      // row rather than replacing it — that keeps the joined client, which the
+      // update response does not carry.
+      setLots((prev) =>
+        prev.map((lot) => (lot.property_id === propertyId ? { ...lot, ...updated } : lot)),
+      );
+      router.refresh();
+    },
+    [router],
+  );
+
   const value: PropertyLotsContextValue = {
     lots,
     visibleLots,
@@ -119,6 +134,7 @@ export function PropertyLotsProvider({ children }: { children: ReactNode }) {
     openDialog,
     closeDialog,
     createLot,
+    updateLotStatus,
   };
 
   return createElement(PropertyLotsContext.Provider, { value }, children);

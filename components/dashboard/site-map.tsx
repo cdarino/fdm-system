@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, Maximize2, TriangleAlert } from 'lucide-react';
 import {
@@ -130,13 +130,36 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     [viewBox],
   );
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<SVGSVGElement>) => {
+  /**
+   * Wheel-to-zoom must also stop the page scrolling behind the map.
+   *
+   * React registers wheel handlers on its own root as PASSIVE, so calling
+   * preventDefault() from an `onWheel` prop is ignored (the browser logs
+   * "Unable to preventDefault inside passive event listener"). A native
+   * listener registered with `{ passive: false }` is the only way to cancel it.
+   *
+   * The handler is held in a ref and the listener attached once: `toLocal`
+   * changes on every viewBox update, so binding the effect to it directly would
+   * detach and reattach the listener on every frame of a drag.
+   */
+  const onWheelRef = useRef<(e: WheelEvent) => void>(() => {});
+
+  useEffect(() => {
+    onWheelRef.current = (e: WheelEvent) => {
+      e.preventDefault();
       const local = toLocal(e.clientX, e.clientY);
       zoomBy(e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP, local?.x, local?.y);
-    },
-    [toLocal, zoomBy],
-  );
+    };
+  }, [toLocal, zoomBy]);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const listener = (e: WheelEvent) => onWheelRef.current(e);
+    svg.addEventListener('wheel', listener, { passive: false });
+    return () => svg.removeEventListener('wheel', listener);
+  }, []);
 
   const panState = useRef<{ x: number; y: number; vbX: number; vbY: number } | null>(null);
 
@@ -195,8 +218,10 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={`Site layout plan for ${site.name}`}
-        className="h-full w-full cursor-grab touch-none select-none bg-row-hover active:cursor-grabbing"
-        onWheel={handleWheel}
+        // overscroll-contain stops a scroll that reaches the map's edge from
+        // chaining out to the page; the native wheel listener above cancels the
+        // rest. touch-none keeps two-finger panning from scrolling on mobile.
+        className="h-full w-full cursor-grab touch-none select-none overscroll-contain bg-row-hover active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endPan}

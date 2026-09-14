@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.site (
     )
 );
 
-CREATE TRIGGER set_site_updated_at
+CREATE OR REPLACE TRIGGER set_site_updated_at
 BEFORE UPDATE ON public.site
 FOR EACH ROW
 EXECUTE FUNCTION public.handle_updated_at();
@@ -74,19 +74,28 @@ CREATE INDEX IF NOT EXISTS idx_property_lot_site_id ON public.property_lot (site
 
 ALTER TABLE public.site ENABLE ROW LEVEL SECURITY;
 
+-- Each policy is dropped first so this file is safe to run more than once:
+-- applying it by hand in the SQL editor does not record a row in
+-- supabase_migrations.schema_migrations, so a later `supabase db push` will
+-- replay it. CREATE POLICY has no IF NOT EXISTS form.
+
+DROP POLICY IF EXISTS "Allow read site" ON public.site;
 CREATE POLICY "Allow read site" ON public.site
     FOR SELECT TO authenticated
     USING (rbac.has_permission('properties.read', auth.uid()));
 
+DROP POLICY IF EXISTS "Allow insert site" ON public.site;
 CREATE POLICY "Allow insert site" ON public.site
     FOR INSERT TO authenticated
     WITH CHECK (rbac.has_permission('properties.create', auth.uid()));
 
+DROP POLICY IF EXISTS "Allow update site" ON public.site;
 CREATE POLICY "Allow update site" ON public.site
     FOR UPDATE TO authenticated
     USING (rbac.has_permission('properties.update', auth.uid()))
     WITH CHECK (rbac.has_permission('properties.update', auth.uid()));
 
+DROP POLICY IF EXISTS "Allow delete site" ON public.site;
 CREATE POLICY "Allow delete site" ON public.site
     FOR DELETE TO authenticated
     USING (rbac.has_permission('properties.delete', auth.uid()));
