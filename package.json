@@ -6,6 +6,7 @@
     "start": "next start",
     "lint": "eslint .",
     "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.ts",
+    "seed:sample-site": "tsx --env-file=.env.local scripts/seed-sample-site.ts",
     "test:e2e": "vitest run",
     "test:e2e:watch": "vitest",
     "test:e2e:auth": "vitest run scripts/tests/auth/auth.test.ts",

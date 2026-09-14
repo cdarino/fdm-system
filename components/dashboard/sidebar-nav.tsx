@@ -134,7 +134,9 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
             </p>
             {section.tabs.map((tab) => {
               const Icon = ROLE_TAB_ICONS[tab.title] ?? FileText;
-              const isActive = pathname === tab.href;
+              // Prefix match so a nested route (the site map under Property
+              // Lots) keeps its parent tab highlighted.
+              const isActive = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
 
               const content = (
                 <button className={navItemClasses(isActive)}>

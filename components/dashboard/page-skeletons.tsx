@@ -201,6 +201,28 @@ export function PropertiesSkeleton() {
   );
 }
 
+export function SiteMapSkeleton() {
+  return (
+    <LoadingRegion label="Loading site map…">
+      <div className="flex flex-1 flex-col gap-6">
+        <TitleSkeleton />
+        <Card className="flex min-h-[28rem] flex-1 flex-col overflow-hidden border-border bg-card">
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-3 w-56 max-w-full" />
+            </div>
+            <Skeleton className="h-3 w-28" />
+          </div>
+          {/* The plan itself: one large surface rather than fake polygons,
+              which would read as real geometry that then changes. */}
+          <Skeleton className="m-0 flex-1 rounded-none" />
+        </Card>
+      </div>
+    </LoadingRegion>
+  );
+}
+
 export function SettingsSkeleton() {
   return (
     <LoadingRegion label="Loading settings…">

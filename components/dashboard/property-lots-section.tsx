@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, X, LandPlot, SearchX } from 'lucide-react';
+import Link from 'next/link';
+import { Plus, Search, X, LandPlot, SearchX, Map } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -225,13 +226,25 @@ function PropertyLotsContent() {
               Record raw land inventory and keep lot availability accurate.
             </p>
           </div>
-          <Button
-            onClick={() => openDialog({ type: 'create' })}
-            className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
-          >
-            <Plus className="h-4 w-4" />
-            New Lot
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="gap-2 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
+            >
+              <Link href="/dashboard/properties/map">
+                <Map className="h-4 w-4" />
+                Site map
+              </Link>
+            </Button>
+            <Button
+              onClick={() => openDialog({ type: 'create' })}
+              className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+            >
+              <Plus className="h-4 w-4" />
+              New Lot
+            </Button>
+          </div>
         </div>
 
         <div className={`flex flex-col gap-3 pb-5 xl:flex-row xl:items-center xl:justify-between ${GUTTER}`}>
