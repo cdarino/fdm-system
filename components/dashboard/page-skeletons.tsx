@@ -144,6 +144,63 @@ export function UserRowsSkeleton({ rows = 5 }: { rows?: number }) {
   );
 }
 
+/**
+ * Placeholder lot rows, shaped like the real ones — same 36px tile and `py-4`,
+ * so the table does not reflow when the data arrives.
+ *
+ * Exported because the properties page's Suspense fallback and the lot table's
+ * own in-component loading state both need it.
+ */
+export function PropertyRowsSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="divide-y divide-border" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-4 sm:px-6">
+          <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-32 max-w-full" />
+            <Skeleton className="h-3 w-40 max-w-full" />
+          </div>
+          <Skeleton className="hidden h-4 w-20 shrink-0 md:block" />
+          <Skeleton className="hidden h-4 w-24 shrink-0 lg:block" />
+          <Skeleton className="hidden h-4 w-28 shrink-0 lg:block" />
+          <Skeleton className="h-6 w-20 shrink-0 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function PropertiesSkeleton() {
+  return (
+    <LoadingRegion label="Loading property lots…">
+      <div className="flex flex-1 flex-col gap-6">
+        <TitleSkeleton />
+
+        <Card className="flex flex-1 flex-col overflow-hidden border-border bg-card">
+          <div className="flex flex-wrap items-start justify-between gap-4 px-4 pb-5 pt-6 sm:px-6">
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-4 w-72 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-28 rounded-md" />
+          </div>
+
+          {/* Toolbar: status tabs on the left, search on the right */}
+          <div className="flex flex-col gap-3 px-4 pb-5 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+            <Skeleton className="h-10 w-80 max-w-full rounded-lg" />
+            <Skeleton className="h-9 w-full rounded-md sm:w-72" />
+          </div>
+
+          <div className="border-t border-border">
+            <PropertyRowsSkeleton />
+          </div>
+        </Card>
+      </div>
+    </LoadingRegion>
+  );
+}
+
 export function SettingsSkeleton() {
   return (
     <LoadingRegion label="Loading settings…">
