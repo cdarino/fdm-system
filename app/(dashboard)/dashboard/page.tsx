@@ -5,6 +5,7 @@ import { checkIsSystemAdmin } from '@/lib/actions/check-user';
 import { getUserInfo } from '@/lib/user';
 import { QuickLinks } from '@/components/dashboard/quick-links';
 import { PageError } from '@/components/dashboard/page-status';
+import { getDashboardStats } from '@/lib/actions/dashboard';
 import { DashboardSkeleton } from '@/components/dashboard/page-skeletons';
 
 
@@ -16,8 +17,24 @@ async function DashboardContent() {
       return <PageError message="Please log in to access the dashboard" />;
     }
 
-    // Check if user has system.create permission (system admin)
-    const isSystemAdmin = await checkIsSystemAdmin(user.id);
+    // Independent of one another, so they should not be awaited in sequence.
+    const [isSystemAdmin, stats] = await Promise.all([
+      checkIsSystemAdmin(user.id),
+      getDashboardStats(),
+    ]);
+
+    // Only tiles the user is allowed to see; see DashboardStats for why a
+    // withheld stat is null rather than 0.
+    // `stats.propertyLots === null` means the user may not read properties, so
+    // it doubles as the gate for the Property Lots quick link below.
+    //
+    // FDM sells raw undeveloped land, so a building is the wrong picture for a
+    // lot — a site plan and a for-sale tag say what these actually count.
+    const tiles = [
+      { label: 'Property Lots', value: stats.propertyLots, icon: '🗺️', tint: 'bg-sidebar-accent' },
+      { label: 'Available Lots', value: stats.availableLots, icon: '🏷️', tint: 'bg-chart-4' },
+      { label: 'Clients', value: stats.clients, icon: '👥', tint: 'bg-sidebar-accent' },
+    ].filter((tile): tile is typeof tile & { value: number } => tile.value !== null);
 
     return (
       <div className="space-y-8">
@@ -52,46 +69,35 @@ async function DashboardContent() {
           <h2 className="text-2xl font-bold text-foreground">Dashboard Overview</h2>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-card text-card-foreground rounded-2xl p-6 border border-border shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Total Properties</p>
-                  <p className="text-3xl font-bold text-foreground mt-2">12</p>
+          {tiles.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              {tiles.map((tile) => (
+                <div
+                  key={tile.label}
+                  className="rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">{tile.label}</p>
+                      <p className="mt-2 text-3xl font-bold tabular-nums text-foreground">
+                        {tile.value.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-lg text-2xl ${tile.tint}`}>
+                      {tile.icon}
+                    </div>
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-sidebar-accent rounded-lg flex items-center justify-center text-2xl">
-                  🏢
-                </div>
-              </div>
+              ))}
             </div>
-
-            <div className="bg-card text-card-foreground rounded-2xl p-6 border border-border shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Active Projects</p>
-                  <p className="text-3xl font-bold text-foreground mt-2">8</p>
-                </div>
-                <div className="w-12 h-12 bg-chart-4 rounded-lg flex items-center justify-center text-2xl">
-                  📊
-                </div>
-              </div>
+          ) : (
+            <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-sm">
+              No overview figures are available for your role.
             </div>
-
-            <div className="bg-card text-card-foreground rounded-2xl p-6 border border-border shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground font-medium">Team Members</p>
-                  <p className="text-3xl font-bold text-foreground mt-2">5</p>
-                </div>
-                <div className="w-12 h-12 bg-sidebar-accent rounded-lg flex items-center justify-center text-2xl">
-                  👥
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Recent Activity */}
-          <QuickLinks />
+          <QuickLinks canViewProperties={stats.propertyLots !== null} />
         </div>
       </div>
     );

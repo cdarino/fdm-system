@@ -120,12 +120,18 @@ export const AREA_TOLERANCE = 0.05;
  * The margin is proportional so it looks the same whether a site spans 40m or
  * 400m, with a floor so a degenerate (zero-width) site still renders.
  */
-export function fitViewBox(bounds: Bounds, marginRatio = 0.04): string {
+export function fitViewBox(bounds: Bounds, marginRatio = 0.04, extraTopRatio = 0): string {
   const width = Math.max(bounds.maxX - bounds.minX, 1);
   const height = Math.max(bounds.maxY - bounds.minY, 1);
-  const margin = Math.max(width, height) * marginRatio;
+  const span = Math.max(width, height);
+  const margin = span * marginRatio;
+  // Headroom above the plan so a lot on the top row has somewhere to put its
+  // detail card. The card is positioned in screen pixels and the viewBox in
+  // local units, so this cannot be exact — the card also flips below its lot
+  // when it would still overflow.
+  const extraTop = span * extraTopRatio;
 
   const x = bounds.minX - margin;
-  const y = bounds.minY - margin;
-  return `${x} ${y} ${width + margin * 2} ${height + margin * 2}`;
+  const y = bounds.minY - margin - extraTop;
+  return `${x} ${y} ${width + margin * 2} ${height + margin * 2 + extraTop}`;
 }
