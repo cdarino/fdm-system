@@ -70,7 +70,7 @@ function navItemClasses(isActive: boolean): string {
   return cn(
     'w-full flex items-start text-left space-x-3 px-4 py-2 rounded transition-colors text-sm font-medium',
     isActive
-      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+      ? 'bg-sidebar-accent text-accent-blue-foreground'
       : 'text-muted-foreground hover:bg-background hover:text-foreground',
   );
 }

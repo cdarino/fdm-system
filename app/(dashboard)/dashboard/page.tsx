@@ -4,7 +4,8 @@ import { unstable_rethrow } from 'next/navigation';
 import { checkIsSystemAdmin } from '@/lib/actions/check-user';
 import { getUserInfo } from '@/lib/user';
 import { QuickLinks } from '@/components/dashboard/quick-links';
-import { PageSpinner, PageError } from '@/components/dashboard/page-status';
+import { PageError } from '@/components/dashboard/page-status';
+import { DashboardSkeleton } from '@/components/dashboard/page-skeletons';
 
 
 async function DashboardContent() {
@@ -105,7 +106,7 @@ async function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<PageSpinner label="Loading dashboard..." />}>
+    <Suspense fallback={<DashboardSkeleton />}>
       <DashboardContent />
     </Suspense>
   );

@@ -39,11 +39,11 @@ const projects: Project[] = [
 const statusConfig = {
   active: {
     label: 'Active',
-    className: 'bg-sidebar-accent text-primary border-[color-mix(in_srgb,var(--primary)_30%,white)]',
+    className: 'bg-sidebar-accent text-accent-blue-foreground border-[color-mix(in_srgb,var(--primary)_30%,white)]',
   },
   pending: {
     label: 'Pending',
-    className: 'bg-chart-4 text-secondary border-[color-mix(in_srgb,var(--secondary)_30%,white)]',
+    className: 'bg-chart-4 text-accent-gold-foreground border-[color-mix(in_srgb,var(--secondary)_30%,white)]',
   },
   completed: {
     label: 'Completed',
@@ -112,7 +112,7 @@ export function ProjectCardGrid() {
         <Card className="border-2 border-dashed border-border rounded-xl hover:border-primary transition-colors bg-card flex items-center justify-center min-h-64">
           <div className="text-center space-y-2">
             <div className="w-12 h-12 bg-sidebar-accent rounded-lg mx-auto flex items-center justify-center">
-              <span className="text-2xl text-primary">+</span>
+              <span className="text-2xl text-accent-blue-foreground">+</span>
             </div>
             <p className="text-sm text-muted-foreground">Available projects<br/>coming soon</p>
           </div>

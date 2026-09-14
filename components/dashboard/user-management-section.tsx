@@ -8,7 +8,6 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Skeleton } from '@/components/ui/skeleton';
 import { RoleCheckboxList } from '@/components/dashboard/role-checkbox-list';
 import {
   Plus,
@@ -60,6 +59,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { UserRowsSkeleton } from './page-skeletons';
 import { CreateUserModal } from './create-user-modal';
 import {
   AdminUsersProvider,
@@ -214,7 +214,7 @@ function RoleBadges({ roles }: { roles: UserListItem['roles'] }) {
         <Badge
           key={role.id}
           variant="secondary"
-          className="border-border bg-card font-medium text-foreground hover:bg-card"
+          className="border-transparent bg-sidebar-accent font-medium text-accent-blue-foreground hover:bg-sidebar-accent"
         >
           {roleLabel(role.name)}
         </Badge>
@@ -798,27 +798,6 @@ function RoleFilter({
 /*  Loading / empty states                                                    */
 /* -------------------------------------------------------------------------- */
 
-/** Placeholder rows shaped like the real ones, so loading does not reflow. */
-function UserTableSkeleton() {
-  return (
-    <div className="divide-y divide-border" aria-hidden="true">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className={`flex items-center gap-3 py-4 ${GUTTER}`}>
-          <Skeleton className="h-4 w-4 shrink-0" />
-          <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-3.5 w-36 max-w-full" />
-            <Skeleton className="h-3 w-52 max-w-full" />
-          </div>
-          <Skeleton className="hidden h-6 w-28 shrink-0 rounded-md md:block" />
-          <Skeleton className="h-6 w-20 shrink-0 rounded-full" />
-          <Skeleton className="h-7 w-7 shrink-0 rounded-md" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function EmptyState({
   isFiltered,
   onClearFilters,
@@ -951,7 +930,7 @@ function UserManagementContent() {
               <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
             </div>
           ) : isLoading ? (
-            <UserTableSkeleton />
+            <UserRowsSkeleton />
           ) : visibleUsers.length === 0 ? (
             <EmptyState
               isFiltered={isFiltered}

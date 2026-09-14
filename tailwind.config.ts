@@ -82,6 +82,14 @@ export default {
           DEFAULT: "var(--success)",
           foreground: "var(--success-foreground)",
         },
+        // Legible text/icon colours for the pale accent surfaces — see the
+        // note in globals.css for why only the blue one flips with the theme.
+        "accent-blue": {
+          foreground: "var(--accent-blue-foreground)",
+        },
+        "accent-gold": {
+          foreground: "var(--accent-gold-foreground)",
+        },
         // Warm list-row interaction surfaces. See the note in globals.css for
         // why these exist instead of reusing the cool --muted grey.
         row: {
