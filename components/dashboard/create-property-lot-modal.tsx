@@ -27,6 +27,8 @@ import { toast } from 'sonner';
  *
  * An empty numeric input yields NaN through `valueAsNumber`, and `z.number()`
  * rejects NaN, so the `error` message doubles as the required-field message.
+ * 
+ * TODO: what?
  */
 const createPropertyLotSchema = z.object({
   location: z.string().trim().min(1, 'Location is required'),
@@ -48,6 +50,7 @@ const createPropertyLotSchema = z.object({
 
 type CreatePropertyLotFormData = z.infer<typeof createPropertyLotSchema>;
 
+// TODO: could refactor
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
@@ -80,8 +83,6 @@ export function CreatePropertyLotModal({ open }: { open: boolean }) {
 
   const onSubmit = form.handleSubmit((data) => execute(data));
 
-  // Total contract price is what staff actually quote, so show it as the two
-  // figures that produce it are typed rather than making them do the maths.
   const area = watch('area_size');
   const rate = watch('price_per_sqm');
   const total = Number(area) > 0 && Number(rate) > 0 ? Number(area) * Number(rate) : null;
@@ -170,7 +171,7 @@ export function CreatePropertyLotModal({ open }: { open: boolean }) {
               {total === null ? '—' : PESO.format(total)}
             </span>
           </div>
-
+          
           <p className="text-xs text-muted-foreground">
             New lots start as <strong className="font-medium text-foreground">Open</strong>. Assign a
             client and change the status once the lot is reserved or sold.

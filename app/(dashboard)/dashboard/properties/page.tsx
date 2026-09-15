@@ -12,12 +12,7 @@ type PropertiesAccess =
   | { status: 'forbidden' }
   | { status: 'error' };
 
-/**
- * Gated on `properties.read` rather than on a role, so admin_staff reach this
- * page while the system-admin-only panel stays separate. Returns a status
- * instead of redirecting: `redirect()` throws, so calling it inside the try
- * block would let the catch swallow it. See the admin page.
- */
+/** Returns a status whether the user's access is granted */
 async function resolveAccess(): Promise<PropertiesAccess> {
   try {
     const user = await getUserInfo();

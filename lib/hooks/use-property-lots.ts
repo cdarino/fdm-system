@@ -99,8 +99,7 @@ export function PropertyLotsProvider({ children }: { children: ReactNode }) {
   const createLot = useCallback(
     async (input: CreatePropertyLotInput): Promise<void> => {
       const created = await createPropertyLot(input);
-      // The action returns a bare PropertyLot; a newly created lot has no
-      // client joined onto it yet, so the relation is null by construction.
+      // Add a "client: null" since the newly created lot does not come with an assigned client
       setLots((prev) => [{ ...created, client: null }, ...prev]);
       router.refresh();
     },
@@ -110,9 +109,6 @@ export function PropertyLotsProvider({ children }: { children: ReactNode }) {
   const updateLotStatus = useCallback(
     async (propertyId: string, status: PropertyStatus): Promise<void> => {
       const updated = await updatePropertyLot(propertyId, { status });
-      // The action returns a bare PropertyLot, so spread it OVER the existing
-      // row rather than replacing it — that keeps the joined client, which the
-      // update response does not carry.
       setLots((prev) =>
         prev.map((lot) => (lot.property_id === propertyId ? { ...lot, ...updated } : lot)),
       );

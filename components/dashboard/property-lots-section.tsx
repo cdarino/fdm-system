@@ -240,8 +240,7 @@ function PropertyLotsContent() {
     setStatusFilter,
   } = usePropertyLots();
 
-  // Keep the dialog mounted for its exit animation; unmounting on close would
-  // tear it off screen before Radix could animate it out.
+  // TODO: could use a refactor; or move it for the hook to manage
   const [renderedDialog, setRenderedDialog] = useState(activeDialog);
   useEffect(() => {
     if (activeDialog) {

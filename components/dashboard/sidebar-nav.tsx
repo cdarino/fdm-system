@@ -145,8 +145,6 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
                 </button>
               );
 
-              // Previously every role tab opened the Coming Soon modal, so a
-              // tab with a real page could never be reached.
               return (
                 <div key={tab.href}>
                   {tab.comingSoon ? (

@@ -22,28 +22,20 @@ export async function getIsCurrentUserSystemAdmin(): Promise<boolean> {
 export interface RoleTab {
   title: string;
   href: string;
-  /** Omit once the tab has a real page; the sidebar then links to it. */
   comingSoon?: true;
 }
 
 export interface RoleSection {
-  /** Heading the tabs are grouped under in the sidebar. */
   category: string;
   tabs: RoleTab[];
 }
 
-/**
- * Declared as an ordered list so the sidebar renders categories in a stable
- * order regardless of the order roles come back from the database.
- */
 const ROLE_SECTIONS: { role: string; section: RoleSection }[] = [
   {
     role: "admin_staff",
     section: {
       category: "Administration",
       tabs: [
-        // Property lots are admin_staff work, not system administration — the
-        // systemAdminOnly "Admin" item is a separate thing (user management).
         { title: "Property Lots", href: "/dashboard/properties" },
         { title: "Operations Log", href: "/dashboard/operations", comingSoon: true },
       ],
