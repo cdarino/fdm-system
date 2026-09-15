@@ -13,6 +13,7 @@ import {
   FileCheck,
   ClipboardList,
   UserCog,
+  Users,
   LandPlot,
 } from 'lucide-react';
 import { ComingSoonModal } from './coming-soon-modal';
@@ -56,6 +57,7 @@ const ROLE_TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>
   'Accounts Payable':   CreditCard,
   'Contract Management': FileCheck,
   'Operations Log':     ClipboardList,
+  Clients:              Users,
   'Property Lots':      LandPlot,
 };
 
