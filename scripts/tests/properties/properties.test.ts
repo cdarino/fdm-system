@@ -7,6 +7,7 @@ import {
   updatePropertyLot,
   deletePropertyLot,
   assignPropertyClient,
+  assignPropertyParties,
 } from "@/lib/actions/properties";
 import { createClient } from "@/lib/actions/clients";
 import {
@@ -28,6 +29,7 @@ describe("Property Lot Management Actions", () => {
     const adminClient = getTestAdminClient();
     for (const id of testPropertyIds) {
       try {
+        await adminClient.from("ledger_account").delete().eq("property_id", id);
         await adminClient.from("property_lot").delete().eq("property_id", id);
       } catch {
         // Ignore cleanup errors
@@ -221,13 +223,81 @@ describe("Property Lot Management Actions", () => {
       price_per_sqm: 9500,
       client_id: client.client_id,
       status: "Reserved",
+      status: "Open",
     });
     testPropertyIds.push(lot.property_id);
+
+    // Assign client first
+    await assignPropertyClient(lot.property_id, client.client_id);
 
     // Unassign client -> should default to Open
     const cleared = await assignPropertyClient(lot.property_id, null);
     expect(cleared.client_id).toBeNull();
     expect(cleared.status).toBe("Open");
+    expect(cleared.active_account).toBeNull();
+  });
+
+  it("assignPropertyParties supports multiple co-owners on a single lot", async () => {
+    const client1 = await createClient({ full_name: faker.person.fullName() });
+    const client2 = await createClient({ full_name: faker.person.fullName() });
+    testClientIds.push(client1.client_id, client2.client_id);
+
+    const blockNum = faker.number.int({ min: 100, max: 999 });
+    const lot = await createPropertyLot({
+      location: "Co-Ownership Estates",
+      block_number: blockNum,
+      lot_number: 12,
+      area_size: 200,
+      price_per_sqm: 10000,
+    });
+    testPropertyIds.push(lot.property_id);
+
+    const assigned = await assignPropertyParties(
+      lot.property_id,
+      [
+        { client_id: client1.client_id, role: "Principal Buyer", ownership_percentage: 60, is_primary: true },
+        { client_id: client2.client_id, role: "Co-Buyer", ownership_percentage: 40, is_primary: false },
+      ],
+      "Reserved"
+    );
+
+    expect(assigned.status).toBe("Reserved");
+    expect(assigned.client?.client_id).toBe(client1.client_id);
+    expect(assigned.active_account?.parties.length).toBe(2);
+
+    const detail = await getPropertyLotById(lot.property_id);
+    expect(detail.active_account?.parties.length).toBe(2);
+    expect(Number(detail.active_account?.total_contract_price)).toBe(2000000);
+  });
+
+  it("database enforces single active ledger per lot preventing double-selling", async () => {
+    const client1 = await createClient({ full_name: faker.person.fullName() });
+    testClientIds.push(client1.client_id);
+
+    const blockNum = faker.number.int({ min: 100, max: 999 });
+    const lot = await createPropertyLot({
+      location: "Double Sell Prevention Park",
+      block_number: blockNum,
+      lot_number: 15,
+      area_size: 150,
+      price_per_sqm: 12000,
+    });
+    testPropertyIds.push(lot.property_id);
+
+    await assignPropertyClient(lot.property_id, client1.client_id, "Sold");
+
+    // Direct database attempt to insert a second active ledger for the same lot
+    const adminClient = getTestAdminClient();
+    const secondInsert = adminClient.from("ledger_account").insert({
+      property_id: lot.property_id,
+      status: "Active",
+      total_contract_price: 1800000,
+      remaining_balance: 1800000,
+    });
+
+    const { error } = await secondInsert;
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/uq_active_lot_ledger|duplicate key value/i);
   });
 
   it("deletePropertyLot removes lot from database", async () => {
@@ -245,3 +315,4 @@ describe("Property Lot Management Actions", () => {
     await expect(getPropertyLotById(lot.property_id)).rejects.toThrow("Property lot not found");
   });
 });
+
