@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table2, LandPlot } from 'lucide-react';
 import { SiteMap } from '@/components/dashboard/site-map';
+import { SitePicker } from '@/components/dashboard/site-picker';
 import { PageError } from '@/components/dashboard/page-status';
 import { SiteMapSkeleton } from '@/components/dashboard/page-skeletons';
 import { getSites, getSiteWithLots } from '@/lib/actions/sites';
@@ -92,32 +93,13 @@ async function SiteMapContent({ siteId }: { siteId?: string }) {
     <div className="flex flex-1 flex-col gap-6">
       {header}
 
-      {sites.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
-          {sites.map((s) => {
-            const isActive = s.site_id === active.site_id;
-            return (
-              <Link
-                key={s.site_id}
-                href={`/dashboard/properties/map?site=${s.site_id}`}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isActive ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {s.name}
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
       <Card className="flex min-h-[28rem] flex-1 flex-col overflow-hidden border-border bg-card">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">{site.name}</h2>
-            {site.description && (
-              <p className="text-xs text-muted-foreground">{site.description}</p>
-            )}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+              Current site:
+            </span>
+            <SitePicker sites={sites} currentSiteId={active.site_id} />
           </div>
           <p className="text-xs text-muted-foreground">
             {site.lots.length} lot{site.lots.length === 1 ? '' : 's'} on this site

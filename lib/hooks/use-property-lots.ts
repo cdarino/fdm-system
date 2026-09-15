@@ -8,6 +8,7 @@ import type {
   PropertyLotWithClient,
   PropertyStatus,
   CreatePropertyLotInput,
+  Site,
 } from '@/lib/types/property';
 
 export type StatusFilter = 'all' | PropertyStatus;
@@ -33,6 +34,7 @@ interface PropertyLotsContextValue {
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<void>;
   updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<void>;
+  sites: Site[];
 }
 
 const PropertyLotsContext = createContext<PropertyLotsContextValue | null>(null);
@@ -67,7 +69,7 @@ function matchesSearch(lot: PropertyLotWithClient, query: string): boolean {
   return words.every((word) => fields.some((field) => field.includes(word)));
 }
 
-export function PropertyLotsProvider({ children }: { children: ReactNode }) {
+export function PropertyLotsProvider({ children, sites }: { children: ReactNode; sites: Site[] }) {
   const router = useRouter();
   const [lots, setLots] = useState<PropertyLotWithClient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,8 +87,6 @@ export function PropertyLotsProvider({ children }: { children: ReactNode }) {
   }, [lots, search, statusFilter]);
 
   useEffect(() => {
-    // `limit` is well above the ~4,000 legacy titles the company holds so the
-    // first page covers current inventory; paging arrives with the map work.
     getPropertyLots({ limit: 200, sortBy: 'created_at', sortOrder: 'desc' })
       .then((result) => setLots(result.data))
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load property lots'))
@@ -99,7 +99,6 @@ export function PropertyLotsProvider({ children }: { children: ReactNode }) {
   const createLot = useCallback(
     async (input: CreatePropertyLotInput): Promise<void> => {
       const created = await createPropertyLot(input);
-      // Add a "client: null" since the newly created lot does not come with an assigned client
       setLots((prev) => [{ ...created, client: null }, ...prev]);
       router.refresh();
     },
@@ -131,6 +130,7 @@ export function PropertyLotsProvider({ children }: { children: ReactNode }) {
     closeDialog,
     createLot,
     updateLotStatus,
+    sites,
   };
 
   return createElement(PropertyLotsContext.Provider, { value }, children);

@@ -221,8 +221,6 @@ describe("Property Lot Management Actions", () => {
       lot_number: 7,
       area_size: 190,
       price_per_sqm: 9500,
-      client_id: client.client_id,
-      status: "Reserved",
       status: "Open",
     });
     testPropertyIds.push(lot.property_id);

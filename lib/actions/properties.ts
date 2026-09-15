@@ -46,6 +46,8 @@ function mapLotWithAccount(lot: RawLotRow): PropertyLotWithClient {
 
   return {
     property_id: lot.property_id,
+    site_id: lot.site_id ?? null,
+    boundary: lot.boundary ?? null,
     location: lot.location,
     block_number: lot.block_number,
     lot_number: lot.lot_number,

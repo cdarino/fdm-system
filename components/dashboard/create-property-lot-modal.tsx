@@ -1,12 +1,20 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -17,21 +25,10 @@ import {
 import { usePropertyLots } from '@/lib/hooks/use-property-lots';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
+import type { Site } from '@/lib/types/property';
 
-/**
- * `block_number` / `lot_number` are INT columns and `area_size` /
- * `price_per_sqm` are NUMERIC, so these fields must reach the action as
- * numbers. The conversion is done by react-hook-form's `valueAsNumber` on each
- * `register()` below, not by `z.coerce` — under Zod 4 a coerced field types its
- * *input* as `unknown`, which no longer satisfies the resolver's generics.
- *
- * An empty numeric input yields NaN through `valueAsNumber`, and `z.number()`
- * rejects NaN, so the `error` message doubles as the required-field message.
- * 
- * TODO: what?
- */
 const createPropertyLotSchema = z.object({
-  location: z.string().trim().min(1, 'Location is required'),
+  site_id: z.string().min(1, 'Please select a site'),
   block_number: z
     .number({ error: 'Block number is required' })
     .int('Must be a whole number')
@@ -50,21 +47,20 @@ const createPropertyLotSchema = z.object({
 
 type CreatePropertyLotFormData = z.infer<typeof createPropertyLotSchema>;
 
-// TODO: could refactor
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',
   currency: 'PHP',
   maximumFractionDigits: 2,
 });
 
-export function CreatePropertyLotModal({ open }: { open: boolean }) {
+export function CreatePropertyLotModal({ open, sites }: { open: boolean; sites: Site[] }) {
   const { createLot, closeDialog } = usePropertyLots();
   const { state, execute } = useMutation(createLot);
 
   const form = useForm<CreatePropertyLotFormData>({
     resolver: zodResolver(createPropertyLotSchema),
     defaultValues: {
-      location: '',
+      site_id: '',
       block_number: undefined,
       lot_number: undefined,
       area_size: undefined,
@@ -81,7 +77,18 @@ export function CreatePropertyLotModal({ open }: { open: boolean }) {
     }
   }, [state.status, closeDialog]);
 
-  const onSubmit = form.handleSubmit((data) => execute(data));
+  const onSubmit = form.handleSubmit((data) => {
+    const site = sites.find((s) => s.site_id === data.site_id);
+    if (!site) return;
+    return execute({
+      site_id: data.site_id,
+      location: site.name,
+      block_number: data.block_number,
+      lot_number: data.lot_number,
+      area_size: data.area_size,
+      price_per_sqm: data.price_per_sqm,
+    });
+  });
 
   const area = watch('area_size');
   const rate = watch('price_per_sqm');
@@ -104,15 +111,39 @@ export function CreatePropertyLotModal({ open }: { open: boolean }) {
             </div>
           )}
 
-          <FormField
-            id="location"
-            label="Location"
-            placeholder="e.g. Samal Island"
-            disabled={isPending}
-            error={errors.location?.message}
-            {...register('location')}
-          />
+          {/* Site picker */}
+          <div className="space-y-1.5">
+            <Label htmlFor="site_id" className="text-sm font-medium text-foreground">
+              Site
+            </Label>
+            <Controller
+              name="site_id"
+              control={form.control}
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={isPending || sites.length === 0}
+                >
+                  <SelectTrigger id="site_id" className="w-full">
+                    <SelectValue placeholder={sites.length === 0 ? 'No sites available' : 'Select a site'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sites.map((s) => (
+                      <SelectItem key={s.site_id} value={s.site_id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.site_id && (
+              <p className="text-xs text-destructive">{errors.site_id.message}</p>
+            )}
+          </div>
 
+          {/* Block and Lot number inputs */}
           <div className="grid grid-cols-2 gap-3">
             <FormField
               id="block_number"
@@ -120,7 +151,7 @@ export function CreatePropertyLotModal({ open }: { open: boolean }) {
               type="number"
               min={1}
               step={1}
-              placeholder="3"
+              placeholder="1"
               disabled={isPending}
               error={errors.block_number?.message}
               {...register('block_number', { valueAsNumber: true })}
@@ -131,7 +162,7 @@ export function CreatePropertyLotModal({ open }: { open: boolean }) {
               type="number"
               min={1}
               step={1}
-              placeholder="12"
+              placeholder="1"
               disabled={isPending}
               error={errors.lot_number?.message}
               {...register('lot_number', { valueAsNumber: true })}
@@ -171,10 +202,10 @@ export function CreatePropertyLotModal({ open }: { open: boolean }) {
               {total === null ? '—' : PESO.format(total)}
             </span>
           </div>
-          
+
           <p className="text-xs text-muted-foreground">
-            New lots start as <strong className="font-medium text-foreground">Open</strong>. Assign a
-            client and change the status once the lot is reserved or sold.
+            New lots start as <strong className="font-medium text-foreground">Open</strong>. If the block and
+            lot match a subdivision on the site plan, it will visually appear on the map.
           </p>
 
           <DialogFooter>
