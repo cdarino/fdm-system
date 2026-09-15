@@ -3,7 +3,8 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChangePasswordForm } from '@/components/dashboard/change-password-form';
-import { PageSpinner, PageError } from '@/components/dashboard/page-status';
+import { PageError } from '@/components/dashboard/page-status';
+import { SettingsSkeleton } from '@/components/dashboard/page-skeletons';
 import { getUserInfo } from '@/lib/user';
 import { getCurrentUserRoleNames } from '@/lib/actions/check-user';
 import { roleLabel } from '@/lib/role-labels';
@@ -102,7 +103,7 @@ async function SettingsContent() {
                   <Badge
                     key={name}
                     variant="secondary"
-                    className="bg-sidebar-accent text-sidebar-accent-foreground border-transparent hover:bg-sidebar-accent"
+                    className="bg-sidebar-accent text-accent-blue-foreground border-transparent hover:bg-sidebar-accent"
                   >
                     {roleLabel(name)}
                   </Badge>
@@ -120,7 +121,7 @@ async function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<PageSpinner label="Loading settings..." />}>
+    <Suspense fallback={<SettingsSkeleton />}>
       <SettingsContent />
     </Suspense>
   );

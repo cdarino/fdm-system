@@ -36,7 +36,7 @@ export function ComingSoonModal({ isOpen, onClose, title = 'Coming Soon!' }: Com
         <div className="flex flex-col items-center text-center">
           {/* Icon */}
           <div className="w-16 h-16 bg-chart-4 rounded-full flex items-center justify-center mb-4">
-            <Clock className="w-8 h-8 text-secondary" />
+            <Clock className="w-8 h-8 text-accent-gold-foreground" />
           </div>
 
           {/* Title */}

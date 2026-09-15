@@ -13,6 +13,7 @@ import {
   FileCheck,
   ClipboardList,
   UserCog,
+  LandPlot,
 } from 'lucide-react';
 import { ComingSoonModal } from './coming-soon-modal';
 
@@ -55,6 +56,7 @@ const ROLE_TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>
   'Accounts Payable':   CreditCard,
   'Contract Management': FileCheck,
   'Operations Log':     ClipboardList,
+  'Property Lots':      LandPlot,
 };
 
 /**
@@ -70,7 +72,7 @@ function navItemClasses(isActive: boolean): string {
   return cn(
     'w-full flex items-start text-left space-x-3 px-4 py-2 rounded transition-colors text-sm font-medium',
     isActive
-      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+      ? 'bg-sidebar-accent text-accent-blue-foreground'
       : 'text-muted-foreground hover:bg-background hover:text-foreground',
   );
 }
@@ -132,18 +134,28 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
             </p>
             {section.tabs.map((tab) => {
               const Icon = ROLE_TAB_ICONS[tab.title] ?? FileText;
-              const isActive = pathname === tab.href;
+              // Prefix match so a nested route (the site map under Property
+              // Lots) keeps its parent tab highlighted.
+              const isActive = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
 
+              const content = (
+                <button className={navItemClasses(isActive)}>
+                  <Icon className="w-5 h-5 shrink-0" />
+                  <span>{tab.title}</span>
+                </button>
+              );
+
+              // Previously every role tab opened the Coming Soon modal, so a
+              // tab with a real page could never be reached.
               return (
-                <div
-                  key={tab.href}
-                  onClick={() => handleComingSoon(tab.title)}
-                  className="cursor-pointer"
-                >
-                  <button className={navItemClasses(isActive)}>
-                    <Icon className="w-5 h-5 shrink-0" />
-                    <span>{tab.title}</span>
-                  </button>
+                <div key={tab.href}>
+                  {tab.comingSoon ? (
+                    <div onClick={() => handleComingSoon(tab.title)} className="cursor-pointer">
+                      {content}
+                    </div>
+                  ) : (
+                    <Link href={tab.href}>{content}</Link>
+                  )}
                 </div>
               );
             })}

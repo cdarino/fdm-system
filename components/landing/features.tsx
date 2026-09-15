@@ -38,8 +38,8 @@ export function FeaturesSection() {
                 className="rounded-xl border-border bg-card p-6 shadow-none transition-shadow hover:shadow-md"
               >
                 <CardHeader className="p-0">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-chart-3">
-                    <Icon className="h-6 w-6 text-primary" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sidebar-accent">
+                    <Icon className="h-6 w-6 text-accent-blue-foreground" />
                   </div>
                   <CardTitle className="pt-4 text-base font-semibold text-foreground">
                     {feature.title}

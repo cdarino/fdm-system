@@ -3,7 +3,8 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { UserManagementSection } from '@/components/dashboard/user-management-section';
 import { checkIsSystemAdmin } from '@/lib/actions/check-user';
 import { getUserInfo } from '@/lib/user';
-import { PageSpinner, PageError } from '@/components/dashboard/page-status';
+import { PageError } from '@/components/dashboard/page-status';
+import { AdminSkeleton } from '@/components/dashboard/page-skeletons';
 
 
 type AdminAccess =
@@ -65,7 +66,7 @@ async function AdminContent() {
 
 export default function AdminPage() {
   return (
-    <Suspense fallback={<PageSpinner />}>
+    <Suspense fallback={<AdminSkeleton />}>
       <AdminContent />
     </Suspense>
   );
