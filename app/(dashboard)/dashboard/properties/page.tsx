@@ -3,6 +3,7 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { PropertyLotsSection } from '@/components/dashboard/property-lots-section';
 import { PageError } from '@/components/dashboard/page-status';
 import { PropertiesSkeleton } from '@/components/dashboard/page-skeletons';
+import { PageContainer } from '@/components/dashboard/page-container';
 import { hasPermission } from '@/lib/permissions';
 import { getUserInfo } from '@/lib/user';
 import { getSites } from '@/lib/actions/sites';
@@ -59,8 +60,10 @@ async function PropertiesContent() {
 
 export default function PropertiesPage() {
   return (
-    <Suspense fallback={<PropertiesSkeleton />}>
-      <PropertiesContent />
-    </Suspense>
+    <PageContainer>
+      <Suspense fallback={<PropertiesSkeleton />}>
+        <PropertiesContent />
+      </Suspense>
+    </PageContainer>
   );
 }

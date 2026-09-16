@@ -32,9 +32,11 @@ fdm-system/
 │   ├── tutorial/               # Tutorial/onboarding components
 │   └── ui/                     # shadcn/ui primitives and custom base components
 ├── lib/
-│   ├── actions/                # Server actions (auth guards, admin user/role management)
+│   ├── actions/                # Server actions (auth guards, admin user/role, clients, properties, titles, reports)
 │   ├── hooks/                  # Client-side React hooks
+│   ├── storage/                # Cloud storage integration helpers (Backblaze B2)
 │   ├── supabase/               # Supabase client factories (browser, server, admin, proxy)
+│   ├── types/                  # Domain TypeScript types (client, property, title, report)
 │   └── pagination.ts           # Shared offset & pagination calculation
 ├── scripts/                    # Standalone scripts & test suite
 │   ├── seed-admin.ts           # Admin user seeding script
@@ -42,8 +44,10 @@ fdm-system/
 │       ├── framework/          # Setup, session management, Next.js mocks
 │       ├── admin/              # User management & role tests
 │       ├── auth/               # Authentication & password tests
-│       ├── clients/            # Client CRUD & relationship tests
-│       ├── properties/         # Property lot & assignment tests
+│       ├── clients/            # Client CRUD, search, area, archive, documents & interaction tests
+│       ├── properties/         # Property lot, map layout & positioning tests
+│       ├── titles/             # Land title CRUD & property relationship tests
+│       ├── reports/            # Operational summary report tests
 │       ├── permissions/        # Permission & guard tests
 │       └── utils/              # Pure utilities & self-protection tests
 └── supabase/

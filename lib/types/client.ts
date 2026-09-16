@@ -1,4 +1,8 @@
-export type DocType = 'Valid ID' | 'Deed of Sale' | 'eCAR' | 'Other';
+import type { PropertyLot } from './property';
+
+export type DocType = 'Valid ID' | 'Deed of Sale' | 'Contract' | 'eCAR' | 'Other';
+
+export const REQUIRED_CLIENT_DOCUMENTS: DocType[] = ['Valid ID', 'Contract', 'Deed of Sale'];
 
 export interface Client {
   client_id: string;
@@ -41,6 +45,7 @@ export interface ClientWithDetails extends Client {
   contact_info: ContactInfo[];
   client_document: ClientDocument[];
   client_log: ClientLog[];
+  properties?: PropertyLot[];
 }
 
 export interface CreateContactInfoInput {
@@ -80,12 +85,33 @@ export interface CreateClientLogInput {
   description?: string | null;
 }
 
+export interface ClientInteractionInput {
+  interaction_type: 'Call' | 'Meeting' | 'Email' | 'Note' | 'Follow-up' | 'Title Update' | string;
+  notes: string;
+}
+
+export interface ClientDocumentChecklist {
+  client_id: string;
+  is_complete: boolean;
+  present_documents: DocType[];
+  missing_documents: DocType[];
+}
+
+export interface ClientDocumentNotification {
+  client_id: string;
+  full_name: string;
+  missing_documents: DocType[];
+  contact?: { type: string; value: string } | null;
+}
+
 export interface GetClientsParams {
   search?: string;
   status?: string;
+  area?: string;
+  includeArchived?: boolean;
   page?: number;
   limit?: number;
-  sortBy?: 'full_name' | 'created_at' | 'status';
+  sortBy?: 'full_name' | 'created_at' | 'status' | 'address';
   sortOrder?: 'asc' | 'desc';
 }
 

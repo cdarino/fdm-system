@@ -35,10 +35,8 @@ export default async function DashboardLayout({
       {/* Main Content */}
       <div className="ml-60 flex flex-col h-screen">
         <DashboardTopBar user={user} />
-        <main className="flex-1 overflow-auto">
-          <div className="p-8 flex flex-col min-h-full">
-            {children}
-          </div>
+        <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          {children}
         </main>
       </div>
     </div>

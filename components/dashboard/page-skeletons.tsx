@@ -204,20 +204,24 @@ export function PropertiesSkeleton() {
 export function SiteMapSkeleton() {
   return (
     <LoadingRegion label="Loading site map…">
-      <div className="flex flex-1 flex-col gap-6">
-        <TitleSkeleton />
-        <Card className="flex min-h-[28rem] flex-1 flex-col overflow-hidden border-border bg-card">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-56 max-w-full" />
+      <div className="flex flex-1 flex-col h-full">
+        {/* Compact top bar skeleton */}
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col justify-center space-y-1">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-48 hidden sm:block" />
             </div>
-            <Skeleton className="h-3 w-28" />
+            <div className="hidden h-5 w-px bg-border sm:block" />
+            <Skeleton className="h-8 w-36 rounded-md" />
           </div>
-          {/* The plan itself: one large surface rather than fake polygons,
-              which would read as real geometry that then changes. */}
-          <Skeleton className="m-0 flex-1 rounded-none" />
-        </Card>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-4 w-20 hidden md:inline" />
+            <Skeleton className="h-8 w-24 rounded-md" />
+          </div>
+        </div>
+        {/* The plan itself: edge-to-edge canvas surface */}
+        <Skeleton className="m-0 flex-1 rounded-none" />
       </div>
     </LoadingRegion>
   );
