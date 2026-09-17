@@ -204,22 +204,35 @@ export function PropertiesSkeleton() {
 export function SiteMapSkeleton() {
   return (
     <LoadingRegion label="Loading site map…">
-      <div className="flex flex-1 flex-col h-full">
-        {/* Compact top bar skeleton */}
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col justify-center space-y-1">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-3 w-48 hidden sm:block" />
+      <div className="relative flex flex-1 h-full min-h-0 w-full overflow-hidden">
+        {/* Floating card skeleton */}
+        <div className="absolute left-4 top-4 bottom-4 z-20 hidden sm:flex w-[420px] flex-col rounded-2xl border border-border bg-card p-4 space-y-4 shadow-2xl">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3 w-16" />
             </div>
-            <div className="hidden h-5 w-px bg-border sm:block" />
-            <Skeleton className="h-8 w-36 rounded-md" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-4 w-20 hidden md:inline" />
-            <Skeleton className="h-8 w-24 rounded-md" />
+          <Skeleton className="h-8 w-full rounded-lg" />
+          <Skeleton className="h-8 w-full rounded-md" />
+          <div className="space-y-3 flex-1 pt-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border p-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-36" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            ))}
           </div>
         </div>
+
         {/* The plan itself: edge-to-edge canvas surface */}
         <Skeleton className="m-0 flex-1 rounded-none" />
       </div>

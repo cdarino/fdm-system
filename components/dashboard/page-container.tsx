@@ -34,7 +34,7 @@ export function PageContainer({
   return (
     <div
       className={cn(
-        'flex-1 min-h-0 flex flex-col',
+        'flex-1 min-h-0 h-full flex flex-col',
         scrollable ? 'overflow-y-auto' : 'overflow-hidden',
         padding && 'p-8 min-h-full',
         className

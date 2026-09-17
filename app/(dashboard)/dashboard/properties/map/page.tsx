@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Table2, LandPlot } from 'lucide-react';
-import { SiteMap } from '@/components/dashboard/site-map';
-import { SitePicker } from '@/components/dashboard/site-picker';
+import { SiteMapUnifiedView } from '@/components/dashboard/site-map-unified-view';
 import { PageError } from '@/components/dashboard/page-status';
 import { SiteMapSkeleton } from '@/components/dashboard/page-skeletons';
 import { PageContainer } from '@/components/dashboard/page-container';
@@ -57,36 +56,25 @@ async function SiteMapContent({ siteId }: { siteId?: string }) {
 
   if (sites.length === 0) {
     return (
-      <div className="flex flex-1 flex-col h-full">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
-          <div>
-            <h1 className="text-base font-semibold leading-none text-foreground leading-none">Site Map</h1>
-            {/* <p className="mt-1 hidden text-xs text-muted-foreground sm:block">
-              Visual land division showing how each site is cut into lots.
-            </p> */}
+      <div className="flex flex-1 items-center justify-center p-6 text-center h-full">
+        <div className="flex max-w-md flex-col items-center gap-4 rounded-2xl border border-border bg-card p-8 shadow-sm">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-row-hover">
+            <LandPlot className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-sm font-semibold text-foreground">No sites to draw yet</p>
+            <p className="text-sm text-muted-foreground">
+              A site needs an outline before its plan can be rendered. Seed the sample site with{' '}
+              <code className="text-xs">npm run seed:sample-site</code>, or add one once the
+              company&apos;s subdivision plan has been traced.
+            </p>
           </div>
           <Button asChild variant="outline" size="sm" className="gap-1.5 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground">
             <Link href="/dashboard/properties">
               <Table2 className="h-3.5 w-3.5" />
-              Lot list
+              Full lot table
             </Link>
           </Button>
-        </div>
-
-        <div className="flex flex-1 items-center justify-center p-6 text-center">
-          <div className="flex max-w-md flex-col items-center gap-4 rounded-xl border border-border bg-card p-8 shadow-sm">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-row-hover">
-              <LandPlot className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div className="space-y-1.5">
-              <p className="text-sm font-semibold text-foreground">No sites to draw yet</p>
-              <p className="text-sm text-muted-foreground">
-                A site needs an outline before its plan can be rendered. Seed the sample site with{' '}
-                <code className="text-xs">npm run seed:sample-site</code>, or add one once the
-                company&apos;s subdivision plan has been traced.
-              </p>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -96,43 +84,7 @@ async function SiteMapContent({ siteId }: { siteId?: string }) {
   const active = sites.find((s) => s.site_id === siteId) ?? sites[0];
   const site = await getSiteWithLots(active.site_id);
 
-  return (
-    <div className="flex flex-1 flex-col h-full min-h-0">
-      {/* Compact Top Toolbar */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-base font-semibold leading-none text-foreground">Site Map</h1>
-            {/* <p className="mt-1 hidden text-xs text-muted-foreground sm:block leading-none">
-              Visual land division showing how each site is cut into lots.
-            </p> */}
-          </div>
-          <div className="hidden h-4 w-px bg-border sm:block" />
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs font-medium text-muted-foreground whitespace-nowrap md:inline">
-              Current site:
-            </span>
-            <SitePicker sites={sites} currentSiteId={active.site_id} />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <span className="hidden text-xs text-muted-foreground md:inline">
-            {site.lots.length} lot{site.lots.length === 1 ? '' : 's'} on this site
-          </span>
-          <Button asChild variant="outline" size="sm" className="gap-1.5 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground">
-            <Link href="/dashboard/properties">
-              <Table2 className="h-3.5 w-3.5" />
-              Lot list
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      {/* Edge-to-edge interactive canvas */}
-      <SiteMap site={site} />
-    </div>
-  );
+  return <SiteMapUnifiedView sites={sites} site={site} />;
 }
 
 export default async function SiteMapPage({

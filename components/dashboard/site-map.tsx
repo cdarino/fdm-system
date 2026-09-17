@@ -293,7 +293,7 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
   })();
 
   return (
-    <div ref={attachContainer} className="relative min-h-0 flex-1 overflow-hidden">
+    <div ref={attachContainer} className="relative h-full w-full min-h-0 flex-1 overflow-hidden">
       <svg
         ref={svgRef}
         viewBox={viewBox}
@@ -458,7 +458,7 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
       )}
 
       {/* Legend */}
-      <div className="absolute left-3 top-3 rounded-lg border border-border bg-card p-2 shadow-sm">
+      <div className="absolute left-4 top-16 rounded-lg border border-border bg-card p-2 shadow-sm">
         <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Status
         </p>
