@@ -7,6 +7,7 @@ import { QuickLinks } from '@/components/dashboard/quick-links';
 import { PageError } from '@/components/dashboard/page-status';
 import { getDashboardStats } from '@/lib/actions/dashboard';
 import { DashboardSkeleton } from '@/components/dashboard/page-skeletons';
+import { PageContainer } from '@/components/dashboard/page-container';
 
 
 async function DashboardContent() {
@@ -112,8 +113,10 @@ async function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardContent />
-    </Suspense>
+    <PageContainer>
+      <Suspense fallback={<DashboardSkeleton />}>
+        <DashboardContent />
+      </Suspense>
+    </PageContainer>
   );
 }

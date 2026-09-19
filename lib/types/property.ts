@@ -62,18 +62,24 @@ export interface PropertyLotWithClient extends PropertyLot {
   active_account?: LedgerAccountWithParties | null;
 }
 
-/** A site plus every lot cut from it, which is all the map needs to draw. */
-export interface SiteWithLots extends Site {
-  lots: PropertyLotWithClient[];
+/** A pre-planned lot division on a site, drawn from the plat before any property is created. */
+export interface SiteSubdivision {
+  subdivision_id: string;
+  site_id: string;
+  block_number: number;
+  lot_number: number;
+  boundary: unknown;
 }
 
-/** A site plus every lot cut from it, which is all the map needs to draw. */
+/** A site with its pre-planned subdivisions and any registered property lots. */
 export interface SiteWithLots extends Site {
+  subdivisions: SiteSubdivision[];
   lots: PropertyLotWithClient[];
 }
 
 export interface CreatePropertyLotInput {
   location: string;
+  /** Required via the UI — every lot must link to a pre-existing site. Optional here for direct action callers (e.g. tests). */
   site_id?: string | null;
   block_number: number;
   lot_number: number;

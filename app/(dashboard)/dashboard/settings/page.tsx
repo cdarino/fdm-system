@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChangePasswordForm } from '@/components/dashboard/change-password-form';
 import { PageError } from '@/components/dashboard/page-status';
 import { SettingsSkeleton } from '@/components/dashboard/page-skeletons';
+import { PageContainer } from '@/components/dashboard/page-container';
 import { getUserInfo } from '@/lib/user';
 import { getCurrentUserRoleNames } from '@/lib/actions/check-user';
 import { roleLabel } from '@/lib/role-labels';
@@ -119,10 +120,16 @@ async function SettingsContent() {
   );
 }
 
+function ProfileCard() {
+  
+}
+
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<SettingsSkeleton />}>
-      <SettingsContent />
-    </Suspense>
+    <PageContainer>
+      <Suspense fallback={<SettingsSkeleton />}>
+        <SettingsContent />
+      </Suspense>
+    </PageContainer>
   );
 }

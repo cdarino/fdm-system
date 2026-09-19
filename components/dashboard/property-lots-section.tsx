@@ -33,7 +33,7 @@ import {
   totalPrice,
   type StatusFilter,
 } from '@/lib/hooks/use-property-lots';
-import type { PropertyLotWithClient, PropertyStatus } from '@/lib/types/property';
+import type { PropertyLotWithClient, PropertyStatus, Site } from '@/lib/types/property';
 import { STATUSES, STATUS_PILL } from '@/lib/status-colors';
 
 /** Matches the `duration-200` exit transition on DialogContent. */
@@ -238,6 +238,7 @@ function PropertyLotsContent() {
     setSearch,
     statusFilter,
     setStatusFilter,
+    sites,
   } = usePropertyLots();
 
   // TODO: could use a refactor; or move it for the hook to manage
@@ -376,14 +377,14 @@ function PropertyLotsContent() {
         )}
       </Card>
 
-      {renderedDialog?.type === 'create' && <CreatePropertyLotModal open={activeDialog !== null} />}
+      {renderedDialog?.type === 'create' && <CreatePropertyLotModal open={activeDialog !== null} sites={sites} />}
     </>
   );
 }
 
-export function PropertyLotsSection() {
+export function PropertyLotsSection({ sites }: { sites: Site[] }) {
   return (
-    <PropertyLotsProvider>
+    <PropertyLotsProvider sites={sites}>
       <PropertyLotsContent />
     </PropertyLotsProvider>
   );

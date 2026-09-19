@@ -2,30 +2,36 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, Maximize2, TriangleAlert, X } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';
 import {
   parseRing,
   toSvgPoints,
   ringBounds,
   mergeBounds,
   ringCentroid,
-  areaDiscrepancy,
   fitViewBox,
-  AREA_TOLERANCE,
   type Ring,
 } from '@/lib/geometry';
 import type { SiteWithLots, PropertyLotWithClient, PropertyStatus } from '@/lib/types/property';
 import { STATUSES, STATUS_SVG } from '@/lib/status-colors';
 
-/** A lot that actually has drawable geometry, resolved once up front. */
-interface DrawableLot {
-  lot: PropertyLotWithClient;
+/**
+ * A subdivision that has a parsed boundary ring, plus the property lot that
+ * claims it (if any). The lot is null for empty/available slots.
+ */
+interface DrawableSubdivision {
+  subdivisionId: string;
   ring: Ring;
   label: string;
   centroid: readonly [number, number];
-  /** Set when the drawn shape disagrees with `area_size` beyond tolerance. */
-  areaWarning: number | null;
+  lot: PropertyLotWithClient | null;
 }
+
+/** Fill/stroke for a subdivision slot that has no registered property. */
+const EMPTY_SVG = {
+  fill: 'var(--row-hover)',
+  stroke: 'var(--muted-foreground)',
+} as const;
 
 const ZOOM_STEP = 1.4;
 const MIN_SCALE = 0.2;
@@ -52,54 +58,25 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
  *
  * The viewBox stays in the site's own metre space, so stroke widths and label
  * sizes can be expressed relative to the site's real extent and a lot's
- * coordinates never need converting. It also keeps hit-testing exact: the
- * browser tests the pointer against the real polygon path, which a transformed
- * bitmap would not.
+ * coordinates never need converting.
  */
 export function SiteMap({ site }: { site: SiteWithLots }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
   /**
-   * Which lot a release lands on is resolved by hit-testing the cursor, not by
-   * the event target and not by hover state.
-   *
-   * The <svg> calls setPointerCapture on pointerdown so a drag keeps panning
-   * outside the element. Capture has two consequences that between them rule
-   * out both of the obvious approaches:
-   *
-   *   1. pointerup is RETARGETED to the <svg>, so a lot's own handler never
-   *      runs and e.target is always the svg.
-   *   2. Setting capture fires pointerout/pointerleave at whatever was hovered
-   *      — so the hovered lot is cleared the instant the button goes down, and
-   *      is already null by the time the pointer is released.
-   *
-   * document.elementFromPoint is a plain hit test against the rendered tree and
-   * is unaffected by capture, so it answers the actual question: what is under
-   * the cursor right now.
+   * Hit-testing via elementFromPoint rather than event target, because
+   * setPointerCapture retargets pointerup to the svg and clears hover state
+   * before the pointer is released. See the original site-map notes.
    */
-  const lotIdAt = useCallback((clientX: number, clientY: number): string | null => {
+  const subdivisionIdAt = useCallback((clientX: number, clientY: number): string | null => {
     const el = document.elementFromPoint(clientX, clientY);
-    return el?.closest('[data-lot-id]')?.getAttribute('data-lot-id') ?? null;
+    return el?.closest('[data-subdivision-id]')?.getAttribute('data-subdivision-id') ?? null;
   }, []);
-  /**
-   * Live container size. Drives both the popup's position and the on-screen
-   * size of strokes and labels, so it must never be left at zero.
-   *
-   * Measured from a CALLBACK REF rather than an effect. An effect with `[]`
-   * deps runs once, and this component returns early when the site outline is
-   * unusable — so if the container was not mounted on that single run, the
-   * observer was never attached and the size stayed {0,0} permanently. A
-   * callback ref runs whenever the node attaches, and measures synchronously
-   * so the first paint already has a real size.
-   */
+
   const [box, setBox] = useState({ w: 0, h: 0 });
   const observerRef = useRef<ResizeObserver | null>(null);
-  /**
-   * Measured height of the detail card, so it can be flipped below its lot when
-   * there is not room above. Seeded with a typical height so the very first
-   * placement is already sensible rather than visibly correcting itself.
-   */
   const [cardHeight, setCardHeight] = useState(210);
   const measureCard = useCallback((node: HTMLDivElement | null) => {
     if (node) setCardHeight(node.getBoundingClientRect().height);
@@ -109,10 +86,8 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     observerRef.current?.disconnect();
     observerRef.current = null;
     if (!node) return;
-
     const rect = node.getBoundingClientRect();
     setBox({ w: rect.width, h: rect.height });
-
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
       if (width > 0 && height > 0) setBox({ w: width, h: height });
@@ -121,45 +96,53 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     observerRef.current = observer;
   }, []);
 
-  // Escape closes the popup, matching every other dismissible surface here.
   useEffect(() => {
     if (!selectedId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedId(null);
-    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSelectedId(null); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedId]);
 
   const siteRing = useMemo(() => parseRing(site.boundary), [site.boundary]);
 
-  const drawable = useMemo<DrawableLot[]>(() => {
-    const out: DrawableLot[] = [];
+  /** Build a lookup of registered lots keyed by "block-lot" for O(1) matching. */
+  const lotByKey = useMemo(() => {
+    const map = new Map<string, PropertyLotWithClient>();
     for (const lot of site.lots) {
-      const ring = parseRing(lot.boundary);
-      if (!ring) continue; // undrawn lots simply do not appear on the plan
-      const discrepancy = areaDiscrepancy(ring, lot.area_size);
+      map.set(`${lot.block_number}-${lot.lot_number}`, lot);
+    }
+    return map;
+  }, [site.lots]);
+
+  const drawable = useMemo<DrawableSubdivision[]>(() => {
+    const out: DrawableSubdivision[] = [];
+    for (const sub of site.subdivisions) {
+      const ring = parseRing(sub.boundary);
+      if (!ring) continue;
+      const lot = lotByKey.get(`${sub.block_number}-${sub.lot_number}`) ?? null;
       out.push({
-        lot,
+        subdivisionId: sub.subdivision_id,
         ring,
-        label: `${lot.block_number}-${lot.lot_number}`,
+        label: `${sub.block_number}-${sub.lot_number}`,
         centroid: ringCentroid(ring),
-        areaWarning: discrepancy !== null && discrepancy > AREA_TOLERANCE ? discrepancy : null,
+        lot,
       });
     }
     return out;
-  }, [site.lots]);
+  }, [site.subdivisions, lotByKey]);
 
   const statusCounts = useMemo(() => {
     const counts = { Open: 0, Reserved: 0, Sold: 0, Forfeited: 0 } as Record<PropertyStatus, number>;
-    for (const { lot } of drawable) counts[lot.status] += 1;
+    for (const { lot } of drawable) {
+      if (lot) counts[lot.status] += 1;
+    }
     return counts;
   }, [drawable]);
 
-  const undrawnCount = site.lots.length - drawable.length;
-  const warningCount = drawable.filter((d) => d.areaWarning !== null).length;
+  const emptyCount = drawable.filter((d) => !d.lot).length;
+  const drawnLotsCount = drawable.filter((d) => d.lot !== null).length;
+  const undrawnLotsCount = site.lots.length - drawnLotsCount;
 
-  /** Extent of everything, so "fit" frames the site even if a lot pokes outside it. */
   const extent = useMemo(() => {
     const all = [
       ...(siteRing ? [ringBounds(siteRing)] : []),
@@ -169,32 +152,14 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
   }, [siteRing, drawable]);
 
   const initialViewBox = useMemo(
-    // Extra headroom at the top so the first click on a top-row lot has room
-    // for its card without the view needing to be panned first.
     () => (extent ? fitViewBox(extent, 0.04, 0.16) : '0 0 100 100'),
     [extent],
   );
 
   const [viewBox, setViewBox] = useState(initialViewBox);
-  // Only the extent is needed here; the origin is read where panning uses it.
   const [, , vbW, vbH] = viewBox.split(' ').map(Number);
 
-  // Scale-independent sizing: a hairline should stay a hairline at any zoom, so
-  // widths are a fraction of the CURRENT viewBox rather than a fixed px value.
   const unit = Math.max(vbW, vbH);
-
-  /**
-   * Converts a screen-pixel size into viewBox units.
-   *
-   * Strokes and labels were previously a fraction of the viewBox extent, i.e.
-   * fixed in WORLD units — so their on-screen size rode on whatever fit scale
-   * the container happened to produce, and they shrank as soon as the map was
-   * sized correctly. Dividing by the live scale pins them to real pixels, which
-   * also keeps labels readable at any zoom level.
-   *
-   * `unit`-based fallback covers the first render, before the ResizeObserver
-   * has reported a size.
-   */
   const fitScale = box.w > 0 && box.h > 0 ? Math.min(box.w / vbW, box.h / vbH) : 0;
   const px = (n: number) => (fitScale > 0 ? n / fitScale : (unit * n) / 700);
 
@@ -209,14 +174,11 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
       setViewBox((current) => {
         const [x, y, w, h] = current.split(' ').map(Number);
         if (!extent) return current;
-
         const baseW = Math.max(extent.maxX - extent.minX, 1);
         const nextW = w / factor;
         const scale = baseW / nextW;
         if (scale < MIN_SCALE || scale > MAX_SCALE) return current;
-
         const nextH = h / factor;
-        // Zoom about the pointer when given one, otherwise about the centre.
         const fx = originX ?? x + w / 2;
         const fy = originY ?? y + h / 2;
         const nx = fx - (fx - x) / factor;
@@ -227,7 +189,6 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     [extent],
   );
 
-  /** Converts a client-space pointer position into site-space coordinates. */
   const toLocal = useCallback(
     (clientX: number, clientY: number) => {
       const svg = svgRef.current;
@@ -242,20 +203,7 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     [viewBox],
   );
 
-  /**
-   * Wheel-to-zoom must also stop the page scrolling behind the map.
-   *
-   * React registers wheel handlers on its own root as PASSIVE, so calling
-   * preventDefault() from an `onWheel` prop is ignored (the browser logs
-   * "Unable to preventDefault inside passive event listener"). A native
-   * listener registered with `{ passive: false }` is the only way to cancel it.
-   *
-   * The handler is held in a ref and the listener attached once: `toLocal`
-   * changes on every viewBox update, so binding the effect to it directly would
-   * detach and reattach the listener on every frame of a drag.
-   */
   const onWheelRef = useRef<(e: WheelEvent) => void>(() => {});
-
   useEffect(() => {
     onWheelRef.current = (e: WheelEvent) => {
       e.preventDefault();
@@ -267,15 +215,12 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
-
     const listener = (e: WheelEvent) => onWheelRef.current(e);
     svg.addEventListener('wheel', listener, { passive: false });
     return () => svg.removeEventListener('wheel', listener);
   }, []);
 
   const panState = useRef<{ x: number; y: number; vbX: number; vbY: number } | null>(null);
-  /** Set once a pointer travels past the slop threshold, so releasing after a
-      drag does not also select or deselect a lot. */
   const draggedRef = useRef(false);
   const DRAG_SLOP = 4;
 
@@ -294,11 +239,9 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     if (!start) return;
     const svg = svgRef.current;
     if (!svg) return;
-
     if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > DRAG_SLOP) {
       draggedRef.current = true;
     }
-
     const rect = svg.getBoundingClientRect();
     setViewBox((current) => {
       const [, , w, h] = current.split(' ').map(Number);
@@ -313,15 +256,10 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
     }
-    // Releasing without dragging selects the lot under the pointer, or
-    // dismisses the popup when released over bare canvas.
     if (draggedRef.current) return;
-
-    const lotUnderPointer = lotIdAt(e.clientX, e.clientY);
-    setSelectedId((current) =>
-      lotUnderPointer && current !== lotUnderPointer ? lotUnderPointer : null,
-    );
-  }, [lotIdAt]);
+    const id = subdivisionIdAt(e.clientX, e.clientY);
+    setSelectedId((current) => (id && current !== id ? id : null));
+  }, [subdivisionIdAt]);
 
   if (!siteRing) {
     return (
@@ -335,30 +273,17 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
     );
   }
 
-  /** Paint order within the outline pass: plain < hovered < selected. */
   const emphasis = (id: string) => (id === selectedId ? 2 : id === hoveredId ? 1 : 0);
 
-  const hovered = drawable.find((d) => d.lot.property_id === hoveredId) ?? null;
-  const selected = drawable.find((d) => d.lot.property_id === selectedId) ?? null;
+  const hovered = drawable.find((d) => d.subdivisionId === hoveredId) ?? null;
+  const selected = drawable.find((d) => d.subdivisionId === selectedId) ?? null;
 
-  /**
-   * Where the popup sits, in container pixels.
-   *
-   * Recomputed from the viewBox, so the card stays pinned to its lot while the
-   * plan is panned or zoomed. `xMidYMid meet` scales uniformly to fit and
-   * splits the leftover space evenly, so the same transform has to be applied
-   * here — a plain linear stretch would drift on any non-matching aspect ratio.
-   */
   const anchor = (() => {
     if (!selected || box.w === 0 || box.h === 0) return null;
     const [x, y, w, h] = viewBox.split(' ').map(Number);
     const scale = Math.min(box.w / w, box.h / h);
     const left = (box.w - w * scale) / 2 + (selected.centroid[0] - x) * scale;
     const top = (box.h - h * scale) / 2 + (selected.centroid[1] - y) * scale;
-    // Keep the card on screen when its lot is near an edge or scrolled off.
-    // `below` flips it under the lot when the space above cannot hold it —
-    // headroom in the initial view is not enough on its own, since panning can
-    // put any lot against the top edge.
     const GAP = 14;
     return {
       left: Math.min(Math.max(left, 130), Math.max(box.w - 130, 130)),
@@ -368,99 +293,61 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
   })();
 
   return (
-    // min-h-0 is essential: a flex item defaults to min-height:auto and so
-    // refuses to shrink below its content, which let the SVG push this box past
-    // the card — the card's overflow-hidden then clipped the lower half of the
-    // plan on first load. The SVG is absolutely positioned so it matches this
-    // box exactly rather than depending on percentage-height resolution.
-    <div ref={attachContainer} className="relative min-h-0 flex-1 overflow-hidden">
+    <div ref={attachContainer} className="relative h-full w-full min-h-0 flex-1 overflow-hidden">
       <svg
         ref={svgRef}
         viewBox={viewBox}
-        // Square units in both axes, so a lot's real proportions survive
-        // whatever aspect ratio the container happens to have.
         preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={`Site layout plan for ${site.name}`}
-        // overscroll-contain stops a scroll that reaches the map's edge from
-        // chaining out to the page; the native wheel listener above cancels the
-        // rest. touch-none keeps two-finger panning from scrolling on mobile.
         className="absolute inset-0 h-full w-full cursor-grab touch-none select-none overscroll-contain bg-row-hover active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={endPan}
         onPointerCancel={endPan}
       >
-        {/*
-          Drawn in passes — every fill first, then every stroke — rather than
-          one self-contained <polygon> per lot.
-
-          SVG centres a stroke on its path, so half of it falls outside the
-          shape. With one element per lot painted in order, each lot's fill
-          covered the outer half of its left-hand neighbour's stroke, so every
-          shared edge rendered at half width while the last lot in each row kept
-          a full-width edge. Separating the passes means no fill is ever painted
-          over a stroke.
-        */}
-
-        {/* Pass 1 — land area, then lot fills. These carry the hit-testing. */}
+        {/* Pass 1 — land area fill, then subdivision fills (carry hit-testing). */}
         <polygon points={toSvgPoints(siteRing)} fill="var(--card)" stroke="none" />
 
-        {drawable.map(({ lot, ring }) => (
+        {drawable.map(({ subdivisionId, ring, lot }) => (
           <polygon
-            key={lot.property_id}
+            key={subdivisionId}
             points={toSvgPoints(ring)}
-            fill={STATUS_SVG[lot.status].fill}
+            fill={lot ? STATUS_SVG[lot.status].fill : EMPTY_SVG.fill}
             stroke="none"
-            data-lot-id={lot.property_id}
+            data-subdivision-id={subdivisionId}
             className="cursor-pointer"
-            onPointerEnter={() => setHoveredId(lot.property_id)}
-            onPointerLeave={() => setHoveredId((id) => (id === lot.property_id ? null : id))}
+            onPointerEnter={() => setHoveredId(subdivisionId)}
+            onPointerLeave={() => setHoveredId((id) => (id === subdivisionId ? null : id))}
           />
         ))}
 
-        {/* Pass 2 — lot outlines. Sorted so the hovered lot draws last and its
-            thicker outline is not crossed by a neighbour's hairline. */}
+        {/* Pass 2 — subdivision outlines; hovered/selected draws last. */}
         <g className="pointer-events-none">
           {[...drawable]
-            .sort((a, b) => emphasis(a.lot.property_id) - emphasis(b.lot.property_id))
-            .map(({ lot, ring, areaWarning }) => {
-              const isSelected = lot.property_id === selectedId;
-              const isHovered = lot.property_id === hoveredId;
+            .sort((a, b) => emphasis(a.subdivisionId) - emphasis(b.subdivisionId))
+            .map(({ subdivisionId, ring, lot }) => {
+              const isSelected = subdivisionId === selectedId;
+              const isHovered = subdivisionId === hoveredId;
               const emphasised = isSelected || isHovered;
+              const strokeColor = emphasised
+                ? (lot ? STATUS_SVG[lot.status].stroke : 'var(--foreground)')
+                : 'var(--border)';
               return (
-                <Fragment key={lot.property_id}>
-                  <polygon
-                    points={toSvgPoints(ring)}
-                    fill="none"
-                    // Hover raises the outline to the status' own strong colour
-                    // rather than swapping the fill, so the status stays
-                    // readable while the lot is highlighted.
-                    stroke={emphasised ? STATUS_SVG[lot.status].stroke : 'var(--border)'}
-                    strokeWidth={isSelected ? lotStroke * 4 : isHovered ? lotStroke * 2.5 : lotStroke}
-                    strokeLinejoin="round"
-                    className="transition-[stroke] duration-100"
-                  />
-                  {/* An area mismatch is a dashed overlay rather than a coloured
-                      stroke: a red outline would be indistinguishable from a
-                      Forfeited lot's own colour. */}
-                  {areaWarning !== null && (
-                    <polygon
-                      points={toSvgPoints(ring)}
-                      fill="none"
-                      stroke="var(--destructive)"
-                      strokeWidth={lotStroke * 2}
-                      strokeDasharray={`${lotStroke * 6} ${lotStroke * 4}`}
-                      strokeLinejoin="round"
-                    />
-                  )}
-                </Fragment>
+                <polygon
+                  key={subdivisionId}
+                  points={toSvgPoints(ring)}
+                  fill="none"
+                  stroke={strokeColor}
+                  strokeWidth={isSelected ? lotStroke * 4 : isHovered ? lotStroke * 2.5 : lotStroke}
+                  strokeLinejoin="round"
+                  className="transition-[stroke] duration-100"
+                />
               );
             })}
         </g>
 
-        {/* Pass 3 — the parcel outline last, so a lot drawn flush with the
-            boundary cannot clip it. */}
+        {/* Pass 3 — site outline on top so a subdivision flush with the boundary cannot clip it. */}
         <polygon
           points={toSvgPoints(siteRing)}
           fill="none"
@@ -472,9 +359,9 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
 
         {/* Pass 4 — labels. */}
         <g className="pointer-events-none select-none">
-          {drawable.map(({ lot, label, centroid }) => (
+          {drawable.map(({ subdivisionId, label, centroid }) => (
             <text
-              key={lot.property_id}
+              key={subdivisionId}
               x={centroid[0]}
               y={centroid[1]}
               textAnchor="middle"
@@ -486,17 +373,13 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
             </text>
           ))}
         </g>
-
       </svg>
 
-      {/* Lot details, anchored to the selected lot and following it on pan/zoom.
-          The tail below the card points at the lot it describes. */}
+      {/* Detail card — shown for both claimed and empty subdivisions. */}
       {selected && (
         <div
           role="dialog"
-          aria-label={`Details for Block ${selected.lot.block_number} Lot ${selected.lot.lot_number}`}
-          // Falls back to a corner if the container has not been measured, so a
-          // selection always produces a visible card.
+          aria-label={`Details for Block ${selected.label.split('-')[0]} Lot ${selected.label.split('-')[1]}`}
           ref={measureCard}
           className={
             !anchor
@@ -517,12 +400,14 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  Block {selected.lot.block_number} Lot {selected.lot.lot_number}
+                  Block {selected.label.split('-')[0]} Lot {selected.label.split('-')[1]}
                 </p>
-                <p className="text-xs text-muted-foreground">{selected.lot.location}</p>
+                {selected.lot && (
+                  <p className="text-xs text-muted-foreground">{selected.lot.location}</p>
+                )}
               </div>
               <button
-                aria-label="Close lot details"
+                aria-label="Close details"
                 onClick={() => setSelectedId(null)}
                 className="-mr-1 -mt-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-row-hover hover:text-foreground"
               >
@@ -530,37 +415,36 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
               </button>
             </div>
 
-            <div className="mt-2 flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-sm border"
-                style={{
-                  backgroundColor: STATUS_SVG[selected.lot.status].fill,
-                  borderColor: STATUS_SVG[selected.lot.status].stroke,
-                }}
-              />
-              <span className="text-xs font-medium text-foreground">{selected.lot.status}</span>
-            </div>
+            {selected.lot ? (
+              <>
+                <div className="mt-2 flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 rounded-sm border"
+                    style={{
+                      backgroundColor: STATUS_SVG[selected.lot.status].fill,
+                      borderColor: STATUS_SVG[selected.lot.status].stroke,
+                    }}
+                  />
+                  <span className="text-xs font-medium text-foreground">{selected.lot.status}</span>
+                </div>
 
-            <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
-              <DetailRow label="Area">{AREA.format(selected.lot.area_size)} sqm</DetailRow>
-              <DetailRow label="Price / sqm">{PESO.format(selected.lot.price_per_sqm)}</DetailRow>
-              <DetailRow label="Contract price">
-                {PESO.format(selected.lot.area_size * selected.lot.price_per_sqm)}
-              </DetailRow>
-              <DetailRow label="Client">
-                {selected.lot.client
-                  ? selected.lot.client.full_name
-                  : <span className="font-normal text-muted-foreground">Unassigned</span>}
-              </DetailRow>
-            </dl>
-
-            {selected.areaWarning !== null && (
-              <p className="mt-3 flex items-start gap-1.5 border-t border-border pt-3 text-xs text-destructive">
-                <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" />
-                <span>
-                  Drawn shape is {Math.round(selected.areaWarning * 100)}% off the recorded area.
-                </span>
+                <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
+                  <DetailRow label="Area">{AREA.format(selected.lot.area_size)} sqm</DetailRow>
+                  <DetailRow label="Price / sqm">{PESO.format(selected.lot.price_per_sqm)}</DetailRow>
+                  <DetailRow label="Contract price">
+                    {PESO.format(selected.lot.area_size * selected.lot.price_per_sqm)}
+                  </DetailRow>
+                  <DetailRow label="Client">
+                    {selected.lot.client
+                      ? selected.lot.client.full_name
+                      : <span className="font-normal text-muted-foreground">Unassigned</span>}
+                  </DetailRow>
+                </dl>
+              </>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No property registered for this slot.
               </p>
             )}
           </div>
@@ -573,9 +457,8 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
         </div>
       )}
 
-      {/* Legend. Counts come from the drawn lots only, so the numbers match
-          what is actually visible on the plan. */}
-      <div className="absolute left-3 top-3 rounded-lg border border-border bg-card p-2 shadow-sm">
+      {/* Legend */}
+      <div className="absolute left-4 top-16 rounded-lg border border-border bg-card p-2 shadow-sm">
         <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Status
         </p>
@@ -596,6 +479,16 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
               </span>
             </li>
           ))}
+          <li className="flex items-center gap-2 px-1 py-0.5">
+            <span
+              aria-hidden="true"
+              className="h-3 w-3 shrink-0 rounded-sm border border-border bg-row-hover"
+            />
+            <span className="text-xs text-foreground">Available</span>
+            <span className="ml-auto pl-3 text-xs tabular-nums text-muted-foreground">
+              {emptyCount}
+            </span>
+          </li>
         </ul>
       </div>
 
@@ -612,33 +505,26 @@ export function SiteMap({ site }: { site: SiteWithLots }) {
         </Button>
       </div>
 
-      {/* Hovered lot readout. The full detail popup is r30. */}
+      {/* Hovered slot readout (shown only when nothing is selected). */}
       {hovered && !selected && (
         <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
           <p className="text-sm font-medium text-foreground">
-            Block {hovered.lot.block_number} Lot {hovered.lot.lot_number}
+            Block {hovered.label.split('-')[0]} Lot {hovered.label.split('-')[1]}
           </p>
           <p className="text-xs text-muted-foreground">
-            {hovered.lot.area_size.toLocaleString('en-PH')} sqm · {hovered.lot.status}
+            {hovered.lot
+              ? `${hovered.lot.area_size.toLocaleString('en-PH')} sqm · ${hovered.lot.status}`
+              : 'Available'}
           </p>
         </div>
       )}
 
-      {/* Data-quality notices: geometry problems are invisible otherwise. */}
-      {(undrawnCount > 0 || warningCount > 0) && (
-        <div className="absolute bottom-3 right-3 space-y-1 text-right">
-          {warningCount > 0 && (
-            <p className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs text-destructive shadow-sm">
-              <TriangleAlert className="h-3.5 w-3.5" />
-              {warningCount} lot{warningCount === 1 ? '' : 's'} drawn more than{' '}
-              {Math.round(AREA_TOLERANCE * 100)}% off their recorded area
-            </p>
-          )}
-          {undrawnCount > 0 && (
-            <p className="rounded-md border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-sm">
-              {undrawnCount} lot{undrawnCount === 1 ? '' : 's'} not yet drawn
-            </p>
-          )}
+      {/* Undrawn lots notice for registered properties on this site without matching subdivision */}
+      {undrawnLotsCount > 0 && (
+        <div className="pointer-events-none absolute bottom-3 right-3 space-y-1 text-right">
+          <p className="rounded-md border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground shadow-sm">
+            {undrawnLotsCount} lot{undrawnLotsCount === 1 ? '' : 's'} not yet drawn
+          </p>
         </div>
       )}
     </div>
