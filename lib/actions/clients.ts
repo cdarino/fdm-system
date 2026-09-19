@@ -27,6 +27,11 @@ import {
 
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
+// Any automated system logs that are generated when calling client-related operations
+// (like updating contact info, updating name) are disabled and commented out.
+// Mainly because this may not scale well considering the 500MB size limit for Supabase
+// projects under the free plan.
+
 async function resolveUserNames(userIds: string[]): Promise<Map<string, string>> {
   const userMap = new Map<string, string>();
   const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
@@ -190,12 +195,12 @@ export async function createClient(input: CreateClientInput): Promise<Client> {
   }
 
   // Audit registration in client log
-  await supabase.from("client_log").insert({
-    client_id: client.client_id,
-    event_type: "CLIENT_REGISTERED",
-    description: "New client registered in system",
-    performed_by: userId,
-  });
+//   await supabase.from("client_log").insert({
+//     client_id: client.client_id,
+//     event_type: "CLIENT_REGISTERED",
+//     description: "New client registered in system",
+//     performed_by: userId,
+//   });
 
   return client;
 }
@@ -225,12 +230,12 @@ export async function updateClient(
   }
 
   // Audit update in client log
-  await supabase.from("client_log").insert({
-    client_id: clientId,
-    event_type: "CLIENT_UPDATED",
-    description: `Client updated fields: ${Object.keys(updates).join(", ")}`,
-    performed_by: userId,
-  });
+//   await supabase.from("client_log").insert({
+//     client_id: clientId,
+//     event_type: "CLIENT_UPDATED",
+//     description: `Client updated fields: ${Object.keys(updates).join(", ")}`,
+//     performed_by: userId,
+//   });
 
   return data;
 }
@@ -253,12 +258,12 @@ export async function archiveClient(
     throw new Error(`Failed to archive client: ${error?.message ?? "Unknown error"}`);
   }
 
-  await supabase.from("client_log").insert({
-    client_id: clientId,
-    event_type: "CLIENT_ARCHIVED",
-    description: reason ? `Archived: ${reason.trim()}` : "Client archived by admin staff",
-    performed_by: userId,
-  });
+//   await supabase.from("client_log").insert({
+//     client_id: clientId,
+//     event_type: "CLIENT_ARCHIVED",
+//     description: reason ? `Archived: ${reason.trim()}` : "Client archived by admin staff",
+//     performed_by: userId,
+//   });
 
   return data;
 }
@@ -278,12 +283,12 @@ export async function unarchiveClient(clientId: string): Promise<Client> {
     throw new Error(`Failed to unarchive client: ${error?.message ?? "Unknown error"}`);
   }
 
-  await supabase.from("client_log").insert({
-    client_id: clientId,
-    event_type: "CLIENT_RESTORED",
-    description: "Client restored from archive to active status",
-    performed_by: userId,
-  });
+//   await supabase.from("client_log").insert({
+//     client_id: clientId,
+//     event_type: "CLIENT_RESTORED",
+//     description: "Client restored from archive to active status",
+//     performed_by: userId,
+//   });
 
   return data;
 }
@@ -443,12 +448,12 @@ export async function createClientDocument(
   }
 
   // Audit document upload in client log
-  await supabase.from("client_log").insert({
-    client_id: clientId,
-    event_type: "DOCUMENT_UPLOADED",
-    description: `Uploaded document of category '${input.document_type}'`,
-    performed_by: userId,
-  });
+//   await supabase.from("client_log").insert({
+//     client_id: clientId,
+//     event_type: "DOCUMENT_UPLOADED",
+//     description: `Uploaded document of category '${input.document_type}'`,
+//     performed_by: userId,
+//   });
 
   return data;
 }
