@@ -2,63 +2,70 @@ import { Suspense } from 'react';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { ClientsSection } from '@/components/dashboard/clients-section';
 import { PageError } from '@/components/dashboard/page-status';
+import { ClientsSkeleton } from '@/components/dashboard/page-skeletons';
+import { PageContainer } from '@/components/dashboard/page-container';
 import { getClients } from '@/lib/actions/clients';
 import { hasPermission } from '@/lib/permissions';
 import { getUserInfo } from '@/lib/user';
-import { PageContainer } from '@/components/dashboard/page-container';
 
 export const dynamic = 'force-dynamic';
 
 type ClientsAccess =
-	| { status: 'ok'; clients: Awaited<ReturnType<typeof getClients>>['data'] }
-	| { status: 'unauthenticated' }
-	| { status: 'forbidden' }
-	| { status: 'error' };
+  | { status: 'ok'; clients: Awaited<ReturnType<typeof getClients>>['data'] }
+  | { status: 'unauthenticated' }
+  | { status: 'forbidden' }
+  | { status: 'error' };
 
 async function resolveClients(): Promise<ClientsAccess> {
-	try {
-		const user = await getUserInfo();
+  try {
+    const user = await getUserInfo();
 
-		if (!user) return { status: 'unauthenticated' };
+    if (!user) return { status: 'unauthenticated' };
 
-		const allowed = await hasPermission('clients.read', user.id);
-		if (!allowed) return { status: 'forbidden' };
+    const allowed = await hasPermission('clients.read', user.id);
+    if (!allowed) return { status: 'forbidden' };
 
-		const result = await getClients({ limit: 100, sortBy: 'full_name', sortOrder: 'asc' });
-		return { status: 'ok', clients: result.data };
-	} catch (error) {
-		unstable_rethrow(error);
-		console.error('Error loading clients page:', error);
-		return { status: 'error' };
-	}
+    const result = await getClients({
+      limit: 100,
+      sortBy: 'full_name',
+      sortOrder: 'asc',
+    });
+    return { status: 'ok', clients: result.data };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error('Error loading clients page:', error);
+    return { status: 'error' };
+  }
 }
 
 async function ClientsContent() {
-	const access = await resolveClients();
+  const access = await resolveClients();
 
-	if (access.status === 'unauthenticated') redirect('/login');
-	if (access.status === 'forbidden') redirect('/dashboard');
-	if (access.status === 'error') return <PageError message="Failed to load clients. Please try again." />;
+  if (access.status === 'unauthenticated') redirect('/login');
+  if (access.status === 'forbidden') redirect('/dashboard');
+  if (access.status === 'error') {
+    return <PageError message="Failed to load clients. Please try again." />;
+  }
 
-	return (
-		<div className="flex flex-1 flex-col gap-6">
-			<div>
-				<h1 className="text-2xl font-bold text-foreground">Clients</h1>
-				<p className="mt-1 text-sm text-muted-foreground">
-					Manage client records, contact information, and activity history.
-				</p>
-			</div>
-			<ClientsSection clients={access.clients} />
-		</div>
-	);
+  return (
+    <div className="flex flex-1 flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Clients</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage client records, contact information, and activity history.
+        </p>
+      </div>
+      <ClientsSection clients={access.clients} />
+    </div>
+  );
 }
 
 export default function ClientsPage() {
-	return (
-        <PageContainer>
-            <Suspense fallback={<div className="py-12 text-center text-muted-foreground">Loading clients...</div>}>
-                <ClientsContent />
-            </Suspense>
-        </PageContainer>
-	);
+  return (
+    <PageContainer>
+      <Suspense fallback={<ClientsSkeleton />}>
+        <ClientsContent />
+      </Suspense>
+    </PageContainer>
+  );
 }

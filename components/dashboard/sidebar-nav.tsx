@@ -57,7 +57,7 @@ const ROLE_TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>
   'Accounts Payable':   CreditCard,
   'Contract Management': FileCheck,
   'Operations Log':     ClipboardList,
-  Clients:              Users,
+  'Clients':              Users,
   'Property Lots':      LandPlot,
 };
 

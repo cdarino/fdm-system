@@ -1,36 +1,26 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
-  Activity,
-  Edit3,
-  Loader2,
-  MoreHorizontal,
   Plus,
   Search,
-  Trash2,
-  UserRound,
   X,
+  Users,
+  SearchX,
+  MoreHorizontal,
+  Activity,
+  Edit3,
+  Trash2,
+  Copy,
+  Check,
+  Phone,
+  Mail,
+  UserRound,
+  HelpCircle,
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -40,46 +30,44 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  addContactInfo,
-  createClient,
-  createClientLog,
-  deleteClient,
-  getClientById,
-  updateClient,
-} from '@/lib/actions/clients';
-import type { Client, ClientWithDetails } from '@/lib/types/client';
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
+import {
+  ClientsProvider,
+  useClients,
+  type ClientStatusFilter,
+} from '@/lib/hooks/use-clients-page';
+import { formatActivityTime } from '@/lib/format-activity-time';
+import { CreateClientModal } from './create-client-modal';
+import { EditClientModal } from './edit-client-modal';
+import { DeleteClientDialog } from './delete-client-dialog';
+import { ClientDetailsModal } from './client-details-modal';
+import { ClientRowsSkeleton } from './page-skeletons';
+import type { ClientListItem, ContactInfo } from '@/lib/types/client';
 
-interface ClientsSectionProps {
-  clients: Client[];
-}
+const GUTTER = 'px-4 sm:px-6';
+const GUTTER_L = 'pl-4 sm:pl-6';
+const GUTTER_R = 'pr-4 sm:pr-6';
 
-type ClientForm = {
-  full_name: string;
-  address: string;
-  tin_number: string;
-  status: string;
-};
-
-type ClientStatusFilter = 'all' | 'active' | 'inactive';
-
-const emptyForm: ClientForm = {
-  full_name: '',
-  address: '',
-  tin_number: '',
-  status: 'Active',
-};
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
-
-function statusClass(status: string) {
-  return status.toLowerCase() === 'active'
+function ClientStatusPill({ status }: { status: string }) {
+  const isActive = status.toLowerCase() === 'active';
+  const pillClass = isActive
     ? 'bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success'
     : 'bg-muted text-muted-foreground';
+  const dotClass = isActive ? 'bg-success' : 'bg-muted-foreground';
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${pillClass}`}>
+      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+      {status}
+    </span>
+  );
 }
 
 function StatusTabs({
@@ -88,17 +76,21 @@ function StatusTabs({
   counts,
 }: {
   value: ClientStatusFilter;
-  onChange: (value: ClientStatusFilter) => void;
+  onChange: (val: ClientStatusFilter) => void;
   counts: Record<ClientStatusFilter, number>;
 }) {
   const tabs: { value: ClientStatusFilter; label: string }[] = [
     { value: 'all', label: 'All' },
-    { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
+    { value: 'Active', label: 'Active' },
+    { value: 'Inactive', label: 'Inactive' },
   ];
 
   return (
-    <div role="tablist" aria-label="Filter clients by status" className="inline-flex items-center gap-1 rounded-lg bg-row-hover p-1">
+    <div
+      role="tablist"
+      aria-label="Filter clients by status"
+      className="inline-flex items-center gap-1 rounded-lg bg-row-hover p-1"
+    >
       {tabs.map((tab) => {
         const isActive = value === tab.value;
         return (
@@ -115,9 +107,7 @@ function StatusTabs({
             }`}
           >
             {tab.label}
-            <span className={`text-xs tabular-nums ${isActive ? 'text-muted-foreground' : ''}`}>
-              {counts[tab.value]}
-            </span>
+            <span className="text-xs tabular-nums text-muted-foreground">{counts[tab.value]}</span>
           </button>
         );
       })}
@@ -125,284 +115,383 @@ function StatusTabs({
   );
 }
 
-export function ClientsSection({ clients: initialClients }: ClientsSectionProps) {
-  const router = useRouter();
-  const [clients, setClients] = useState(initialClients);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [form, setForm] = useState<ClientForm>(emptyForm);
-  const [selectedClient, setSelectedClient] = useState<ClientWithDetails | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [contactType, setContactType] = useState('Email');
-  const [contactValue, setContactValue] = useState('');
-  const [logType, setLogType] = useState('Note');
-  const [logDescription, setLogDescription] = useState('');
-  const [pending, setPending] = useState(false);
+function ContactDetailsCell({
+  contacts,
+  onViewMore,
+}: {
+  contacts: ContactInfo[];
+  onViewMore: () => void;
+}) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const filteredClients = clients.filter((client) => {
-    const term = search.trim().toLowerCase();
-    const matchesSearch = !term || client.full_name.toLowerCase().includes(term) || client.tin_number?.toLowerCase().includes(term);
-    const matchesStatus = statusFilter === 'all' || client.status.toLowerCase() === statusFilter;
-    return matchesSearch && matchesStatus;
+  if (contacts.length === 0) {
+    return <span className="text-xs text-muted-foreground">No contact details</span>;
+  }
+
+  // Sort contacts: phones first, then emails, then others
+  const sorted = [...contacts].sort((a, b) => {
+    const aType = a.type.toLowerCase();
+    const bType = b.type.toLowerCase();
+    const aIsPhone = aType.includes('phone') || aType.includes('mobile');
+    const bIsPhone = bType.includes('phone') || bType.includes('mobile');
+    if (aIsPhone && !bIsPhone) return -1;
+    if (!aIsPhone && bIsPhone) return 1;
+
+    const aIsEmail = aType.includes('email');
+    const bIsEmail = bType.includes('email');
+    if (aIsEmail && !bIsEmail) return -1;
+    if (!aIsEmail && bIsEmail) return 1;
+
+    return 0;
   });
+
+  const visible = sorted.slice(0, 2);
+  const remaining = sorted.length - visible.length;
+
+  function copyValue(value: string, id: string) {
+    navigator.clipboard.writeText(value);
+    setCopiedId(id);
+    toast.success(`Copied "${value}" to clipboard`);
+    setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  return (
+    <div className="space-y-1">
+      {visible.map((contact) => {
+        const isPhone = contact.type.toLowerCase().includes('phone') || contact.type.toLowerCase().includes('mobile');
+        const Icon = isPhone ? Phone : contact.type.toLowerCase().includes('email') ? Mail : HelpCircle;
+        const isCopied = copiedId === contact.contact_id;
+
+        return (
+          <div key={contact.contact_id} className="group/item flex items-center gap-1.5 text-xs">
+            <Icon className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="truncate text-foreground font-medium max-w-[140px] sm:max-w-[180px]">
+              {contact.value}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                copyValue(contact.value, contact.contact_id);
+              }}
+              className="opacity-0 group-hover/item:opacity-100 transition-opacity p-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:opacity-100"
+              aria-label={`Copy ${contact.value}`}
+            >
+              {isCopied ? (
+                <Check className="h-3 w-3 text-success" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+            </button>
+          </div>
+        );
+      })}
+
+      {remaining > 0 && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewMore();
+          }}
+          className="inline-block text-[11px] font-medium text-muted-foreground hover:text-foreground underline underline-offset-2"
+        >
+          +{remaining} more
+        </button>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({
+  isFiltered,
+  onClear,
+  onCreate,
+}: {
+  isFiltered: boolean;
+  onClear: () => void;
+  onCreate: () => void;
+}) {
+  const Icon = isFiltered ? SearchX : Users;
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-row-hover">
+        <Icon className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-sm font-semibold text-foreground">
+          {isFiltered ? 'No matching clients' : 'No clients yet'}
+        </p>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          {isFiltered
+            ? 'Try a different search term, or clear the filters to view all clients.'
+            : 'Add the first client to start maintaining client records and contact information.'}
+        </p>
+      </div>
+      {isFiltered ? (
+        <Button
+          variant="outline"
+          onClick={onClear}
+          className="gap-1.5 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+          Clear filters
+        </Button>
+      ) : (
+        <Button
+          onClick={onCreate}
+          className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+        >
+          <Plus className="h-4 w-4" />
+          New Client
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ClientRow({ client }: { client: ClientListItem }) {
+  const { openDialog } = useClients();
+
+  return (
+    <TableRow
+      className="group transition-colors duration-150 hover:bg-row-hover cursor-pointer"
+      onClick={() => openDialog({ type: 'details', client })}
+    >
+      {/* Client identification */}
+      <TableCell className={`py-4 pr-3 ${GUTTER_L}`}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-row-hover ring-1 ring-inset ring-border text-muted-foreground">
+            <UserRound className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {client.address || 'No address recorded'}
+            </p>
+          </div>
+        </div>
+      </TableCell>
+
+      {/* Contact details */}
+      <TableCell className="px-3 py-4">
+        <ContactDetailsCell
+          contacts={client.contact_info}
+          onViewMore={() => openDialog({ type: 'details', client })}
+        />
+      </TableCell>
+
+      {/* Status */}
+      <TableCell className="px-3 py-4">
+        <ClientStatusPill status={client.status} />
+      </TableCell>
+
+      {/* Latest activity */}
+      <TableCell className="hidden px-3 py-4 sm:table-cell">
+        {client.latest_activity ? (
+          <div className="space-y-0.5 max-w-xs">
+            <p className="truncate text-xs font-medium text-foreground">
+              {client.latest_activity.description || 'Activity recorded'}
+            </p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              by {client.latest_activity.performer_name} · {formatActivityTime(client.latest_activity.time)}
+            </p>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">No recent activity</span>
+        )}
+      </TableCell>
+
+      {/* Actions */}
+      <TableCell className={`py-4 pl-3 ${GUTTER_R}`} onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label={`Actions for ${client.full_name}`}
+              className="opacity-70 group-hover:opacity-100"
+              size="icon"
+              variant="ghost"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Actions
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => openDialog({ type: 'details', client })}>
+              <Activity className="h-4 w-4 mr-2" />
+              View details
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openDialog({ type: 'edit', client })}>
+              <Edit3 className="h-4 w-4 mr-2" />
+              Edit client
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => openDialog({ type: 'delete', client })}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete client
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function ClientsContent() {
+  const {
+    clients,
+    visibleClients,
+    isLoading,
+    error,
+    search,
+    setSearch,
+    statusFilter,
+    setStatusFilter,
+    activeDialog,
+    openDialog,
+  } = useClients();
+
+  const isFiltered = search.trim() !== '' || statusFilter !== 'all';
 
   const counts: Record<ClientStatusFilter, number> = {
     all: clients.length,
-    active: clients.filter((client) => client.status.toLowerCase() === 'active').length,
-    inactive: clients.filter((client) => client.status.toLowerCase() === 'inactive').length,
+    Active: clients.filter((c) => c.status.toLowerCase() === 'active').length,
+    Inactive: clients.filter((c) => c.status.toLowerCase() === 'inactive').length,
   };
 
-  function openCreate() {
-    setEditingClient(null);
-    setForm(emptyForm);
-    setFormOpen(true);
-  }
-
-  function openEdit(client: Client) {
-    setEditingClient(client);
-    setForm({
-      full_name: client.full_name,
-      address: client.address ?? '',
-      tin_number: client.tin_number ?? '',
-      status: client.status,
-    });
-    setFormOpen(true);
-  }
-
-  async function handleSaveClient(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!form.full_name.trim()) {
-      toast.error('Full name is required.');
-      return;
-    }
-
-    setPending(true);
-    try {
-      if (editingClient) {
-        const updated = await updateClient(editingClient.client_id, form);
-        setClients((current) => current.map((client) => client.client_id === updated.client_id ? updated : client));
-        setSelectedClient((current) => current?.client_id === updated.client_id ? { ...current, ...updated } : current);
-        toast.success('Client updated.');
-      } else {
-        const created = await createClient(form);
-        setClients((current) => [created, ...current]);
-        toast.success('Client created.');
-      }
-      setFormOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to save client.');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleDelete(client: Client) {
-    if (!window.confirm(`Delete ${client.full_name}? This cannot be undone.`)) return;
-
-    setPending(true);
-    try {
-      await deleteClient(client.client_id);
-      setClients((current) => current.filter((item) => item.client_id !== client.client_id));
-      if (selectedClient?.client_id === client.client_id) {
-        setSelectedClient(null);
-        setDetailOpen(false);
-      }
-      toast.success('Client deleted.');
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to delete client.');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function openDetails(client: Client) {
-    setPending(true);
-    try {
-      const details = await getClientById(client.client_id);
-      setSelectedClient(details);
-      setDetailOpen(true);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to load client details.');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleAddContact(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedClient || !contactValue.trim()) return;
-
-    setPending(true);
-    try {
-      const contact = await addContactInfo(selectedClient.client_id, {
-        type: contactType,
-        value: contactValue,
-        is_primary: selectedClient.contact_info.length === 0,
-      });
-      setSelectedClient((current) => current ? { ...current, contact_info: [contact, ...current.contact_info] } : current);
-      setContactValue('');
-      toast.success('Contact information added.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to add contact information.');
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function handleAddLog(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedClient || !logDescription.trim()) return;
-
-    setPending(true);
-    try {
-      const log = await createClientLog(selectedClient.client_id, {
-        event_type: logType,
-        description: logDescription,
-      });
-      setSelectedClient((current) => current ? { ...current, client_log: [log, ...current.client_log] } : current);
-      setLogDescription('');
-      toast.success('Client log recorded.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to record client log.');
-    } finally {
-      setPending(false);
-    }
+  function clearFilters() {
+    setSearch('');
+    setStatusFilter('all');
   }
 
   return (
     <>
-      <section className="rounded-lg border border-border bg-card shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Client directory</h2>
-            <p className="text-sm text-muted-foreground">Store client records, contact information, and activity history.</p>
+      <Card className="flex flex-1 flex-col overflow-hidden border-border bg-card">
+        {/* Header */}
+        <div className={`flex flex-wrap items-start justify-between gap-4 pb-5 pt-6 ${GUTTER}`}>
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold leading-none tracking-tight text-foreground">
+              Client Directory
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Manage client records, contact information, and activity history.
+            </p>
           </div>
-          <Button onClick={openCreate}>
-            <Plus />
-            Add client
+          <Button
+            onClick={() => openDialog({ type: 'create' })}
+            className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+          >
+            <Plus className="h-4 w-4" />
+            New Client
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 border-b border-border p-4 sm:p-6">
+        {/* Filters and search */}
+        <div className={`flex flex-col gap-3 pb-5 xl:flex-row xl:items-center xl:justify-between ${GUTTER}`}>
           <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
-          <div className="relative w-full max-w-sm sm:ml-auto">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label="Search clients"
-              className="pl-9"
-              placeholder="Search by name or TIN"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-0 flex-1 sm:flex-none">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name, address, or contact"
+                aria-label="Search clients"
+                className="w-full pl-9 sm:w-72"
+              />
+            </div>
+            {isFiltered && (
+              <Button
+                variant="ghost"
+                onClick={clearFilters}
+                className="gap-1.5 text-muted-foreground hover:bg-row-hover hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear
+              </Button>
+            )}
           </div>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Client</TableHead>
-              <TableHead>TIN</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last updated</TableHead>
-              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredClients.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">No clients found.</TableCell>
-              </TableRow>
-            ) : filteredClients.map((client) => (
-              <TableRow key={client.client_id} className="group">
-                <TableCell>
-                  <button className="flex items-center gap-3 text-left" onClick={() => openDetails(client)}>
-                    <span className="flex size-9 items-center justify-center rounded-full bg-row-hover text-muted-foreground"><UserRound className="size-4" /></span>
-                    <span>
-                      <span className="block font-medium text-foreground">{client.full_name}</span>
-                      <span className="block max-w-xs truncate text-xs text-muted-foreground">{client.address || 'No address recorded'}</span>
-                    </span>
-                  </button>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{client.tin_number || 'Not provided'}</TableCell>
-                <TableCell><Badge className={statusClass(client.status)}>{client.status}</Badge></TableCell>
-                <TableCell className="text-muted-foreground">{formatDate(client.updated_at)}</TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-label={`Actions for ${client.full_name}`} className="opacity-70 group-hover:opacity-100" size="icon" variant="ghost"><MoreHorizontal /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => openDetails(client)}><Activity />View details</DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => openEdit(client)}><Edit3 />Edit client</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => handleDelete(client)}><Trash2 />Delete client</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </section>
-
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingClient ? 'Edit client' : 'Add client'}</DialogTitle>
-            <DialogDescription>Record the client&apos;s core information.</DialogDescription>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleSaveClient}>
-            <label className="block space-y-1.5 text-sm font-medium">Full name<Input required value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} /></label>
-            <label className="block space-y-1.5 text-sm font-medium">Address<Input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></label>
-            <label className="block space-y-1.5 text-sm font-medium">TIN number<Input value={form.tin_number} onChange={(event) => setForm({ ...form, tin_number: event.target.value })} /></label>
-            <label className="block space-y-1.5 text-sm font-medium">Status<select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option>Active</option><option>Inactive</option></select></label>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-              <Button disabled={pending} type="submit">{pending && <Loader2 className="animate-spin" />}Save client</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-          {selectedClient && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selectedClient.full_name}</DialogTitle>
-                <DialogDescription>{selectedClient.address || 'No address recorded'}{selectedClient.tin_number ? ` · TIN ${selectedClient.tin_number}` : ''}</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-6 md:grid-cols-2">
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between"><h3 className="font-semibold">Contact information</h3><Badge variant="secondary">{selectedClient.contact_info.length}</Badge></div>
-                  <div className="space-y-2">
-                    {selectedClient.contact_info.map((contact) => <div className="flex items-center justify-between rounded-md border border-border p-3 text-sm" key={contact.contact_id}><span><span className="block font-medium">{contact.type}</span><span className="text-muted-foreground">{contact.value}</span></span>{contact.is_primary && <Badge variant="outline">Primary</Badge>}</div>)}
-                    {selectedClient.contact_info.length === 0 && <p className="text-sm text-muted-foreground">No contact information recorded.</p>}
-                  </div>
-                  <form className="space-y-2 rounded-md border border-dashed border-border p-3" onSubmit={handleAddContact}>
-                    <div className="flex gap-2"><select className="h-9 rounded-md border border-input bg-transparent px-2 text-sm" value={contactType} onChange={(event) => setContactType(event.target.value)}><option>Email</option><option>Phone</option><option>Other</option></select><Input placeholder="Contact value" value={contactValue} onChange={(event) => setContactValue(event.target.value)} /></div>
-                    <Button disabled={pending || !contactValue.trim()} size="sm" type="submit"><Plus />Add contact</Button>
-                  </form>
-                </section>
-                <section className="space-y-3">
-                  <div className="flex items-center justify-between"><h3 className="font-semibold">Activity log</h3><Badge variant="secondary">{selectedClient.client_log.length}</Badge></div>
-                  <div className="space-y-2">
-                    {selectedClient.client_log.map((log) => <div className="rounded-md border border-border p-3 text-sm" key={log.log_id}><div className="flex items-center justify-between gap-2"><span className="font-medium">{log.event_type}</span><span className="text-xs text-muted-foreground">{formatDate(log.time)}</span></div><p className="mt-1 text-muted-foreground">{log.description || 'No description'}</p></div>)}
-                    {selectedClient.client_log.length === 0 && <p className="text-sm text-muted-foreground">No activity recorded.</p>}
-                  </div>
-                  <form className="space-y-2 rounded-md border border-dashed border-border p-3" onSubmit={handleAddLog}>
-                    <div className="flex gap-2"><Input aria-label="Log event type" placeholder="Event type" value={logType} onChange={(event) => setLogType(event.target.value)} /><Button disabled={pending || !logDescription.trim()} size="sm" type="submit"><Plus />Record log</Button></div>
-                    <textarea className="min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" placeholder="What happened?" value={logDescription} onChange={(event) => setLogDescription(event.target.value)} />
-                  </form>
-                </section>
-              </div>
-              <DialogFooter><Button variant="outline" onClick={() => setDetailOpen(false)}><X />Close</Button></DialogFooter>
-            </>
+        {/* Table / rows */}
+        <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
+          {error ? (
+            <div className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
+              <p className="text-sm font-medium text-destructive">Could not load clients</p>
+              <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
+            </div>
+          ) : isLoading ? (
+            <ClientRowsSkeleton />
+          ) : visibleClients.length === 0 ? (
+            <EmptyState
+              isFiltered={isFiltered}
+              onClear={clearFilters}
+              onCreate={() => openDialog({ type: 'create' })}
+            />
+          ) : (
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-card">
+                <TableRow className="bg-card hover:bg-card">
+                  <TableHead className={`h-11 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
+                    Client
+                  </TableHead>
+                  <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Contact Details
+                  </TableHead>
+                  <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:table-cell">
+                    Latest Activity
+                  </TableHead>
+                  <TableHead className={`h-11 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R} w-12`}>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleClients.map((client) => (
+                  <ClientRow key={client.client_id} client={client} />
+                ))}
+              </TableBody>
+            </Table>
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+
+        {/* Summary footer */}
+        {!error && (
+          <div className={`flex shrink-0 items-center justify-between gap-3 border-t border-border py-3 ${GUTTER}`}>
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {isLoading
+                ? 'Loading clients…'
+                : isFiltered
+                  ? `Showing ${visibleClients.length} of ${clients.length} client${clients.length === 1 ? '' : 's'}`
+                  : `${clients.length} client${clients.length === 1 ? '' : 's'}`}
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Dialogs */}
+      {activeDialog?.type === 'create' && <CreateClientModal open={true} />}
+      {activeDialog?.type === 'edit' && <EditClientModal client={activeDialog.client} open={true} />}
+      {activeDialog?.type === 'delete' && <DeleteClientDialog client={activeDialog.client} open={true} />}
+      {activeDialog?.type === 'details' && <ClientDetailsModal client={activeDialog.client} open={true} />}
     </>
+  );
+}
+
+export function ClientsSection({ clients = [] }: { clients?: ClientListItem[] }) {
+  return (
+    <ClientsProvider initialClients={clients}>
+      <ClientsContent />
+    </ClientsProvider>
   );
 }
