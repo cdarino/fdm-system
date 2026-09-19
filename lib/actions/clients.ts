@@ -38,22 +38,22 @@ async function resolveUserNames(userIds: string[]): Promise<Map<string, string>>
   if (uniqueIds.length === 0) return userMap;
 
   const adminClient = createAdminClient();
-  // TODO: there's a call for EACH userId, which could be bad! But if it's cached
-  // I guess it's less worse, but still weird!
-  await Promise.all(
-    uniqueIds.map(async (id) => {
-      try {
-        const { data } = await adminClient.auth.admin.getUserById(id);
-        if (data?.user) {
-          const meta = data.user.user_metadata as Record<string, string> | undefined;
-          const fullName = [meta?.first_name, meta?.last_name].filter(Boolean).join(" ");
-          userMap.set(id, fullName || data.user.email || "System");
-        }
-      } catch {
-        userMap.set(id, "System");
-      }
-    })
-  );
+  const { data, error } = await adminClient.rpc("get_user_names", {
+    p_user_ids: uniqueIds,
+  });
+
+  if (error) {
+    console.error("Failed to resolve user names:", error.message);
+    return userMap;
+  }
+
+  const users = (data ?? []) as Array<{ id: string; full_name: string }>;
+  for (const user of users) {
+    if (user.id && user.full_name) {
+      userMap.set(user.id, user.full_name);
+    }
+  }
+
   return userMap;
 }
 

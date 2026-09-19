@@ -223,6 +223,11 @@ describe("Client Management Actions", () => {
     const logs = await getClientLogs(client.client_id);
     expect(logs.length).toBeGreaterThanOrEqual(1);
     expect(logs[0].event_type).toBe("CLIENT_REGISTERED");
+
+    const listResult = await getClients({ search: client.full_name });
+    const clientItem = listResult.data.find((c) => c.client_id === client.client_id);
+    expect(clientItem?.latest_activity).not.toBeNull();
+    expect(clientItem?.latest_activity?.performer_name).not.toBe("System");
   });
 
   it("deleteClient removes client and all associated relations", async () => {
