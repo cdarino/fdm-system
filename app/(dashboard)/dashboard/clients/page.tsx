@@ -5,6 +5,7 @@ import { PageError } from '@/components/dashboard/page-status';
 import { getClients } from '@/lib/actions/clients';
 import { hasPermission } from '@/lib/permissions';
 import { getUserInfo } from '@/lib/user';
+import { PageContainer } from '@/components/dashboard/page-container';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,8 +55,10 @@ async function ClientsContent() {
 
 export default function ClientsPage() {
 	return (
-		<Suspense fallback={<div className="py-12 text-center text-muted-foreground">Loading clients...</div>}>
-			<ClientsContent />
-		</Suspense>
+        <PageContainer>
+            <Suspense fallback={<div className="py-12 text-center text-muted-foreground">Loading clients...</div>}>
+                <ClientsContent />
+            </Suspense>
+        </PageContainer>
 	);
 }
