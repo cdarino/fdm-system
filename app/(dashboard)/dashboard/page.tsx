@@ -18,7 +18,6 @@ async function DashboardContent() {
       return <PageError message="Please log in to access the dashboard" />;
     }
 
-    // Independent of one another, so they should not be awaited in sequence.
     const [isSystemAdmin, stats] = await Promise.all([
       checkIsSystemAdmin(user.id),
       getDashboardStats(),
@@ -28,9 +27,6 @@ async function DashboardContent() {
     // withheld stat is null rather than 0.
     // `stats.propertyLots === null` means the user may not read properties, so
     // it doubles as the gate for the Property Lots quick link below.
-    //
-    // FDM sells raw undeveloped land, so a building is the wrong picture for a
-    // lot — a site plan and a for-sale tag say what these actually count.
     const tiles = [
       { label: 'Property Lots', value: stats.propertyLots, icon: '🗺️', tint: 'bg-sidebar-accent' },
       { label: 'Available Lots', value: stats.availableLots, icon: '🏷️', tint: 'bg-chart-4' },
