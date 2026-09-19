@@ -48,6 +48,17 @@ export interface ClientWithDetails extends Client {
   properties?: PropertyLot[];
 }
 
+export interface ClientActivitySummary {
+  description: string | null;
+  time: string;
+  performer_name: string;
+}
+
+export interface ClientListItem extends Client {
+  contact_info: ContactInfo[];
+  latest_activity: ClientActivitySummary | null;
+}
+
 export interface CreateContactInfoInput {
   type: string;
   value: string;

@@ -11,6 +11,7 @@ import {
   SELF_DEMOTE_ERROR,
 } from "@/lib/self-protection";
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
+import { formatActivityTime } from "@/lib/format-activity-time";
 
 describe("Utility and Pure Guard Functions", () => {
   it("getPaginationOffsets computes SQL query range and clamps page/limit", () => {
@@ -86,5 +87,37 @@ describe("Utility and Pure Guard Functions", () => {
     expect(checkSelfDemote(callerId, "other-admin", systemAdminRoleId, [staffRoleId])).toBe(null);
     // System admin role absent
     expect(checkSelfDemote(callerId, callerId, null, [staffRoleId])).toBe(null);
+  });
+
+  it("formatActivityTime formats relative times and dates older than 7 days correctly", () => {
+    const now = new Date();
+
+    // Just now
+    expect(formatActivityTime(now)).toBe("just now");
+
+    // Minutes ago
+    const tenMinsAgo = new Date(now.getTime() - 10 * 60 * 1000);
+    expect(formatActivityTime(tenMinsAgo)).toBe("10 minutes ago");
+
+    // 1 minute ago
+    const oneMinAgo = new Date(now.getTime() - 60 * 1000);
+    expect(formatActivityTime(oneMinAgo)).toBe("1 minute ago");
+
+    // Hours ago
+    const threeHoursAgo = new Date(now.getTime() - 3 * 3600 * 1000);
+    expect(formatActivityTime(threeHoursAgo)).toBe("3 hours ago");
+
+    // Days ago (<= 7 days)
+    const fiveDaysAgo = new Date(now.getTime() - 5 * 86400 * 1000);
+    expect(formatActivityTime(fiveDaysAgo)).toBe("5 days ago");
+
+    // Older than 7 days
+    const twentyDaysAgo = new Date(now.getTime() - 20 * 86400 * 1000);
+    const expectedFormatted = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(twentyDaysAgo);
+    expect(formatActivityTime(twentyDaysAgo)).toBe(expectedFormatted);
   });
 });

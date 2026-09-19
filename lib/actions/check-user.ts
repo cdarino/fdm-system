@@ -36,6 +36,7 @@ const ROLE_SECTIONS: { role: string; section: RoleSection }[] = [
     section: {
       category: "Administration",
       tabs: [
+        { title: "Clients", href: "/dashboard/clients" },
         { title: "Property Lots", href: "/dashboard/properties" },
         { title: "Operations Log", href: "/dashboard/operations", comingSoon: true },
       ],

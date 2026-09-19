@@ -1,0 +1,221 @@
+'use client';
+
+import { createContext, createElement, useCallback, useContext, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  getClients,
+  getClientById,
+  createClient as createClientAction,
+  updateClient as updateClientAction,
+  deleteClient as deleteClientAction,
+  addContactInfo as addContactInfoAction,
+  deleteContactInfo as deleteContactInfoAction,
+  createClientLog as createClientLogAction,
+} from '@/lib/actions/clients';
+import type {
+  ClientListItem,
+  ClientWithDetails,
+  ContactInfo,
+  ClientLog,
+  CreateClientInput,
+  UpdateClientInput,
+  CreateContactInfoInput,
+  CreateClientLogInput,
+} from '@/lib/types/client';
+
+export type ClientStatusFilter = 'all' | 'Active' | 'Inactive';
+
+export type ClientDialog =
+  | { type: 'create' }
+  | { type: 'edit'; client: ClientListItem }
+  | { type: 'delete'; client: ClientListItem }
+  | { type: 'details'; client: ClientListItem }
+  | null;
+
+interface ClientsContextValue {
+  clients: ClientListItem[];
+  visibleClients: ClientListItem[];
+  isLoading: boolean;
+  error: string | null;
+  search: string;
+  setSearch: (query: string) => void;
+  statusFilter: ClientStatusFilter;
+  setStatusFilter: (status: ClientStatusFilter) => void;
+  activeDialog: ClientDialog;
+  openDialog: (dialog: ClientDialog) => void;
+  closeDialog: () => void;
+  createClient: (input: CreateClientInput) => Promise<void>;
+  updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
+  deleteClient: (clientId: string) => Promise<void>;
+  getClientDetails: (clientId: string) => Promise<ClientWithDetails>;
+  addContact: (clientId: string, input: CreateContactInfoInput) => Promise<ContactInfo>;
+  deleteContact: (clientId: string, contactId: string) => Promise<void>;
+  addLog: (clientId: string, input: CreateClientLogInput) => Promise<ClientLog>;
+  refreshClients: () => Promise<void>;
+}
+
+const ClientsContext = createContext<ClientsContextValue | null>(null);
+
+export function useClients() {
+  const ctx = useContext(ClientsContext);
+  if (!ctx) throw new Error('useClients must be used within ClientsProvider');
+  return ctx;
+}
+
+function matchesSearch(client: ClientListItem, query: string): boolean {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+
+  const contactValues = client.contact_info.map((c) => c.value);
+  const fields = [
+    client.full_name,
+    client.address ?? '',
+    client.tin_number ?? '',
+    ...contactValues,
+  ].map((field) => field.toLowerCase());
+
+  return words.every((word) => fields.some((field) => field.includes(word)));
+}
+
+export function ClientsProvider({
+  children,
+  initialClients = [],
+}: {
+  children: ReactNode;
+  initialClients?: ClientListItem[];
+}) {
+  const router = useRouter();
+  const [clients, setClients] = useState<ClientListItem[]>(initialClients);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeDialog, setActiveDialog] = useState<ClientDialog>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
+
+  const visibleClients = useMemo(() => {
+    return clients.filter((client) => {
+      if (!matchesSearch(client, search)) return false;
+      if (statusFilter !== 'all' && client.status.toLowerCase() !== statusFilter.toLowerCase()) return false;
+      return true;
+    });
+  }, [clients, search, statusFilter]);
+
+  const openDialog = useCallback((dialog: ClientDialog) => setActiveDialog(dialog), []);
+  const closeDialog = useCallback(() => setActiveDialog(null), []);
+
+  const refreshClients = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await getClients({ limit: 200, sortBy: 'full_name', sortOrder: 'asc' });
+      setClients(result.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load clients');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const createClient = useCallback(async (input: CreateClientInput) => {
+    const created = await createClientAction(input);
+    const newListItem: ClientListItem = {
+      ...created,
+      contact_info: [],
+      latest_activity: null,
+    };
+    setClients((prev) => [newListItem, ...prev]);
+    router.refresh();
+  }, [router]);
+
+  const updateClient = useCallback(async (clientId: string, input: UpdateClientInput) => {
+    const updated = await updateClientAction(clientId, input);
+    setClients((prev) =>
+      prev.map((c) => (c.client_id === clientId ? { ...c, ...updated } : c))
+    );
+    router.refresh();
+  }, [router]);
+
+  const deleteClient = useCallback(async (clientId: string) => {
+    await deleteClientAction(clientId);
+    setClients((prev) => prev.filter((c) => c.client_id !== clientId));
+    router.refresh();
+  }, [router]);
+
+  const getClientDetails = useCallback(async (clientId: string) => {
+    return await getClientById(clientId);
+  }, []);
+
+  const addContact = useCallback(async (clientId: string, input: CreateContactInfoInput) => {
+    const created = await addContactInfoAction(clientId, input);
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.client_id !== clientId) return c;
+        return {
+          ...c,
+          contact_info: [created, ...c.contact_info],
+        };
+      })
+    );
+    return created;
+  }, []);
+
+  const deleteContact = useCallback(async (clientId: string, contactId: string) => {
+    await deleteContactInfoAction(contactId);
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.client_id !== clientId) return c;
+        return {
+          ...c,
+          contact_info: c.contact_info.filter((item) => item.contact_id !== contactId),
+        };
+      })
+    );
+  }, []);
+
+  const addLog = useCallback(async (clientId: string, input: CreateClientLogInput) => {
+    const created = await createClientLogAction(clientId, input);
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.client_id !== clientId) return c;
+        return {
+          ...c,
+          latest_activity: {
+            description: created.description,
+            time: created.time,
+            performer_name: 'You',
+          },
+        };
+      })
+    );
+    return created;
+  }, []);
+
+  return createElement(
+    ClientsContext.Provider,
+    {
+      value: {
+        clients,
+        visibleClients,
+        isLoading,
+        error,
+        search,
+        setSearch,
+        statusFilter,
+        setStatusFilter,
+        activeDialog,
+        openDialog,
+        closeDialog,
+        createClient,
+        updateClient,
+        deleteClient,
+        getClientDetails,
+        addContact,
+        deleteContact,
+        addLog,
+        refreshClients,
+      },
+    },
+    children
+  );
+}

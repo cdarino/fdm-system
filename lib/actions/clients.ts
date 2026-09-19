@@ -2,8 +2,10 @@
 
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/actions/auth-guard";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   type Client,
+  type ClientListItem,
   type ClientWithDetails,
   type ContactInfo,
   type ClientDocument,
@@ -25,9 +27,34 @@ import {
 
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
+async function resolveUserNames(userIds: string[]): Promise<Map<string, string>> {
+  const userMap = new Map<string, string>();
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return userMap;
+
+  const adminClient = createAdminClient();
+  // TODO: there's a call for EACH userId, which could be bad! But if it's cached
+  // I guess it's less worse, but still weird!
+  await Promise.all(
+    uniqueIds.map(async (id) => {
+      try {
+        const { data } = await adminClient.auth.admin.getUserById(id);
+        if (data?.user) {
+          const meta = data.user.user_metadata as Record<string, string> | undefined;
+          const fullName = [meta?.first_name, meta?.last_name].filter(Boolean).join(" ");
+          userMap.set(id, fullName || data.user.email || "System");
+        }
+      } catch {
+        userMap.set(id, "System");
+      }
+    })
+  );
+  return userMap;
+}
+
 export async function getClients(
   params?: GetClientsParams
-): Promise<PaginatedResult<Client>> {
+): Promise<PaginatedResult<ClientListItem>> {
   await requirePermission("clients.read");
   const supabase = await createSupabaseServerClient();
 
@@ -35,7 +62,7 @@ export async function getClients(
 
   let query = supabase
     .from("client")
-    .select("*", { count: "exact" });
+    .select("*, contact_info(*), client_log(*)", { count: "exact" });
 
   if (params?.search?.trim()) {
     const term = `%${params.search.trim()}%`;
@@ -45,7 +72,6 @@ export async function getClients(
   if (params?.status?.trim()) {
     query = query.eq("status", params.status.trim());
   } else if (!params?.includeArchived) {
-    // Keep active lists clear by excluding archived files unless explicitly included
     query = query.neq("status", "Archived");
   }
 
@@ -57,12 +83,56 @@ export async function getClients(
   const ascending = params?.sortOrder === "asc";
   query = query.order(sortBy, { ascending }).range(from, to);
 
-  const { data, error, count } = await query.returns<Client[]>();
+  type ClientWithRelations = Client & {
+    contact_info: ContactInfo[];
+    client_log: ClientLog[];
+  };
+
+  const { data, error, count } = await query.returns<ClientWithRelations[]>();
   if (error) {
     throw new Error(`Failed to fetch clients: ${error.message}`);
   }
 
-  return buildPaginatedResult(data ?? [], count ?? 0, page, limit);
+  const rawClients = data ?? [];
+  const performerIds: string[] = [];
+  for (const client of rawClients) {
+    if (client.client_log && client.client_log.length > 0) {
+      client.client_log.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      const latest = client.client_log[0];
+      if (latest.performed_by) {
+        performerIds.push(latest.performed_by);
+      }
+    }
+  }
+
+  const userNames = await resolveUserNames(performerIds);
+
+  const clients: ClientListItem[] = rawClients.map((client) => {
+    let latestActivity = null;
+    if (client.client_log && client.client_log.length > 0) {
+      const latest = client.client_log[0];
+      const performerName = latest.performed_by ? (userNames.get(latest.performed_by) ?? "System") : "System";
+      latestActivity = {
+        description: latest.description,
+        time: latest.time,
+        performer_name: performerName,
+      };
+    }
+
+    return {
+      client_id: client.client_id,
+      full_name: client.full_name,
+      address: client.address,
+      tin_number: client.tin_number,
+      status: client.status,
+      created_at: client.created_at,
+      updated_at: client.updated_at,
+      contact_info: client.contact_info ?? [],
+      latest_activity: latestActivity,
+    };
+  });
+
+  return buildPaginatedResult(clients, count ?? 0, page, limit);
 }
 
 export async function getClientById(clientId: string): Promise<ClientWithDetails> {

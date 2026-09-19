@@ -292,3 +292,58 @@ export function SettingsSkeleton() {
     </LoadingRegion>
   );
 }
+
+export function ClientRowsSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="divide-y divide-border" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-4 py-4 sm:px-6">
+          <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-36 max-w-full" />
+            <Skeleton className="h-3 w-48 max-w-full" />
+          </div>
+          <div className="hidden min-w-0 flex-1 space-y-1.5 md:block">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+          <Skeleton className="h-6 w-20 shrink-0 rounded-full" />
+          <div className="hidden min-w-0 flex-1 space-y-1.5 lg:block">
+            <Skeleton className="h-3.5 w-48" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <Skeleton className="h-8 w-8 shrink-0 rounded-md" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function ClientsSkeleton() {
+  return (
+    <LoadingRegion label="Loading clients…">
+      <div className="flex flex-1 flex-col gap-6">
+        <TitleSkeleton />
+
+        <Card className="flex flex-1 flex-col overflow-hidden border-border bg-card">
+          <div className="flex flex-wrap items-start justify-between gap-4 px-4 pb-5 pt-6 sm:px-6">
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-4 w-72 max-w-full" />
+            </div>
+            <Skeleton className="h-9 w-28 rounded-md" />
+          </div>
+
+          <div className="flex flex-col gap-3 px-4 pb-5 sm:px-6 xl:flex-row xl:items-center xl:justify-between">
+            <Skeleton className="h-10 w-64 rounded-lg" />
+            <Skeleton className="h-9 w-full rounded-md sm:w-72" />
+          </div>
+
+          <div className="border-t border-border">
+            <ClientRowsSkeleton />
+          </div>
+        </Card>
+      </div>
+    </LoadingRegion>
+  );
+}
