@@ -112,7 +112,7 @@ export function ClientDetailsModal({
                   {missingCount === 0 ? (
                     <>
                       <ShieldCheck className="h-3.5 w-3.5 text-success" />
-                      <span className="text-success">File complete</span>
+                      <span className="text-muted-foreground">Files complete</span>
                     </>
                   ) : (
                     <>

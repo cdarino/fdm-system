@@ -214,18 +214,12 @@ export function ClientProfileDocuments({
 
       {/* Required-document checklist, shown complete or not: staff need to see
           what counts as a full file, not only what is absent today. */}
-      <div
-        className={`space-y-2 rounded-lg border p-3 ${
-          isComplete
-            ? 'border-success bg-[color-mix(in_srgb,var(--success)_8%,white)]'
-            : 'border-border bg-row-hover'
-        }`}
-      >
+      <div className="space-y-2 rounded-lg border border-border bg-row-hover p-3">
         <div className="flex items-center gap-2">
           {isComplete ? (
             <>
               <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
-              <p className="text-xs font-semibold text-success">File complete</p>
+              <p className="text-xs font-semibold text-foreground">Files complete</p>
             </>
           ) : (
             <>
