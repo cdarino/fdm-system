@@ -16,6 +16,7 @@ let cachedManager: ApplicationCredentialsManager | null = null;
 
 function resolveCredentials() {
   const clientId = process.env.ARCGIS_CLIENT_ID;
+  // TODO: typo, oops!
   const clientSecret =
     process.env.ARCGIS_CLIENT_SECRET || process.env.ACRGIS_CLIENT_SECRET;
 

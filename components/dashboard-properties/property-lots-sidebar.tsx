@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import {
   User,
 } from 'lucide-react';
 import { CreatePropertyLotModal } from './property-lot-create-modal';
+import { PropertyLotDetailView } from './property-lot-detail-view';
 import { PropertyRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import {
   PropertyLotsProvider,
@@ -116,9 +117,22 @@ function AvatarPlaceholder({ lot }: { lot: PropertyLotWithClient }) {
   );
 }
 
-function LotRowItem({ lot }: { lot: PropertyLotWithClient }) {
+function LotRowItem({
+  lot,
+  onSelect,
+  onHover,
+}: {
+  lot: PropertyLotWithClient;
+  onSelect?: () => void;
+  onHover?: (hovering: boolean) => void;
+}) {
   return (
-    <div className="group flex flex-col gap-1.5 px-4 py-2.5 transition-colors hover:bg-row-hover">
+    <div
+      onClick={onSelect}
+      onMouseEnter={() => onHover?.(true)}
+      onMouseLeave={() => onHover?.(false)}
+      className="group flex flex-col gap-1.5 px-4 py-2.5 transition-colors hover:bg-row-hover cursor-pointer"
+    >
       {/* Top row: Left identity, Right client & status */}
       <div className="flex items-center justify-between gap-3">
         {/* Left: Plot Icon + Lot & Location */}
@@ -249,11 +263,21 @@ function EmptyState({
 export interface PropertyLotsSidebarProps {
   sites: Site[];
   onClose: () => void;
+  selectedLot?: PropertyLotWithClient | null;
+  onSelectLot?: (lot: PropertyLotWithClient | null) => void;
+  onHoverLot?: (lotKey: string | null) => void;
+  createInitialValues?: { site_id?: string; block_number?: number; lot_number?: number } | null;
+  onClearCreateInitialValues?: () => void;
 }
 
 function PropertyLotsSidebarContent({
   sites,
   onClose,
+  selectedLot,
+  onSelectLot,
+  onHoverLot,
+  createInitialValues,
+  onClearCreateInitialValues,
 }: PropertyLotsSidebarProps) {
   const {
     lots,
@@ -262,6 +286,7 @@ function PropertyLotsSidebarContent({
     error,
     activeDialog,
     openDialog,
+    closeDialog,
     search,
     setSearch,
     statusFilter,
@@ -270,6 +295,35 @@ function PropertyLotsSidebarContent({
 
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [renderedDialog, setRenderedDialog] = useState(activeDialog);
+  const wasDialogOpenedRef = useRef(false);
+
+  const activeSelectedLot = useMemo(() => {
+    if (!selectedLot) return null;
+    return lots.find((l) => l.property_id === selectedLot.property_id) ?? selectedLot;
+  }, [lots, selectedLot]);
+
+  // Close dialog when a lot is selected for inspection
+  useEffect(() => {
+    if (selectedLot && activeDialog) {
+      closeDialog();
+    }
+  }, [selectedLot, activeDialog, closeDialog]);
+
+  // Open create dialog when initial values are provided from map
+  useEffect(() => {
+    if (createInitialValues && !selectedLot) {
+      wasDialogOpenedRef.current = true;
+      openDialog({ type: 'create' });
+    }
+  }, [createInitialValues, selectedLot, openDialog]);
+
+  // Clear initial values after create dialog dismisses
+  useEffect(() => {
+    if (wasDialogOpenedRef.current && !activeDialog) {
+      wasDialogOpenedRef.current = false;
+      onClearCreateInitialValues?.();
+    }
+  }, [activeDialog, onClearCreateInitialValues]);
 
   useEffect(() => {
     if (activeDialog) {
@@ -279,6 +333,16 @@ function PropertyLotsSidebarContent({
     const timer = setTimeout(() => setRenderedDialog(null), DIALOG_EXIT_MS);
     return () => clearTimeout(timer);
   }, [activeDialog]);
+
+  if (activeSelectedLot) {
+    return (
+      <PropertyLotDetailView
+        lot={activeSelectedLot}
+        onBack={() => onSelectLot?.(null)}
+        onClose={onClose}
+      />
+    );
+  }
 
   const isFiltered = search.trim() !== '' || statusFilter !== 'all';
   const counts = {
@@ -440,7 +504,20 @@ function PropertyLotsSidebarContent({
         ) : viewMode === 'cards' ? (
           <div className="divide-y divide-border">
             {visibleLots.map((lot) => (
-              <LotRowItem key={lot.property_id} lot={lot} />
+              <LotRowItem
+                key={lot.property_id}
+                lot={lot}
+                onSelect={() => onSelectLot?.(lot)}
+                onHover={(hovering) =>
+                  onHoverLot?.(
+                    hovering
+                      ? (lot.site_id
+                          ? `${lot.site_id}:${lot.block_number}-${lot.lot_number}`
+                          : `${lot.block_number}-${lot.lot_number}`)
+                      : null
+                  )
+                }
+              />
             ))}
           </div>
         ) : (
@@ -457,7 +534,19 @@ function PropertyLotsSidebarContent({
                 </TableHeader>
                 <TableBody>
                   {visibleLots.map((lot) => (
-                    <TableRow key={lot.property_id} className="text-xs">
+                    <TableRow
+                      key={lot.property_id}
+                      onClick={() => onSelectLot?.(lot)}
+                      onMouseEnter={() =>
+                        onHoverLot?.(
+                          lot.site_id
+                            ? `${lot.site_id}:${lot.block_number}-${lot.lot_number}`
+                            : `${lot.block_number}-${lot.lot_number}`
+                        )
+                      }
+                      onMouseLeave={() => onHoverLot?.(null)}
+                      className="text-xs cursor-pointer hover:bg-row-hover"
+                    >
                       <TableCell className="py-2.5 px-3 font-medium">{lotLabel(lot)}</TableCell>
                       <TableCell className="py-2.5 px-2 whitespace-nowrap text-muted-foreground">
                         {AREA.format(lot.area_size)} sqm
@@ -503,7 +592,11 @@ function PropertyLotsSidebarContent({
 
       {/* Dialog for creating lots */}
       {renderedDialog?.type === 'create' && (
-        <CreatePropertyLotModal open={activeDialog !== null} sites={sites} />
+        <CreatePropertyLotModal
+          open={activeDialog !== null}
+          sites={sites}
+          initialValues={createInitialValues ?? undefined}
+        />
       )}
     </div>
   );

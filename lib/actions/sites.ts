@@ -109,3 +109,61 @@ export async function getUnclaimedSubdivisions(siteId: string): Promise<SiteSubd
     (s) => !claimedKeys.has(`${s.block_number}-${s.lot_number}`)
   );
 }
+
+/** All sites with their subdivisions and registered property lots. */
+export async function getAllSitesWithLots(): Promise<SiteWithLots[]> {
+  await requirePermission("properties.read");
+  const supabase = await createClient();
+
+  const [sitesResult, subdivisionsResult, lotsResult] = await Promise.all([
+    supabase
+      .from("site")
+      .select("*")
+      .order("name", { ascending: true })
+      .returns<Site[]>(),
+    supabase
+      .from("site_subdivision")
+      .select("*")
+      .order("block_number", { ascending: true })
+      .order("lot_number", { ascending: true })
+      .returns<SiteSubdivision[]>(),
+    supabase
+      .from("property_lot")
+      .select("*, client:client_id(client_id, full_name, status)")
+      .order("block_number", { ascending: true })
+      .order("lot_number", { ascending: true })
+      .returns<PropertyLotWithClient[]>(),
+  ]);
+
+  if (sitesResult.error) {
+    throw new Error(`Failed to fetch sites: ${sitesResult.error.message}`);
+  }
+  if (subdivisionsResult.error) {
+    throw new Error(`Failed to fetch subdivisions: ${subdivisionsResult.error.message}`);
+  }
+  if (lotsResult.error) {
+    throw new Error(`Failed to fetch lots: ${lotsResult.error.message}`);
+  }
+
+  const subdivisionsBySite = new Map<string, SiteSubdivision[]>();
+  for (const sub of subdivisionsResult.data ?? []) {
+    const list = subdivisionsBySite.get(sub.site_id) ?? [];
+    list.push(sub);
+    subdivisionsBySite.set(sub.site_id, list);
+  }
+
+  const lotsBySite = new Map<string, PropertyLotWithClient[]>();
+  for (const lot of lotsResult.data ?? []) {
+    if (!lot.site_id) continue;
+    const list = lotsBySite.get(lot.site_id) ?? [];
+    list.push(lot);
+    lotsBySite.set(lot.site_id, list);
+  }
+
+  return (sitesResult.data ?? []).map((site) => ({
+    ...site,
+    subdivisions: subdivisionsBySite.get(site.site_id) ?? [],
+    lots: lotsBySite.get(site.site_id) ?? [],
+  }));
+}
+

@@ -8,6 +8,7 @@ import type {
   PropertyLotWithClient,
   PropertyStatus,
   CreatePropertyLotInput,
+  UpdatePropertyLotInput,
   Site,
 } from '@/lib/types/property';
 
@@ -34,6 +35,7 @@ interface PropertyLotsContextValue {
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<void>;
   updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<void>;
+  updateLot: (propertyId: string, input: UpdatePropertyLotInput) => Promise<void>;
   sites: Site[];
 }
 
@@ -116,6 +118,17 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     [router],
   );
 
+  const updateLot = useCallback(
+    async (propertyId: string, input: UpdatePropertyLotInput): Promise<void> => {
+      const updated = await updatePropertyLot(propertyId, input);
+      setLots((prev) =>
+        prev.map((lot) => (lot.property_id === propertyId ? { ...lot, ...updated } : lot)),
+      );
+      router.refresh();
+    },
+    [router],
+  );
+
   const value: PropertyLotsContextValue = {
     lots,
     visibleLots,
@@ -130,6 +143,7 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     closeDialog,
     createLot,
     updateLotStatus,
+    updateLot,
     sites,
   };
 

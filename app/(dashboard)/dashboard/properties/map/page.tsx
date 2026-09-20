@@ -7,7 +7,7 @@ import { SiteMapUnifiedView } from '@/components/dashboard-properties/map-site-u
 import { PageError } from '@/components/dashboard-layout/page-status';
 import { SiteMapSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import { PageContainer } from '@/components/dashboard-layout/page-container';
-import { getSites, getSiteWithLots } from '@/lib/actions/sites';
+import { getAllSitesWithLots } from '@/lib/actions/sites';
 import { hasPermission } from '@/lib/permissions';
 import { getUserInfo } from '@/lib/user';
 
@@ -29,7 +29,7 @@ async function resolveAccess() {
   }
 }
 
-async function SiteMapContent({ siteId }: { siteId?: string }) {
+async function SiteMapContent() {
   const access = await resolveAccess();
   if (access.status === 'unauthenticated') redirect('/login');
   if (access.status === 'forbidden') redirect('/dashboard');
@@ -43,7 +43,7 @@ async function SiteMapContent({ siteId }: { siteId?: string }) {
 
   let sites;
   try {
-    sites = await getSites();
+    sites = await getAllSitesWithLots();
   } catch (error) {
     unstable_rethrow(error);
     console.error('Error fetching sites:', error);
@@ -80,23 +80,14 @@ async function SiteMapContent({ siteId }: { siteId?: string }) {
     );
   }
 
-  // Default to the first site until the picker is wired to the URL.
-  const active = sites.find((s) => s.site_id === siteId) ?? sites[0];
-  const site = await getSiteWithLots(active.site_id);
-
-  return <SiteMapUnifiedView sites={sites} site={site} />;
+  return <SiteMapUnifiedView sites={sites} />;
 }
 
-export default async function SiteMapPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ site?: string }>;
-}) {
-  const { site } = await searchParams;
+export default async function SiteMapPage() {
   return (
     <PageContainer padding={false} scrollable={false}>
       <Suspense fallback={<SiteMapSkeleton />}>
-        <SiteMapContent siteId={site} />
+        <SiteMapContent />
       </Suspense>
     </PageContainer>
   );

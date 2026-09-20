@@ -205,3 +205,39 @@
     background: transparent;
   }
 }
+
+/* MapLibre lot popup and close button styling */
+.maplibre-property-popup .maplibregl-popup-content {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  padding: 0;
+}
+
+.maplibre-property-popup .maplibregl-popup-tip {
+  border-top-color: var(--card);
+}
+
+.maplibre-property-popup .maplibregl-popup-close-button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted-foreground);
+  border-radius: 6px;
+  top: 6px;
+  right: 6px;
+  padding: 0;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.maplibre-property-popup .maplibregl-popup-close-button:hover {
+  background-color: var(--row-hover);
+  color: var(--foreground);
+}
+
