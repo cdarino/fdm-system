@@ -91,7 +91,7 @@ export function ClientCompactRow({
         </TableCell>
 
         <TableCell className="py-2.5 px-3">
-          <p className="truncate text-xs text-muted-foreground max-w-xs sm:max-w-sm">
+          <p className="truncate text-xs text-muted-foreground max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl">
             {client.address || 'No address recorded'}
           </p>
         </TableCell>
