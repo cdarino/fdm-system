@@ -15,12 +15,16 @@ import {
   updateContactInfo as updateContactInfoAction,
   deleteContactInfo as deleteContactInfoAction,
   createClientLog as createClientLogAction,
+  uploadClientDocument as uploadClientDocumentAction,
+  deleteClientDocument as deleteClientDocumentAction,
+  getClientDocumentUrl as getClientDocumentUrlAction,
 } from '@/lib/actions/clients';
 import type {
   ClientListItem,
   ClientWithDetails,
   ContactInfo,
   ClientLog,
+  ClientDocument,
   CreateClientInput,
   UpdateClientInput,
   CreateContactInfoInput,
@@ -62,6 +66,9 @@ interface ClientsContextValue {
   deleteContact: (clientId: string, contactId: string) => Promise<void>;
   setPrimaryContact: (clientId: string, contactId: string) => Promise<void>;
   addLog: (clientId: string, input: CreateClientLogInput) => Promise<ClientLog>;
+  uploadDocument: (clientId: string, formData: FormData) => Promise<ClientDocument>;
+  deleteDocument: (documentId: string) => Promise<void>;
+  getDocumentUrl: (documentId: string) => Promise<string>;
   refreshClients: () => Promise<void>;
 }
 
@@ -259,6 +266,23 @@ export function ClientsProvider({
     return created;
   }, []);
 
+  /**
+   * Documents live on the detail view rather than the list row, so these do not
+   * touch `clients` state. The modal owns the loaded document list and updates
+   * it from what these return.
+   */
+  const uploadDocument = useCallback(async (clientId: string, formData: FormData) => {
+    return await uploadClientDocumentAction(clientId, formData);
+  }, []);
+
+  const deleteDocument = useCallback(async (documentId: string) => {
+    await deleteClientDocumentAction(documentId);
+  }, []);
+
+  const getDocumentUrl = useCallback(async (documentId: string) => {
+    return await getClientDocumentUrlAction(documentId);
+  }, []);
+
   return createElement(
     ClientsContext.Provider,
     {
@@ -284,6 +308,9 @@ export function ClientsProvider({
         deleteContact,
         setPrimaryContact,
         addLog,
+        uploadDocument,
+        deleteDocument,
+        getDocumentUrl,
         refreshClients,
       },
     },

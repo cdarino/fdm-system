@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -36,13 +36,19 @@ import {
   Clock,
   LandPlot,
   Loader2,
+  FileText,
+  Upload,
+  ExternalLink,
   MoreHorizontal,
   Star,
 } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
 import { formatActivityTime } from '@/lib/format-activity-time';
 import { toast } from 'sonner';
-import type { ClientListItem, ClientWithDetails } from '@/lib/types/client';
+import type { ClientListItem, ClientWithDetails, DocType } from '@/lib/types/client';
+
+/** Categories offered on upload. Filtering by them is r21. */
+const DOCUMENT_TYPES: DocType[] = ['Valid ID', 'Contract', 'Deed of Sale', 'eCAR', 'Other'];
 
 export function ClientDetailsModal({
   client,
@@ -54,7 +60,17 @@ export function ClientDetailsModal({
   // TODO: find a way to have multiple useMutation(), 
   // so that we could have some error & state handling for these operations here.
   // Right now, there are functions dedicated for each operation that does the same thing!
-  const { getClientDetails, addContact, deleteContact, setPrimaryContact, addLog, closeDialog } = useClients();
+  const {
+    getClientDetails,
+    addContact,
+    deleteContact,
+    setPrimaryContact,
+    addLog,
+    uploadDocument,
+    deleteDocument,
+    getDocumentUrl,
+    closeDialog,
+  } = useClients();
   const [details, setDetails] = useState<ClientWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +85,12 @@ export function ClientDetailsModal({
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const [documentType, setDocumentType] = useState<DocType>('Valid ID');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
     setIsLoading(true);
@@ -78,6 +100,63 @@ export function ClientDetailsModal({
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load client profile'))
       .finally(() => setIsLoading(false));
   }, [open, client.client_id, getClientDetails]);
+
+  async function handleUploadDocument(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedFile) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('document_type', documentType);
+
+      const created = await uploadDocument(client.client_id, formData);
+      setDetails((prev) =>
+        prev ? { ...prev, client_document: [created, ...prev.client_document] } : prev
+      );
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      toast.success('Document uploaded');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload document');
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  async function handleDeleteDocument(documentId: string) {
+    try {
+      await deleteDocument(documentId);
+      setDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              client_document: prev.client_document.filter((d) => d.document_id !== documentId),
+            }
+          : prev
+      );
+      toast.success('Document removed');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove document');
+    }
+  }
+
+  /**
+   * The bucket is private, so there is no stored URL to link to. A signed one
+   * is minted per click and expires shortly after.
+   */
+  async function handleOpenDocument(documentId: string) {
+    setOpeningDocumentId(documentId);
+    try {
+      const url = await getDocumentUrl(documentId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to open document');
+    } finally {
+      setOpeningDocumentId(null);
+    }
+  }
 
   async function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
@@ -375,6 +454,113 @@ export function ClientDetailsModal({
                   </Button>
                 </form>
               </div>
+            </div>
+
+            {/* Documents */}
+            <div className="space-y-2 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Documents</h3>
+                <Badge variant="outline">{details.client_document.length}</Badge>
+              </div>
+
+              {details.client_document.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No documents uploaded yet.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {details.client_document.map((doc) => (
+                    <div
+                      key={doc.document_id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-2.5 text-sm"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-row-hover">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-foreground">
+                          {doc.document_type}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {formatActivityTime(doc.uploaded_at)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={openingDocumentId === doc.document_id}
+                        onClick={() => void handleOpenDocument(doc.document_id)}
+                        className="h-8 gap-1.5 border-border bg-card text-xs text-foreground hover:bg-row-hover hover:text-foreground"
+                      >
+                        {openingDocumentId === doc.document_id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        )}
+                        View
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Remove ${doc.document_type}`}
+                        onClick={() => void handleDeleteDocument(doc.document_id)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form
+                onSubmit={handleUploadDocument}
+                className="space-y-2.5 rounded-lg border border-dashed border-border p-3"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Select
+                    value={documentType}
+                    onValueChange={(v) => setDocumentType(v as DocType)}
+                  >
+                    <SelectTrigger className="sm:w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                    aria-label="Choose a document to upload"
+                    className="flex-1"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isUploading || !selectedFile}
+                  className="gap-1.5 bg-primary text-xs text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5" />
+                  )}
+                  Upload document
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  PDF, JPEG or PNG, up to 10MB.
+                </p>
+              </form>
             </div>
 
             {/* Associated Property Lots */}

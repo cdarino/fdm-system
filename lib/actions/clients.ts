@@ -26,6 +26,13 @@ import {
 } from "@/lib/types/client";
 
 import type { PropertyLot } from "@/lib/types/property";
+import {
+  uploadClientDocumentObject,
+  createClientDocumentUrl,
+  removeClientDocumentObject,
+  MAX_DOCUMENT_BYTES,
+  ALLOWED_DOCUMENT_TYPES,
+} from "@/lib/storage/client-documents";
 
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
@@ -475,6 +482,84 @@ export async function deleteContactInfo(contactId: string): Promise<void> {
   }
 }
 
+/**
+ * Stores an uploaded file and records it against the client.
+ *
+ * This is the only path that produces a `client_document` row backed by a real
+ * object. `createClientDocument()` below writes metadata alone and exists for
+ * tests and seeds, whose `file_path` points at nothing.
+ */
+export async function uploadClientDocument(
+  clientId: string,
+  formData: FormData
+): Promise<ClientDocument> {
+  const userId = await requirePermission("clients.update");
+
+  const file = formData.get("file");
+  const documentType = formData.get("document_type");
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("No file was provided.");
+  }
+  if (typeof documentType !== "string" || !documentType) {
+    throw new Error("A document category is required.");
+  }
+
+  // The bucket enforces both of these as well, but a rejection there surfaces
+  // as an opaque storage error. Checking here is what lets the user be told
+  // which rule they broke.
+  if (file.size > MAX_DOCUMENT_BYTES) {
+    throw new Error("File is larger than the 10MB limit.");
+  }
+  if (!ALLOWED_DOCUMENT_TYPES.includes(file.type as (typeof ALLOWED_DOCUMENT_TYPES)[number])) {
+    throw new Error("Only PDF, JPEG and PNG files are accepted.");
+  }
+
+  const filePath = await uploadClientDocumentObject(clientId, file);
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("client_document")
+    .insert({
+      client_id: clientId,
+      document_type: documentType,
+      file_path: filePath,
+      uploaded_by: userId,
+    })
+    .select()
+    .single<ClientDocument>();
+
+  if (error || !data) {
+    // The object is already in the bucket and nothing now points at it, so
+    // without this it is unreachable storage that no one can find or clean up.
+    await removeClientDocumentObject(filePath).catch((cleanupError) => {
+      console.error(`Orphaned object ${filePath} after failed insert:`, cleanupError);
+    });
+    throw new Error(`Failed to save document metadata: ${error?.message ?? "Unknown error"}`);
+  }
+
+  return data;
+}
+
+/** Signed, short-lived URL for viewing one stored document. */
+export async function getClientDocumentUrl(documentId: string): Promise<string> {
+  await requirePermission("clients.read");
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("client_document")
+    .select("file_path")
+    .eq("document_id", documentId)
+    .single<{ file_path: string }>();
+
+  if (error || !data) {
+    throw new Error(`Document not found: ${error?.message ?? "Unknown error"}`);
+  }
+
+  return createClientDocumentUrl(data.file_path);
+}
+
+/** Metadata-only insert. See `uploadClientDocument()` for the real upload path. */
 export async function createClientDocument(
   clientId: string,
   input: CreateClientDocumentInput
@@ -539,6 +624,12 @@ export async function deleteClientDocument(documentId: string): Promise<void> {
   await requirePermission("clients.update");
   const supabase = await createSupabaseServerClient();
 
+  const { data: existing } = await supabase
+    .from("client_document")
+    .select("file_path")
+    .eq("document_id", documentId)
+    .single<{ file_path: string }>();
+
   const { error } = await supabase
     .from("client_document")
     .delete()
@@ -546,6 +637,15 @@ export async function deleteClientDocument(documentId: string): Promise<void> {
 
   if (error) {
     throw new Error(`Failed to delete client document: ${error.message}`);
+  }
+
+  // Row first, object second. A failed object delete leaves one orphan that can
+  // be swept later, whereas deleting the object first would leave a row
+  // pointing at nothing, which breaks the list for everyone.
+  if (existing?.file_path) {
+    await removeClientDocumentObject(existing.file_path).catch((cleanupError) => {
+      console.error(`Orphaned object ${existing.file_path} after row delete:`, cleanupError);
+    });
   }
 }
 
