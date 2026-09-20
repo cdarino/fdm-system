@@ -83,6 +83,7 @@ export function ClientDetailsModal({
     deleteDocument,
     getDocumentUrl,
     indexDocumentText,
+    refreshMissingDocumentAlerts,
     listUnassignedLots,
     assignLot,
     unassignLot,
@@ -239,6 +240,9 @@ export function ClientDetailsModal({
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       toast.success('Document uploaded');
+      // The client may have just become complete, so the list markers and the
+      // alert count are now stale.
+      void refreshMissingDocumentAlerts();
 
       // Deliberately not awaited: the file is already stored and listed, so
       // reading it is follow-up work the staff member should not wait through.
@@ -295,6 +299,7 @@ export function ClientDetailsModal({
           : prev
       );
       toast.success('Document removed');
+      void refreshMissingDocumentAlerts();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove document');
     }
@@ -641,7 +646,7 @@ export function ClientDetailsModal({
                     </>
                   ) : (
                     <>
-                      <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <ShieldAlert className="h-4 w-4 shrink-0 text-destructive" />
                       <p className="text-xs font-semibold text-foreground">
                         {missingDocuments.length} required document
                         {missingDocuments.length === 1 ? '' : 's'} missing
@@ -658,11 +663,11 @@ export function ClientDetailsModal({
                         {isPresent ? (
                           <Check className="h-3.5 w-3.5 shrink-0 text-success" />
                         ) : (
-                          <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <Circle className="h-3.5 w-3.5 shrink-0 text-destructive" />
                         )}
                         <span
                           className={
-                            isPresent ? 'text-foreground' : 'text-muted-foreground'
+                            isPresent ? 'text-foreground' : 'text-destructive'
                           }
                         >
                           {type}

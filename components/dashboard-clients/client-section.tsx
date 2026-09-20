@@ -16,6 +16,7 @@ import {
   Archive,
   ArchiveRestore,
   FileSearch,
+  ShieldAlert,
   Trash2,
   Copy,
   Check,
@@ -54,6 +55,7 @@ import { EditClientModal } from './client-edit-modal';
 import { DeleteClientDialog } from './client-delete-dialog';
 import { ArchiveClientDialog } from './client-archive-dialog';
 import { DocumentSearchDialog } from './document-search-dialog';
+import { MissingDocumentsDialog } from './missing-documents-dialog';
 import { ClientDetailsModal } from './client-details-modal';
 import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import type { ClientListItem, ContactInfo } from '@/lib/types/client';
@@ -259,7 +261,10 @@ function EmptyState({
 }
 
 function ClientRow({ client }: { client: ClientListItem }) {
-  const { openDialog, restoreClient } = useClients();
+  const { openDialog, restoreClient, missingDocumentAlerts } = useClients();
+  const missingDocs = missingDocumentAlerts.find(
+    (alert) => alert.client_id === client.client_id
+  );
   const { state: restoreState, execute: runRestore } = useMutation(restoreClient);
   const isArchived = client.status === ARCHIVED_STATUS;
   const isRestoring = restoreState.status === 'pending';
@@ -287,7 +292,20 @@ function ClientRow({ client }: { client: ClientListItem }) {
             <UserRound className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
+              {missingDocs && (
+                <span
+                  title={`Missing: ${missingDocs.missing_documents.join(', ')}`}
+                  className="shrink-0"
+                >
+                  <ShieldAlert
+                    className="h-3.5 w-3.5 text-destructive"
+                    aria-label={`Incomplete file, missing ${missingDocs.missing_documents.join(', ')}`}
+                  />
+                </span>
+              )}
+            </div>
             <p className="truncate text-xs text-muted-foreground">
               {client.address || 'No address recorded'}
             </p>
@@ -394,9 +412,11 @@ function ClientsContent() {
     setStatusFilter,
     activeDialog,
     openDialog,
+    missingDocumentAlerts,
   } = useClients();
 
   const [isDocumentSearchOpen, setIsDocumentSearchOpen] = useState(false);
+  const [isMissingDocsOpen, setIsMissingDocsOpen] = useState(false);
 
   const isFiltered = search.trim() !== '' || statusFilter !== 'all';
 
@@ -439,6 +459,17 @@ function ClientsContent() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {missingDocumentAlerts.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setIsMissingDocsOpen(true)}
+                className="gap-2 border-destructive bg-card text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_8%,white)] hover:text-destructive"
+              >
+                <ShieldAlert className="h-4 w-4" />
+                {missingDocumentAlerts.length} incomplete
+                {missingDocumentAlerts.length === 1 ? ' file' : ' files'}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => setIsDocumentSearchOpen(true)}
@@ -550,6 +581,7 @@ function ClientsContent() {
       {activeDialog?.type === 'delete' && <DeleteClientDialog client={activeDialog.client} open={true} />}
       {activeDialog?.type === 'archive' && <ArchiveClientDialog client={activeDialog.client} open={true} />}
       <DocumentSearchDialog open={isDocumentSearchOpen} onOpenChange={setIsDocumentSearchOpen} />
+      <MissingDocumentsDialog open={isMissingDocsOpen} onOpenChange={setIsMissingDocsOpen} />
       {activeDialog?.type === 'details' && <ClientDetailsModal client={activeDialog.client} open={true} />}
     </>
   );

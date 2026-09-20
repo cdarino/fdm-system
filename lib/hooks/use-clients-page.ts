@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, createElement, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -18,6 +18,7 @@ import {
   uploadClientDocument as uploadClientDocumentAction,
   deleteClientDocument as deleteClientDocumentAction,
   getClientDocumentUrl as getClientDocumentUrlAction,
+  getClientsWithMissingDocuments,
 } from '@/lib/actions/clients';
 import {
   getPropertyLots,
@@ -36,6 +37,7 @@ import type {
   ContactInfo,
   ClientLog,
   ClientDocument,
+  ClientDocumentNotification,
   CreateClientInput,
   UpdateClientInput,
   CreateContactInfoInput,
@@ -83,6 +85,9 @@ interface ClientsContextValue {
   indexDocumentText: (documentId: string, content: string, keywords: string) => Promise<void>;
   searchDocuments: (query: string) => Promise<DocumentSearchHit[]>;
   getDocumentText: (documentId: string) => Promise<string | null>;
+  /** Clients whose required paperwork is incomplete, refreshed after uploads. */
+  missingDocumentAlerts: ClientDocumentNotification[];
+  refreshMissingDocumentAlerts: () => Promise<void>;
   listUnassignedLots: () => Promise<PropertyLotWithClient[]>;
   assignLot: (propertyId: string, clientId: string) => Promise<PropertyLot>;
   unassignLot: (propertyId: string) => Promise<void>;
@@ -126,6 +131,7 @@ export function ClientsProvider({
   const [activeDialog, setActiveDialog] = useState<ClientDialog>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
+  const [missingDocumentAlerts, setMissingDocumentAlerts] = useState<ClientDocumentNotification[]>([]);
 
   /**
    * Archived clients are held in the same list but shown only under their own
@@ -321,6 +327,25 @@ export function ClientsProvider({
     return await searchDocumentText(query);
   }, []);
 
+  /**
+   * One query answers both surfaces: the warning marker on each affected client
+   * row, and the dialog listing everyone who needs chasing. Checking per row
+   * would be a query per client.
+   */
+  const refreshMissingDocumentAlerts = useCallback(async () => {
+    try {
+      setMissingDocumentAlerts(await getClientsWithMissingDocuments());
+    } catch (err) {
+      // A failed check must not take the clients page down with it; the markers
+      // simply do not appear.
+      console.error('Failed to load missing document alerts:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshMissingDocumentAlerts();
+  }, [refreshMissingDocumentAlerts]);
+
   /** The full OCR text, as opposed to the excerpt a search result carries. */
   const getDocumentText = useCallback(async (documentId: string) => {
     const entry = await getEntityIndex('client_document', documentId);
@@ -374,6 +399,8 @@ export function ClientsProvider({
         indexDocumentText,
         searchDocuments,
         getDocumentText,
+        missingDocumentAlerts,
+        refreshMissingDocumentAlerts,
         listUnassignedLots,
         assignLot,
         unassignLot,
