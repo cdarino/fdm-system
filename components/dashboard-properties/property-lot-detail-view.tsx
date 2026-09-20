@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, X, LandPlot, User, DollarSign, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, X, LandPlot, User, DollarSign, CheckCircle2, FileDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { Label } from '@/components/ui/label';
+import { getPropertyReportData } from '@/lib/actions/reports';
+import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
 import {
   Select,
   SelectContent,
@@ -59,6 +61,20 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
   const { updateLot } = usePropertyLots();
   const { state, execute } = useMutation(updateLot);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  async function handleExportPdf() {
+    setIsExportingPdf(true);
+    try {
+      const data = await getPropertyReportData(lot.property_id);
+      generatePropertyPdfReport(data);
+      toast.success('Property PDF report generated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate property report');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }
 
   const form = useForm<UpdateLotFormData>({
     resolver: zodResolver(updateLotSchema),
@@ -125,15 +141,36 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="h-8 w-8 text-muted-foreground hover:bg-row-hover hover:text-foreground"
-          aria-label="Close sidebar"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={isExportingPdf}
+                  onClick={handleExportPdf}
+                  className="h-8 w-8 text-muted-foreground hover:bg-row-hover hover:text-foreground"
+                  aria-label="Export property PDF report"
+                >
+                  {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Export PDF report</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-8 w-8 text-muted-foreground hover:bg-row-hover hover:text-foreground"
+            aria-label="Close sidebar"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Scrollable detail and edit form */}
@@ -256,7 +293,23 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
         </div>
 
         {/* Footer save controls */}
-        <div className="shrink-0 border-t border-border bg-card p-4">
+        <div className="shrink-0 space-y-2 border-t border-border bg-card p-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isExportingPdf}
+            onClick={handleExportPdf}
+            className="w-full gap-1.5 text-xs text-foreground hover:bg-row-hover"
+          >
+            {isExportingPdf ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+            <span>Export PDF Report</span>
+          </Button>
+
           <LoadingButton
             type="submit"
             isLoading={isPending}

@@ -38,9 +38,13 @@ import {
   Loader2,
   MoreHorizontal,
   Star,
+  FileDown,
+  Edit3,
 } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
 import { formatActivityTime } from '@/lib/format-activity-time';
+import { getClientReportData } from '@/lib/actions/reports';
+import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import { toast } from 'sonner';
 import type { ClientListItem, ClientWithDetails } from '@/lib/types/client';
 
@@ -51,12 +55,14 @@ export function ClientDetailsModal({
   client: ClientListItem;
   open: boolean;
 }) {
-  // TODO: find a way to have multiple useMutation(), 
+    // TODO: find a way to have multiple useMutation(), 
   // so that we could have some error & state handling for these operations here.
   // Right now, there are functions dedicated for each operation that does the same thing!
-  const { getClientDetails, addContact, deleteContact, setPrimaryContact, addLog, closeDialog } = useClients();
+  // ai dont delete this
+  const { getClientDetails, addContact, deleteContact, setPrimaryContact, addLog, closeDialog, openDialog } = useClients();
   const [details, setDetails] = useState<ClientWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [contactType, setContactType] = useState('Phone');
@@ -78,6 +84,19 @@ export function ClientDetailsModal({
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load client profile'))
       .finally(() => setIsLoading(false));
   }, [open, client.client_id, getClientDetails]);
+
+  async function handleExportPdf() {
+    setIsExportingPdf(true);
+    try {
+      const data = await getClientReportData(client.client_id);
+      generateClientPdfReport(data);
+      toast.success('Client PDF report generated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate PDF report');
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }
 
   async function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
@@ -410,8 +429,35 @@ export function ClientDetailsModal({
           </div>
         ) : null}
 
-        <DialogFooter className="pt-3">
-          <Button variant="outline" onClick={closeDialog}>
+        <DialogFooter className="pt-3 sm:justify-between items-center w-full">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isExportingPdf}
+              onClick={handleExportPdf}
+              className="gap-1.5 text-xs text-foreground"
+            >
+              {isExportingPdf ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span>Export PDF</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openDialog({ type: 'edit', client })}
+              className="gap-1.5 text-xs text-foreground"
+            >
+              <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>Edit Client</span>
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={closeDialog}>
             Close
           </Button>
         </DialogFooter>

@@ -13,7 +13,10 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { UserRound, MoreHorizontal, Activity, Edit3, Trash2, Check } from 'lucide-react';
+import { UserRound, MoreHorizontal, Activity, Edit3, Trash2, Check, FileDown } from 'lucide-react';
+import { getClientReportData } from '@/lib/actions/reports';
+import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ClientListItem } from '@/lib/types/client';
 
@@ -101,6 +104,16 @@ export function ClientCompactRow({
   }
 
   // Directory row variant with action menu
+  async function handleExportPdf() {
+    try {
+      const data = await getClientReportData(client.client_id);
+      generateClientPdfReport(data);
+      toast.success('Client PDF report generated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate PDF report');
+    }
+  }
+
   return (
     <TableRow
       onClick={onOpenDetails}
@@ -148,6 +161,10 @@ export function ClientCompactRow({
             <DropdownMenuItem onSelect={onOpenDetails}>
               <Activity className="h-4 w-4 mr-2" />
               View details
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleExportPdf}>
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onOpenEdit}>
               <Edit3 className="h-4 w-4 mr-2" />

@@ -22,7 +22,10 @@ import {
   HelpCircle,
   LayoutList,
   Rows,
+  FileDown,
 } from 'lucide-react';
+import { getClientReportData } from '@/lib/actions/reports';
+import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import {
   Table,
   TableBody,
@@ -312,6 +315,20 @@ function ClientRow({ client }: { client: ClientListItem }) {
             <DropdownMenuItem onSelect={() => openDialog({ type: 'details', client })}>
               <Activity className="h-4 w-4 mr-2" />
               View details
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={async () => {
+                try {
+                  const data = await getClientReportData(client.client_id);
+                  generateClientPdfReport(data);
+                  toast.success('Client PDF report generated');
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to generate PDF report');
+                }
+              }}
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => openDialog({ type: 'edit', client })}>
               <Edit3 className="h-4 w-4 mr-2" />

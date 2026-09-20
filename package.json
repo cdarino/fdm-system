@@ -34,6 +34,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.3.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.511.0",
     "maplibre-gl": "^6.10.0",
     "next": "latest",
