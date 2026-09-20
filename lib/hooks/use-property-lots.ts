@@ -3,7 +3,12 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { getPropertyLots, createPropertyLot, updatePropertyLot } from '@/lib/actions/properties';
+import {
+  getPropertyLots,
+  createPropertyLot,
+  updatePropertyLot,
+  assignPropertyClient,
+} from '@/lib/actions/properties';
 import type {
   PropertyLotWithClient,
   PropertyStatus,
@@ -13,7 +18,10 @@ import type {
 
 export type StatusFilter = 'all' | PropertyStatus;
 
-export type PropertyDialog = { type: 'create' } | null;
+export type PropertyDialog =
+  | { type: 'create' }
+  | { type: 'assign'; lot: PropertyLotWithClient }
+  | null;
 
 /**
  * Sole owner of the property-lot server actions, mirroring `use-admin-users`.
@@ -34,6 +42,8 @@ interface PropertyLotsContextValue {
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<void>;
   updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<void>;
+  assignClient: (propertyId: string, clientId: string, status?: PropertyStatus) => Promise<void>;
+  unassignClient: (propertyId: string) => Promise<void>;
   sites: Site[];
 }
 
@@ -116,6 +126,34 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     [router],
   );
 
+  /**
+   * Assigning opens or reuses the lot's active ledger account and makes the
+   * client its primary party, so the lot moves to Reserved unless a status is
+   * given. `assignPropertyClient` returns the re-read lot, which already
+   * carries the resolved client.
+   */
+  const assignClient = useCallback(
+    async (propertyId: string, clientId: string, status?: PropertyStatus): Promise<void> => {
+      const updated = await assignPropertyClient(propertyId, clientId, status);
+      setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
+      router.refresh();
+    },
+    [router],
+  );
+
+  /**
+   * Unassigning cancels the ledger account rather than deleting it, so the
+   * payment history of a withdrawn sale survives. The lot returns to Open.
+   */
+  const unassignClient = useCallback(
+    async (propertyId: string): Promise<void> => {
+      const updated = await assignPropertyClient(propertyId, null);
+      setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
+      router.refresh();
+    },
+    [router],
+  );
+
   const value: PropertyLotsContextValue = {
     lots,
     visibleLots,
@@ -130,6 +168,8 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     closeDialog,
     createLot,
     updateLotStatus,
+    assignClient,
+    unassignClient,
     sites,
   };
 

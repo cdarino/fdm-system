@@ -15,6 +15,7 @@ import {
   Edit3,
   Archive,
   ArchiveRestore,
+  FileSearch,
   Trash2,
   Copy,
   Check,
@@ -52,6 +53,7 @@ import { CreateClientModal } from './client-create-modal';
 import { EditClientModal } from './client-edit-modal';
 import { DeleteClientDialog } from './client-delete-dialog';
 import { ArchiveClientDialog } from './client-archive-dialog';
+import { DocumentSearchDialog } from './document-search-dialog';
 import { ClientDetailsModal } from './client-details-modal';
 import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import type { ClientListItem, ContactInfo } from '@/lib/types/client';
@@ -394,6 +396,8 @@ function ClientsContent() {
     openDialog,
   } = useClients();
 
+  const [isDocumentSearchOpen, setIsDocumentSearchOpen] = useState(false);
+
   const isFiltered = search.trim() !== '' || statusFilter !== 'all';
 
   /**
@@ -434,13 +438,23 @@ function ClientsContent() {
               Manage client records, contact information, and activity history.
             </p>
           </div>
-          <Button
-            onClick={() => openDialog({ type: 'create' })}
-            className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
-          >
-            <Plus className="h-4 w-4" />
-            New Client
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsDocumentSearchOpen(true)}
+              className="gap-2 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
+            >
+              <FileSearch className="h-4 w-4" />
+              Search documents
+            </Button>
+            <Button
+              onClick={() => openDialog({ type: 'create' })}
+              className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+            >
+              <Plus className="h-4 w-4" />
+              New Client
+            </Button>
+          </div>
         </div>
 
         {/* Filters and search */}
@@ -535,6 +549,7 @@ function ClientsContent() {
       {activeDialog?.type === 'edit' && <EditClientModal client={activeDialog.client} open={true} />}
       {activeDialog?.type === 'delete' && <DeleteClientDialog client={activeDialog.client} open={true} />}
       {activeDialog?.type === 'archive' && <ArchiveClientDialog client={activeDialog.client} open={true} />}
+      <DocumentSearchDialog open={isDocumentSearchOpen} onOpenChange={setIsDocumentSearchOpen} />
       {activeDialog?.type === 'details' && <ClientDetailsModal client={activeDialog.client} open={true} />}
     </>
   );

@@ -37,6 +37,7 @@
     "lucide-react": "^0.511.0",
     "next": "latest",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "^6.3.289",
     "radix-ui": "^1.6.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -45,6 +46,7 @@
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.3.0",
+    "tesseract.js": "^7.0.0",
     "tsx": "^4.23.12",
     "zod": "^4.6.4"
   },

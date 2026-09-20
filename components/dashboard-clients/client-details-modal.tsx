@@ -36,18 +36,31 @@ import {
   Clock,
   LandPlot,
   Loader2,
+  UserPlus,
+  UserMinus,
   FileText,
   Upload,
   ExternalLink,
+  ShieldCheck,
+  ShieldAlert,
+  Circle,
   MoreHorizontal,
   Star,
 } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
 import { formatActivityTime } from '@/lib/format-activity-time';
+import { formatDocumentName, humanizeDocumentName } from '@/lib/format-document-name';
 import { toast } from 'sonner';
-import type { ClientListItem, ClientWithDetails, DocType } from '@/lib/types/client';
+import {
+  REQUIRED_CLIENT_DOCUMENTS,
+  type ClientListItem,
+  type ClientWithDetails,
+  type DocType,
+} from '@/lib/types/client';
+import type { PropertyLot, PropertyLotWithClient } from '@/lib/types/property';
+import type { OcrStatus } from '@/lib/types/search';
 
-/** Categories offered on upload. Filtering by them is r21. */
+/** Upload categories, and the display order of the document filter chips. */
 const DOCUMENT_TYPES: DocType[] = ['Valid ID', 'Contract', 'Deed of Sale', 'eCAR', 'Other'];
 
 export function ClientDetailsModal({
@@ -69,6 +82,10 @@ export function ClientDetailsModal({
     uploadDocument,
     deleteDocument,
     getDocumentUrl,
+    indexDocumentText,
+    listUnassignedLots,
+    assignLot,
+    unassignLot,
     closeDialog,
   } = useClients();
   const [details, setDetails] = useState<ClientWithDetails | null>(null);
@@ -86,10 +103,22 @@ export function ClientDetailsModal({
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [documentType, setDocumentType] = useState<DocType>('Valid ID');
+  const [categoryFilter, setCategoryFilter] = useState<DocType | 'all'>('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // OCR state is per-document and lives only for this open modal. The stored
+  // result is in search_index; this just drives the row indicator.
+  const [ocrStatus, setOcrStatus] = useState<Record<string, OcrStatus>>({});
+  const [ocrProgress, setOcrProgress] = useState<Record<string, number>>({});
+
+  const [availableLots, setAvailableLots] = useState<PropertyLotWithClient[]>([]);
+  const [isLoadingLots, setIsLoadingLots] = useState(false);
+  const [selectedLotId, setSelectedLotId] = useState<string>('');
+  const [isAssigningLot, setIsAssigningLot] = useState(false);
+  const [unassigningLotId, setUnassigningLotId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +129,95 @@ export function ClientDetailsModal({
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load client profile'))
       .finally(() => setIsLoading(false));
   }, [open, client.client_id, getClientDetails]);
+
+  const allDocuments = details?.client_document ?? [];
+
+  const documentCounts = DOCUMENT_TYPES.reduce(
+    (acc, type) => {
+      acc[type] = allDocuments.filter((doc) => doc.document_type === type).length;
+      return acc;
+    },
+    {} as Record<DocType, number>
+  );
+
+  /**
+   * Filtering happens here rather than through `getClientDocuments`'s category
+   * parameter: a client holds a handful of documents and they are already
+   * loaded, so a round trip per chip would be slower and could flicker.
+   */
+  const presentCategories = DOCUMENT_TYPES.filter((type) => documentCounts[type] > 0);
+
+  /**
+   * Completeness is derived from the documents already loaded rather than from
+   * `checkClientDocumentStatus`, so the checklist reacts the moment a file is
+   * uploaded or removed. `REQUIRED_CLIENT_DOCUMENTS` stays the single source of
+   * truth for what a complete file means, shared with the server action that
+   * powers the missing-document alerts.
+   */
+  const missingDocuments = REQUIRED_CLIENT_DOCUMENTS.filter(
+    (type) => documentCounts[type] === 0
+  );
+  const isFileComplete = missingDocuments.length === 0;
+
+  const visibleDocuments =
+    categoryFilter === 'all'
+      ? allDocuments
+      : allDocuments.filter((doc) => doc.document_type === categoryFilter);
+
+  /**
+   * Loaded once the profile is open rather than with it: most visits never
+   * assign a lot, and the list is only needed when the picker is used.
+   */
+  useEffect(() => {
+    if (!open) return;
+    setIsLoadingLots(true);
+    listUnassignedLots()
+      .then(setAvailableLots)
+      .catch(() => setAvailableLots([]))
+      .finally(() => setIsLoadingLots(false));
+  }, [open, listUnassignedLots]);
+
+  async function handleAssignLot() {
+    if (!selectedLotId) return;
+    setIsAssigningLot(true);
+    try {
+      const assigned = await assignLot(selectedLotId, client.client_id);
+      setDetails((prev) =>
+        prev ? { ...prev, properties: [...(prev.properties ?? []), assigned] } : prev
+      );
+      setAvailableLots((prev) => prev.filter((lot) => lot.property_id !== selectedLotId));
+      setSelectedLotId('');
+      toast.success(`Block ${assigned.block_number} Lot ${assigned.lot_number} assigned`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to assign lot');
+    } finally {
+      setIsAssigningLot(false);
+    }
+  }
+
+  async function handleUnassignLot(lot: PropertyLot) {
+    setUnassigningLotId(lot.property_id);
+    try {
+      await unassignLot(lot.property_id);
+      setDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              properties: (prev.properties ?? []).filter(
+                (p) => p.property_id !== lot.property_id
+              ),
+            }
+          : prev
+      );
+      // Back on the market, so it belongs in the picker again.
+      setAvailableLots((prev) => [{ ...lot, status: 'Open', client: null }, ...prev]);
+      toast.success(`Block ${lot.block_number} Lot ${lot.lot_number} unassigned`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to unassign lot');
+    } finally {
+      setUnassigningLotId(null);
+    }
+  }
 
   async function handleUploadDocument(e: React.FormEvent) {
     e.preventDefault();
@@ -115,13 +233,53 @@ export function ClientDetailsModal({
       setDetails((prev) =>
         prev ? { ...prev, client_document: [created, ...prev.client_document] } : prev
       );
+
+      const fileForOcr = selectedFile;
+      const categoryForOcr = documentType;
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       toast.success('Document uploaded');
+
+      // Deliberately not awaited: the file is already stored and listed, so
+      // reading it is follow-up work the staff member should not wait through.
+      void runOcr(created.document_id, fileForOcr, categoryForOcr);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to upload document');
     } finally {
       setIsUploading(false);
+    }
+  }
+
+  /**
+   * Reads the scanned file in the browser and stores the text against the
+   * document. A failure here is not surfaced as an error toast: the document is
+   * safely uploaded either way, and an unreadable scan is a normal outcome, so
+   * the row simply shows that it could not be read.
+   */
+  async function runOcr(documentId: string, file: File, category: DocType) {
+    setOcrStatus((prev) => ({ ...prev, [documentId]: 'running' }));
+    setOcrProgress((prev) => ({ ...prev, [documentId]: 0 }));
+
+    try {
+      const { extractDocumentText, tidyExtractedText } = await import(
+        '@/lib/ocr/extract-document-text'
+      );
+
+      const result = await extractDocumentText(file, (fraction) =>
+        setOcrProgress((prev) => ({ ...prev, [documentId]: fraction }))
+      );
+
+      const content = tidyExtractedText(result.text);
+      // The category and filename are searched alongside the page text, so a
+      // document with an unreadable scan is still findable by what it is. The
+      // name is split into words first, or it indexes as one unsearchable token.
+      const keywords = [category, humanizeDocumentName(file.name)].join(' ');
+
+      await indexDocumentText(documentId, content, keywords);
+      setOcrStatus((prev) => ({ ...prev, [documentId]: content ? 'done' : 'failed' }));
+    } catch (err) {
+      console.error('OCR failed for document', documentId, err);
+      setOcrStatus((prev) => ({ ...prev, [documentId]: 'failed' }));
     }
   }
 
@@ -463,13 +621,107 @@ export function ClientDetailsModal({
                 <Badge variant="outline">{details.client_document.length}</Badge>
               </div>
 
+              {/* Required-document checklist. Shown whether or not the file is
+                  complete: staff need to see what counts as complete, not only
+                  what is missing. */}
+              <div
+                className={`space-y-2 rounded-lg border p-3 ${
+                  isFileComplete
+                    ? 'border-success bg-[color-mix(in_srgb,var(--success)_8%,white)]'
+                    : 'border-border bg-row-hover'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {isFileComplete ? (
+                    <>
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
+                      <p className="text-xs font-semibold text-success">
+                        File complete
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <p className="text-xs font-semibold text-foreground">
+                        {missingDocuments.length} required document
+                        {missingDocuments.length === 1 ? '' : 's'} missing
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+                  {REQUIRED_CLIENT_DOCUMENTS.map((type) => {
+                    const isPresent = documentCounts[type] > 0;
+                    return (
+                      <li key={type} className="flex items-center gap-1.5 text-xs">
+                        {isPresent ? (
+                          <Check className="h-3.5 w-3.5 shrink-0 text-success" />
+                        ) : (
+                          <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        )}
+                        <span
+                          className={
+                            isPresent ? 'text-foreground' : 'text-muted-foreground'
+                          }
+                        >
+                          {type}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              {/* Category filter: only categories this client actually has, so
+                  the row stays short and every chip leads somewhere. */}
+              {details.client_document.length > 0 && presentCategories.length > 1 && (
+                <div
+                  role="tablist"
+                  aria-label="Filter documents by category"
+                  className="flex flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1"
+                >
+                  {(['all', ...presentCategories] as const).map((category) => {
+                    const isActive = categoryFilter === category;
+                    const count =
+                      category === 'all'
+                        ? details.client_document.length
+                        : documentCounts[category as DocType];
+
+                    return (
+                      <button
+                        key={category}
+                        role="tab"
+                        type="button"
+                        aria-selected={isActive}
+                        onClick={() => setCategoryFilter(category as DocType | 'all')}
+                        className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+                          isActive
+                            ? 'bg-card text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {category === 'all' ? 'All' : category}
+                        <span className="text-[10px] tabular-nums text-muted-foreground">
+                          ({count})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {details.client_document.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   No documents uploaded yet.
                 </p>
+              ) : visibleDocuments.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No {categoryFilter} documents.
+                </p>
               ) : (
                 <div className="space-y-1.5">
-                  {details.client_document.map((doc) => (
+                  {visibleDocuments.map((doc) => (
                     <div
                       key={doc.document_id}
                       className="flex items-center gap-3 rounded-lg border border-border bg-card p-2.5 text-sm"
@@ -479,10 +731,22 @@ export function ClientDetailsModal({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium text-foreground">
-                          {doc.document_type}
+                          {formatDocumentName(doc.file_path)}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {formatActivityTime(doc.uploaded_at)}
+                          {doc.document_type} · {formatActivityTime(doc.uploaded_at)}
+                          {ocrStatus[doc.document_id] === 'running' && (
+                            <span className="ml-1 text-primary">
+                              · reading text{' '}
+                              {Math.round((ocrProgress[doc.document_id] ?? 0) * 100)}%
+                            </span>
+                          )}
+                          {ocrStatus[doc.document_id] === 'done' && (
+                            <span className="ml-1 text-success">· text captured</span>
+                          )}
+                          {ocrStatus[doc.document_id] === 'failed' && (
+                            <span className="ml-1 text-muted-foreground">· no text found</span>
+                          )}
                         </p>
                       </div>
                       <Button
@@ -564,12 +828,15 @@ export function ClientDetailsModal({
             </div>
 
             {/* Associated Property Lots */}
-            {details.properties && details.properties.length > 0 && (
-              <div className="space-y-2 border-t border-border pt-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">Assigned Property Lots</h3>
-                  <Badge variant="outline">{details.properties.length}</Badge>
-                </div>
+            <div className="space-y-2 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Assigned Property Lots</h3>
+                <Badge variant="outline">{details.properties?.length ?? 0}</Badge>
+              </div>
+
+              {!details.properties || details.properties.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No lots assigned yet.</p>
+              ) : (
                 <div className="grid gap-2 sm:grid-cols-2">
                   {details.properties.map((lot) => (
                     <div
@@ -588,11 +855,67 @@ export function ClientDetailsModal({
                       <Badge variant="secondary" className="text-xs">
                         {lot.status}
                       </Badge>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Unassign Block ${lot.block_number} Lot ${lot.lot_number}`}
+                        disabled={unassigningLotId === lot.property_id}
+                        onClick={() => void handleUnassignLot(lot)}
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                      >
+                        {unassigningLotId === lot.property_id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UserMinus className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
                     </div>
                   ))}
                 </div>
+              )}
+
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3 sm:flex-row">
+                <Select
+                  value={selectedLotId}
+                  onValueChange={setSelectedLotId}
+                  disabled={isLoadingLots || availableLots.length === 0}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue
+                      placeholder={
+                        isLoadingLots
+                          ? 'Loading lots…'
+                          : availableLots.length === 0
+                            ? 'No unassigned lots available'
+                            : 'Select an unassigned lot'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableLots.map((lot) => (
+                      <SelectItem key={lot.property_id} value={lot.property_id}>
+                        Block {lot.block_number} Lot {lot.lot_number} · {lot.location}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isAssigningLot || !selectedLotId}
+                  onClick={() => void handleAssignLot()}
+                  className="gap-1.5 bg-primary text-xs text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+                >
+                  {isAssigningLot ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <UserPlus className="h-3.5 w-3.5" />
+                  )}
+                  Assign lot
+                </Button>
               </div>
-            )}
+            </div>
           </div>
         ) : null}
 

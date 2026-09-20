@@ -26,6 +26,7 @@ import {
 } from "@/lib/types/client";
 
 import type { PropertyLot } from "@/lib/types/property";
+import { deleteEntityIndex } from "@/lib/actions/search-index";
 import {
   uploadClientDocumentObject,
   createClientDocumentUrl,
@@ -638,6 +639,12 @@ export async function deleteClientDocument(documentId: string): Promise<void> {
   if (error) {
     throw new Error(`Failed to delete client document: ${error.message}`);
   }
+
+  // The extracted text outlives its document otherwise, leaving the contents of
+  // a deleted ID or deed searchable by everyone.
+  await deleteEntityIndex("client_document", documentId).catch((indexError) => {
+    console.error(`Failed to clear search index for ${documentId}:`, indexError);
+  });
 
   // Row first, object second. A failed object delete leaves one orphan that can
   // be swept later, whereas deleting the object first would leave a row

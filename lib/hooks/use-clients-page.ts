@@ -19,6 +19,17 @@ import {
   deleteClientDocument as deleteClientDocumentAction,
   getClientDocumentUrl as getClientDocumentUrlAction,
 } from '@/lib/actions/clients';
+import {
+  getPropertyLots,
+  assignPropertyClient,
+} from '@/lib/actions/properties';
+import {
+  indexEntityText,
+  searchDocumentText,
+  getEntityIndex,
+} from '@/lib/actions/search-index';
+import type { DocumentSearchHit } from '@/lib/types/search';
+import type { PropertyLot, PropertyLotWithClient } from '@/lib/types/property';
 import type {
   ClientListItem,
   ClientWithDetails,
@@ -69,6 +80,12 @@ interface ClientsContextValue {
   uploadDocument: (clientId: string, formData: FormData) => Promise<ClientDocument>;
   deleteDocument: (documentId: string) => Promise<void>;
   getDocumentUrl: (documentId: string) => Promise<string>;
+  indexDocumentText: (documentId: string, content: string, keywords: string) => Promise<void>;
+  searchDocuments: (query: string) => Promise<DocumentSearchHit[]>;
+  getDocumentText: (documentId: string) => Promise<string | null>;
+  listUnassignedLots: () => Promise<PropertyLotWithClient[]>;
+  assignLot: (propertyId: string, clientId: string) => Promise<PropertyLot>;
+  unassignLot: (propertyId: string) => Promise<void>;
   refreshClients: () => Promise<void>;
 }
 
@@ -283,6 +300,49 @@ export function ClientsProvider({
     return await getClientDocumentUrlAction(documentId);
   }, []);
 
+  const indexDocumentText = useCallback(
+    async (documentId: string, content: string, keywords: string) => {
+      await indexEntityText({
+        entity_id: documentId,
+        entity_type: 'client_document',
+        content,
+        keywords,
+      });
+    },
+    []
+  );
+
+  /**
+   * Lots with no client on them, which are the only ones offered when assigning
+   * from a client's profile. Taking a lot from another client is a different
+   * decision and belongs on the lots table, where the current owner is visible.
+   */
+  const searchDocuments = useCallback(async (query: string) => {
+    return await searchDocumentText(query);
+  }, []);
+
+  /** The full OCR text, as opposed to the excerpt a search result carries. */
+  const getDocumentText = useCallback(async (documentId: string) => {
+    const entry = await getEntityIndex('client_document', documentId);
+    return entry?.content ?? null;
+  }, []);
+
+  const listUnassignedLots = useCallback(async () => {
+    const result = await getPropertyLots({ limit: 200, sortBy: 'location', sortOrder: 'asc' });
+    return result.data.filter((lot) => !lot.client);
+  }, []);
+
+  const assignLot = useCallback(async (propertyId: string, clientId: string) => {
+    const updated = await assignPropertyClient(propertyId, clientId);
+    router.refresh();
+    return updated;
+  }, [router]);
+
+  const unassignLot = useCallback(async (propertyId: string) => {
+    await assignPropertyClient(propertyId, null);
+    router.refresh();
+  }, [router]);
+
   return createElement(
     ClientsContext.Provider,
     {
@@ -311,6 +371,12 @@ export function ClientsProvider({
         uploadDocument,
         deleteDocument,
         getDocumentUrl,
+        indexDocumentText,
+        searchDocuments,
+        getDocumentText,
+        listUnassignedLots,
+        assignLot,
+        unassignLot,
         refreshClients,
       },
     },
