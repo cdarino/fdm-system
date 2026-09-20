@@ -9,6 +9,7 @@ import {
   createClient as createClientAction,
   updateClient as updateClientAction,
   deleteClient as deleteClientAction,
+  archiveClient as archiveClientAction,
   addContactInfo as addContactInfoAction,
   updateContactInfo as updateContactInfoAction,
   deleteContactInfo as deleteContactInfoAction,
@@ -31,6 +32,7 @@ export type ClientDialog =
   | { type: 'create' }
   | { type: 'edit'; client: ClientListItem }
   | { type: 'delete'; client: ClientListItem }
+  | { type: 'archive'; client: ClientListItem }
   | { type: 'details'; client: ClientListItem }
   | null;
 
@@ -49,6 +51,7 @@ interface ClientsContextValue {
   createClient: (input: CreateClientInput) => Promise<void>;
   updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
   deleteClient: (clientId: string) => Promise<void>;
+  archiveClient: (clientId: string) => Promise<void>;
   getClientDetails: (clientId: string) => Promise<ClientWithDetails>;
   addContact: (clientId: string, input: CreateContactInfoInput) => Promise<ContactInfo>;
   deleteContact: (clientId: string, contactId: string) => Promise<void>;
@@ -144,6 +147,17 @@ export function ClientsProvider({
     router.refresh();
   }, [router]);
 
+  /**
+   * Archiving sets the client's status to "Archived", which `getClients()`
+   * excludes by default, so the row leaves this list rather than changing
+   * appearance. Retrieving it again is r25.
+   */
+  const archiveClient = useCallback(async (clientId: string) => {
+    await archiveClientAction(clientId);
+    setClients((prev) => prev.filter((c) => c.client_id !== clientId));
+    router.refresh();
+  }, [router]);
+
   const getClientDetails = useCallback(async (clientId: string) => {
     return await getClientById(clientId);
   }, []);
@@ -227,6 +241,7 @@ export function ClientsProvider({
         createClient,
         updateClient,
         deleteClient,
+        archiveClient,
         getClientDetails,
         addContact,
         deleteContact,

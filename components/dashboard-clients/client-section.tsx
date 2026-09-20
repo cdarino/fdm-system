@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Activity,
   Edit3,
+  Archive,
   Trash2,
   Copy,
   Check,
@@ -47,6 +48,7 @@ import { formatActivityTime } from '@/lib/format-activity-time';
 import { CreateClientModal } from './client-create-modal';
 import { EditClientModal } from './client-edit-modal';
 import { DeleteClientDialog } from './client-delete-dialog';
+import { ArchiveClientDialog } from './client-archive-dialog';
 import { ClientDetailsModal } from './client-details-modal';
 import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import type { ClientListItem, ContactInfo } from '@/lib/types/client';
@@ -329,6 +331,10 @@ function ClientRow({ client }: { client: ClientListItem }) {
               Edit client
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => openDialog({ type: 'archive', client })}>
+              <Archive className="h-4 w-4 mr-2" />
+              Archive client
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onSelect={() => openDialog({ type: 'delete', client })}
@@ -483,6 +489,7 @@ function ClientsContent() {
       {activeDialog?.type === 'create' && <CreateClientModal open={true} />}
       {activeDialog?.type === 'edit' && <EditClientModal client={activeDialog.client} open={true} />}
       {activeDialog?.type === 'delete' && <DeleteClientDialog client={activeDialog.client} open={true} />}
+      {activeDialog?.type === 'archive' && <ArchiveClientDialog client={activeDialog.client} open={true} />}
       {activeDialog?.type === 'details' && <ClientDetailsModal client={activeDialog.client} open={true} />}
     </>
   );

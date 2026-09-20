@@ -25,6 +25,8 @@ import {
   REQUIRED_CLIENT_DOCUMENTS,
 } from "@/lib/types/client";
 
+import type { PropertyLot } from "@/lib/types/property";
+
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
 // Any automated system logs that are generated when calling client-related operations
@@ -140,14 +142,62 @@ export async function getClients(
   return buildPaginatedResult(clients, count ?? 0, page, limit);
 }
 
+/**
+ * Property lots a client holds, resolved through their active ledger account.
+ *
+ * There is no direct client -> property_lot link any more: the refactor in
+ * 20260914223800 dropped `property_lot.client_id` in favour of
+ * account_party -> ledger_account -> property_lot, so the ownership hop has to
+ * be walked explicitly. Mirrors the `client_id` filter in `getPropertyLots()`.
+ *
+ * Reading `property_lot` needs `properties.read`, which a caller holding only
+ * `clients.read` does not have. RLS answers that with an empty set rather than
+ * an error, so an empty array here means "none visible to you", not "none".
+ */
+async function resolveClientProperties(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  clientId: string
+): Promise<PropertyLot[]> {
+  const { data: partyRows, error: partyError } = await supabase
+    .from("account_party")
+    .select("ledger_account!inner(property_id, status)")
+    .eq("client_id", clientId)
+    .eq("ledger_account.status", "Active");
+
+  if (partyError) {
+    console.error(`Failed to resolve properties for client ${clientId}:`, partyError.message);
+    return [];
+  }
+
+  const propertyIds = (partyRows ?? [])
+    .map((row) => (row.ledger_account as { property_id?: string } | null)?.property_id)
+    .filter((id): id is string => Boolean(id));
+
+  if (propertyIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("property_lot")
+    .select("*")
+    .in("property_id", propertyIds)
+    .returns<PropertyLot[]>();
+
+  if (error) {
+    console.error(`Failed to fetch property lots for client ${clientId}:`, error.message);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export async function getClientById(clientId: string): Promise<ClientWithDetails> {
   await requirePermission("clients.read");
   const supabase = await createSupabaseServerClient();
 
-  // Consolidated client profile: includes contacts, documents, interaction logs, and assigned property lots
+  // Consolidated client profile: contacts, documents and interaction logs embed
+  // directly; property lots are a separate hop (see resolveClientProperties).
   const { data, error } = await supabase
     .from("client")
-    .select("*, contact_info(*), client_document(*), client_log(*), properties:property_lot(*)")
+    .select("*, contact_info(*), client_document(*), client_log(*)")
     .eq("client_id", clientId)
     .single<ClientWithDetails>();
 
@@ -155,7 +205,7 @@ export async function getClientById(clientId: string): Promise<ClientWithDetails
     throw new Error(`Client not found: ${error?.message ?? "Unknown error"}`);
   }
 
-  return data;
+  return { ...data, properties: await resolveClientProperties(supabase, clientId) };
 }
 
 export async function createClient(input: CreateClientInput): Promise<Client> {
