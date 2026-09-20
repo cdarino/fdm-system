@@ -25,6 +25,7 @@ fdm-system/
 │   │   └── dashboard/
 │   │       └── admin/          # Admin-only page
 │   ├── (marketing)/            # Public-facing marketing pages
+│   ├── api/                    # Route handlers (ArcGIS token server)
 │   ├── auth/                   # Auth API routes (confirm, sign-up, forgot/update password, error)
 │   └── demo/                   # Demo page
 ├── components/
@@ -40,6 +41,8 @@ fdm-system/
 │   └── ui/                     # shadcn/ui primitives and custom base components
 ├── lib/
 │   ├── actions/                # Server actions (auth guards, admin user/role, clients, properties, titles, reports)
+│   ├── actions/                # Server actions (auth guards, admin user/role, clients, properties, titles, reports, arcgis)
+│   ├── arcgis/                 # ArcGIS REST integration & token service
 │   ├── hooks/                  # Client-side React hooks
 │   ├── storage/                # Cloud storage integration helpers (Backblaze B2)
 │   ├── supabase/               # Supabase client factories (browser, server, admin, proxy)
@@ -50,6 +53,7 @@ fdm-system/
 │   └── tests/                  # Vitest E2E integration test suite
 │       ├── framework/          # Setup, session management, Next.js mocks
 │       ├── admin/              # User management & role tests
+│       ├── arcgis/             # ArcGIS token service & auth guard tests
 │       ├── auth/               # Authentication & password tests
 │       ├── clients/            # Client CRUD, search, area, archive, documents & interaction tests
 │       ├── properties/         # Property lot, map layout & positioning tests
