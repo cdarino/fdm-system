@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,6 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
+import { ClientAssignModal } from './client-assign-modal';
 import { usePropertyLots, lotLabel } from '@/lib/hooks/use-property-lots';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
@@ -51,6 +58,7 @@ export interface PropertyLotDetailViewProps {
 export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetailViewProps) {
   const { updateLot } = usePropertyLots();
   const { state, execute } = useMutation(updateLot);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
   const form = useForm<UpdateLotFormData>({
     resolver: zodResolver(updateLotSchema),
@@ -149,11 +157,30 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
                 <p className="font-medium text-foreground truncate">{lot.location}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">Assigned Client</span>
-                <div className="flex items-center gap-1.5 font-medium text-foreground truncate">
-                  <User className="h-3 w-3 text-muted-foreground shrink-0" />
-                  <span className="truncate">{lot.client ? lot.client.full_name : 'Unassigned'}</span>
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setIsAssignModalOpen(true)}
+                        className="group/client -m-1 flex w-full flex-col rounded-lg p-1 text-left transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <span className="text-muted-foreground group-hover/client:text-primary transition-colors">
+                          Assigned Client
+                        </span>
+                        <div className="flex items-center gap-1.5 font-medium text-foreground truncate mt-0.5 max-w-full">
+                          <User className="h-3 w-3 text-muted-foreground group-hover/client:text-primary shrink-0 transition-colors" />
+                          <span className="truncate group-hover/client:text-primary group-hover/client:underline transition-colors">
+                            {lot.client ? lot.client.full_name : 'Unassigned'}
+                          </span>
+                        </div>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Assign a new client
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
           </div>
@@ -242,6 +269,12 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
           </LoadingButton>
         </div>
       </form>
+
+      <ClientAssignModal
+        open={isAssignModalOpen}
+        onOpenChange={setIsAssignModalOpen}
+        lot={lot}
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { getPropertyLots, createPropertyLot, updatePropertyLot } from '@/lib/actions/properties';
+import { getPropertyLots, createPropertyLot, updatePropertyLot, assignPropertyClient } from '@/lib/actions/properties';
 import type {
   PropertyLotWithClient,
   PropertyStatus,
@@ -36,6 +36,7 @@ interface PropertyLotsContextValue {
   createLot: (input: CreatePropertyLotInput) => Promise<void>;
   updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<void>;
   updateLot: (propertyId: string, input: UpdatePropertyLotInput) => Promise<void>;
+  assignClient: (propertyId: string, clientId: string | null, status?: PropertyStatus) => Promise<PropertyLotWithClient>;
   sites: Site[];
 }
 
@@ -129,6 +130,18 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     [router],
   );
 
+  const assignClient = useCallback(
+    async (propertyId: string, clientId: string | null, status?: PropertyStatus): Promise<PropertyLotWithClient> => {
+      const updated = await assignPropertyClient(propertyId, clientId, status);
+      setLots((prev) =>
+        prev.map((lot) => (lot.property_id === propertyId ? updated : lot)),
+      );
+      router.refresh();
+      return updated;
+    },
+    [router],
+  );
+
   const value: PropertyLotsContextValue = {
     lots,
     visibleLots,
@@ -144,6 +157,7 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     createLot,
     updateLotStatus,
     updateLot,
+    assignClient,
     sites,
   };
 

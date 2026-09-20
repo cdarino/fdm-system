@@ -57,7 +57,7 @@ export interface PropertyLot {
 }
 
 export interface PropertyLotWithClient extends PropertyLot {
-  client: Pick<Client, 'client_id' | 'full_name' | 'status'> | null;
+  client: Pick<Client, 'client_id' | 'full_name' | 'status' | 'address'> | null;
   client_id?: string | null;
   active_account?: LedgerAccountWithParties | null;
 }
