@@ -5,7 +5,8 @@ import { ArrowRight } from 'lucide-react';
 
 const heroCards = [
   {
-    icon: '🏢',
+    // Same glyph as the Property Lots tile on the dashboard overview.
+    icon: '🗺️',
     bg: 'bg-chart-3',
     title: 'Property Management',
     description: 'Efficiently manage all your properties in one place',
