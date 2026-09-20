@@ -10,6 +10,7 @@ import {
   updateClient as updateClientAction,
   deleteClient as deleteClientAction,
   archiveClient as archiveClientAction,
+  unarchiveClient as unarchiveClientAction,
   addContactInfo as addContactInfoAction,
   updateContactInfo as updateContactInfoAction,
   deleteContactInfo as deleteContactInfoAction,
@@ -26,7 +27,10 @@ import type {
   CreateClientLogInput,
 } from '@/lib/types/client';
 
-export type ClientStatusFilter = 'all' | 'Active' | 'Inactive';
+export type ClientStatusFilter = 'all' | 'Active' | 'Inactive' | 'Archived';
+
+/** Status that takes a client out of the working list. Set by `archiveClient`. */
+export const ARCHIVED_STATUS = 'Archived';
 
 export type ClientDialog =
   | { type: 'create' }
@@ -52,6 +56,7 @@ interface ClientsContextValue {
   updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
   deleteClient: (clientId: string) => Promise<void>;
   archiveClient: (clientId: string) => Promise<void>;
+  restoreClient: (clientId: string) => Promise<void>;
   getClientDetails: (clientId: string) => Promise<ClientWithDetails>;
   addContact: (clientId: string, input: CreateContactInfoInput) => Promise<ContactInfo>;
   deleteContact: (clientId: string, contactId: string) => Promise<void>;
@@ -98,11 +103,25 @@ export function ClientsProvider({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
 
+  /**
+   * Archived clients are held in the same list but shown only under their own
+   * tab. Every other tab, "All" included, hides them, so archiving takes a
+   * client out of the working view without hiding the record from the page.
+   */
   const visibleClients = useMemo(() => {
     return clients.filter((client) => {
-      if (!matchesSearch(client, search)) return false;
-      if (statusFilter !== 'all' && client.status.toLowerCase() !== statusFilter.toLowerCase()) return false;
-      return true;
+      const isArchived = client.status === ARCHIVED_STATUS;
+
+      if (statusFilter === 'Archived') {
+        if (!isArchived) return false;
+      } else {
+        if (isArchived) return false;
+        if (statusFilter !== 'all' && client.status.toLowerCase() !== statusFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      return matchesSearch(client, search);
     });
   }, [clients, search, statusFilter]);
 
@@ -113,7 +132,14 @@ export function ClientsProvider({
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getClients({ limit: 200, sortBy: 'full_name', sortOrder: 'asc' });
+      // `includeArchived` fetches both sets in one query; `visibleClients`
+      // decides which of them the current tab shows.
+      const result = await getClients({
+        limit: 200,
+        sortBy: 'full_name',
+        sortOrder: 'asc',
+        includeArchived: true,
+      });
       setClients(result.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load clients');
@@ -148,13 +174,23 @@ export function ClientsProvider({
   }, [router]);
 
   /**
-   * Archiving sets the client's status to "Archived", which `getClients()`
-   * excludes by default, so the row leaves this list rather than changing
-   * appearance. Retrieving it again is r25.
+   * Archive and restore both just move the client's status, so the row stays in
+   * state and changes which tab it belongs to. Dropping it from the list
+   * instead would leave the Archived tab empty until a refetch.
    */
   const archiveClient = useCallback(async (clientId: string) => {
-    await archiveClientAction(clientId);
-    setClients((prev) => prev.filter((c) => c.client_id !== clientId));
+    const updated = await archiveClientAction(clientId);
+    setClients((prev) =>
+      prev.map((c) => (c.client_id === clientId ? { ...c, ...updated } : c))
+    );
+    router.refresh();
+  }, [router]);
+
+  const restoreClient = useCallback(async (clientId: string) => {
+    const updated = await unarchiveClientAction(clientId);
+    setClients((prev) =>
+      prev.map((c) => (c.client_id === clientId ? { ...c, ...updated } : c))
+    );
     router.refresh();
   }, [router]);
 
@@ -242,6 +278,7 @@ export function ClientsProvider({
         updateClient,
         deleteClient,
         archiveClient,
+        restoreClient,
         getClientDetails,
         addContact,
         deleteContact,
