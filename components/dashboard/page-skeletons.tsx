@@ -89,7 +89,7 @@ export function AdminSkeleton() {
       <div className="flex flex-1 flex-col gap-6">
         <Skeleton className="h-7 w-48" />
 
-        <Card className="flex flex-1 flex-col overflow-hidden border-border bg-card">
+        <Card variant="section">
           {/* Header */}
           <div className="flex flex-wrap items-start justify-between gap-4 px-4 pb-5 pt-6 sm:px-6">
             <div className="space-y-2">
@@ -177,7 +177,7 @@ export function PropertiesSkeleton() {
       <div className="flex flex-1 flex-col gap-6">
         <TitleSkeleton />
 
-        <Card className="flex flex-1 flex-col overflow-hidden border-border bg-card">
+        <Card variant="section">
           <div className="flex flex-wrap items-start justify-between gap-4 px-4 pb-5 pt-6 sm:px-6">
             <div className="space-y-2">
               <Skeleton className="h-5 w-36" />
@@ -247,7 +247,7 @@ export function SettingsSkeleton() {
         <TitleSkeleton />
 
         {/* Profile card: name, email, then roles across both columns */}
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader className="space-y-2">
             <Skeleton className="h-5 w-24" />
             <Skeleton className="h-4 w-80 max-w-full" />
@@ -270,7 +270,7 @@ export function SettingsSkeleton() {
         </Card>
 
         {/* Change password card: three fields, then the action row */}
-        <Card className="border-border bg-card">
+        <Card>
           <CardHeader className="space-y-2">
             <Skeleton className="h-5 w-40" />
             <Skeleton className="h-4 w-72 max-w-full" />
@@ -325,7 +325,7 @@ export function ClientsSkeleton() {
       <div className="flex flex-1 flex-col gap-6">
         <TitleSkeleton />
 
-        <Card className="flex flex-1 flex-col overflow-hidden border-border bg-card">
+        <Card variant="section">
           <div className="flex flex-wrap items-start justify-between gap-4 px-4 pb-5 pt-6 sm:px-6">
             <div className="space-y-2">
               <Skeleton className="h-5 w-36" />

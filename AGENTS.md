@@ -11,6 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Project Stack Notes
 
 - **UI components**: This project uses [shadcn/ui](https://ui.shadcn.com). New UI components should follow shadcn conventions — prefer composing from existing primitives in `components/ui/` before creating new ones, and use the shadcn CLI (`npx shadcn@latest add <component>`) to add any missing ones.
+- **Card Component & Variants**: `components/ui/card.tsx` already encapsulates base border (`border-border`), surface (`bg-card`), text color (`text-card-foreground`), and shadow defaults. Do not redundantly apply `bg-card`, `border-border`, or `rounded-xl` to `<Card>`. Use its built-in `variant` (`section`, `interactive`, `prominent`, `dashed`) and `padding` (`none`, `default`, `lg`) props instead of writing custom Tailwind utility chains.
 
 ## Folder Structure
 

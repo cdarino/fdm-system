@@ -66,9 +66,9 @@ export function ChangePasswordForm() {
   } = useChangePasswordForm();
 
   return (
-    <Card className="bg-card border-border">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-lg text-foreground">Change Password</CardTitle>
+        <CardTitle>Change Password</CardTitle>
         <CardDescription>
           Enter your current password, then choose a new one of at least{' '}
           {MIN_PASSWORD_LENGTH} characters.

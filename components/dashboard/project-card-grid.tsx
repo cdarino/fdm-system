@@ -73,7 +73,8 @@ export function ProjectCardGrid() {
           return (
             <Card
               key={project.id}
-              className="overflow-hidden bg-card border-border hover:shadow-lg transition-shadow rounded-xl group cursor-pointer"
+              variant="interactive"
+              className="overflow-hidden hover:shadow-lg group"
             >
               {/* Image Placeholder */}
               <div className="w-full h-40 bg-gradient-to-br from-blue-300 to-blue-200 relative">
@@ -109,7 +110,7 @@ export function ProjectCardGrid() {
         })}
         
         {/* Add New Project Card */}
-        <Card className="border-2 border-dashed border-border rounded-xl hover:border-primary transition-colors bg-card flex items-center justify-center min-h-64">
+        <Card variant="dashed" className="min-h-64">
           <div className="text-center space-y-2">
             <div className="w-12 h-12 bg-sidebar-accent rounded-lg mx-auto flex items-center justify-center">
               <span className="text-2xl text-accent-blue-foreground">+</span>

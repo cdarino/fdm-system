@@ -26,7 +26,7 @@ export default function Page() {
         <div>
             <Card className="min-w-2xl max-w-2xl w-full">
                 <CardHeader>
-                    <CardTitle className="text-xl">Shadcn Components</CardTitle>
+                    <CardTitle size="lg">Shadcn Components</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-6">
 

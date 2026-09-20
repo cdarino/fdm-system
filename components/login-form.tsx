@@ -75,7 +75,7 @@ export function LoginForm() {
       )}
 
       {/* Login Card */}
-      <Card className="p-8 bg-card border-border rounded-2xl shadow-lg">
+      <Card variant="prominent" padding="lg">
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email Field */}
           <div className="space-y-2">
@@ -150,7 +150,7 @@ export function LoginForm() {
 /** Placeholder shown while the login form hydrates. Mirrors the card's footprint. */
 export function LoginFormFallback() {
   return (
-    <Card className="p-8 bg-card border-border rounded-2xl shadow-lg">
+    <Card variant="prominent" padding="lg">
       <div className="animate-pulse space-y-5">
         <div className="space-y-2">
           <div className="h-4 w-28 rounded bg-border" />

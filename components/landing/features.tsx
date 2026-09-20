@@ -35,18 +35,19 @@ export function FeaturesSection() {
             return (
               <Card
                 key={feature.title}
-                className="rounded-xl border-border bg-card p-6 shadow-none transition-shadow hover:shadow-md"
+                variant="interactive"
+                className="shadow-none"
               >
-                <CardHeader className="p-0">
+                <CardHeader>
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sidebar-accent">
                     <Icon className="h-6 w-6 text-accent-blue-foreground" />
                   </div>
-                  <CardTitle className="pt-4 text-base font-semibold text-foreground">
+                  <CardTitle size="sm" className="pt-2">
                     {feature.title}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-0 pt-2">
-                  <CardDescription className="text-sm leading-relaxed text-muted-foreground">
+                <CardContent>
+                  <CardDescription className="leading-relaxed">
                     {feature.description}
                   </CardDescription>
                 </CardContent>

@@ -72,9 +72,9 @@ async function SettingsContent() {
         </p>
       </div>
 
-      <Card className="bg-card border-border">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-lg text-foreground">Profile</CardTitle>
+          <CardTitle>Profile</CardTitle>
           <CardDescription>
             Ask a system administrator to change your name or roles.
           </CardDescription>

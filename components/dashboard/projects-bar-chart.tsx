@@ -22,7 +22,7 @@ const data = [
 
 export function ProjectsBarChart() {
   return (
-    <Card className="p-6 bg-card border-border rounded-xl">
+    <Card padding="default">
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />

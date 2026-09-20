@@ -268,7 +268,7 @@ function PropertyLotsContent() {
 
   return (
     <>
-      <Card className="flex flex-1 flex-col overflow-hidden border-border bg-card">
+      <Card variant="section">
         <div className={`flex flex-wrap items-start justify-between gap-4 pb-5 pt-6 ${GUTTER}`}>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold leading-none tracking-tight text-foreground">

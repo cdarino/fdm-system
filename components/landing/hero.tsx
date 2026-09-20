@@ -69,17 +69,19 @@ function _HeroCards() {
             {heroCards.map((card) => (
               <Card
                 key={card.title}
-                className="rounded-2xl border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
+                variant="interactive"
+                padding="default"
+                className="rounded-2xl shadow-sm"
               >
                 <div className="flex items-start space-x-4">
                   <div className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg ${card.bg}`}>
                     <span className="text-2xl">{card.icon}</span>
                   </div>
                   <div>
-                    <CardTitle className="text-base font-semibold text-foreground">
+                    <CardTitle size="sm">
                       {card.title}
                     </CardTitle>
-                    <CardDescription className="mt-1 text-sm text-muted-foreground">
+                    <CardDescription className="mt-1">
                       {card.description}
                     </CardDescription>
                   </div>

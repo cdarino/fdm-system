@@ -13,7 +13,7 @@ const COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)'];
 
 export function ProjectsDonutChart() {
   return (
-    <Card className="p-6 bg-card border-border rounded-xl">
+    <Card padding="default">
       <ResponsiveContainer width="100%" height={280}>
         <PieChart>
           <Pie
