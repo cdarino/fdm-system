@@ -20,6 +20,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Plus,
   Trash2,
   Copy,
@@ -30,6 +36,8 @@ import {
   Clock,
   LandPlot,
   Loader2,
+  MoreHorizontal,
+  Star,
 } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
 import { formatActivityTime } from '@/lib/format-activity-time';
@@ -46,7 +54,7 @@ export function ClientDetailsModal({
   // TODO: find a way to have multiple useMutation(), 
   // so that we could have some error & state handling for these operations here.
   // Right now, there are functions dedicated for each operation that does the same thing!
-  const { getClientDetails, addContact, deleteContact, addLog, closeDialog } = useClients();
+  const { getClientDetails, addContact, deleteContact, setPrimaryContact, addLog, closeDialog } = useClients();
   const [details, setDetails] = useState<ClientWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +123,26 @@ export function ClientDetailsModal({
     }
   }
 
+  async function handleSetPrimary(contactId: string) {
+    try {
+      await setPrimaryContact(client.client_id, contactId);
+      setDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              contact_info: prev.contact_info.map((c) => ({
+                ...c,
+                is_primary: c.contact_id === contactId,
+              })),
+            }
+          : null
+      );
+      toast.success('Primary contact updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set primary contact');
+    }
+  }
+
   async function handleAddLog(e: React.FormEvent) {
     e.preventDefault();
     if (!logDescription.trim()) return;
@@ -150,7 +178,7 @@ export function ClientDetailsModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && closeDialog()}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] sm:max-w-4xl lg:max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">{client.full_name}</DialogTitle>
           <DialogDescription>
@@ -212,15 +240,34 @@ export function ClientDetailsModal({
                             >
                               {isCopied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDeleteContact(contact.contact_id)}
-                              aria-label={`Delete ${contact.value}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  aria-label={`Actions for ${contact.value}`}
+                                >
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuItem
+                                  disabled={contact.is_primary}
+                                  onSelect={() => handleSetPrimary(contact.contact_id)}
+                                >
+                                  <Star className="mr-2 h-4 w-4" />
+                                  {contact.is_primary ? 'Primary contact' : 'Set as primary'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onSelect={() => handleDeleteContact(contact.contact_id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete contact
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       );

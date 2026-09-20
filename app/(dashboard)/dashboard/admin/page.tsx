@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
 import { redirect, unstable_rethrow } from 'next/navigation';
-import { UserManagementSection } from '@/components/dashboard/user-management-section';
+import { UserManagementSection } from '@/components/dashboard-admin/user-management-section';
 import { checkIsSystemAdmin } from '@/lib/actions/check-user';
 import { getUserInfo } from '@/lib/user';
-import { PageError } from '@/components/dashboard/page-status';
-import { AdminSkeleton } from '@/components/dashboard/page-skeletons';
-import { PageContainer } from '@/components/dashboard/page-container';
+import { PageError } from '@/components/dashboard-layout/page-status';
+import { AdminSkeleton } from '@/components/dashboard-layout/page-skeletons';
+import { PageContainer } from '@/components/dashboard-layout/page-container';
 
 
 type AdminAccess =

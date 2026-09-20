@@ -1,6 +1,6 @@
-import { SidebarNav } from '@/components/dashboard/sidebar-nav';
-import { DashboardTopBar } from '@/components/dashboard/top-bar';
-import { FdmLogo } from '@/components/fdm-logo';
+import { SidebarNav } from '@/components/dashboard-layout/sidebar-nav';
+import { DashboardTopBar } from '@/components/dashboard-layout/top-bar';
+import { FdmLogo } from '@/components/shared/fdm-logo';
 import { getUserInfo } from '@/lib/user';
 import { getIsCurrentUserSystemAdmin, getCurrentUserRoleSections } from '@/lib/actions/check-user';
 

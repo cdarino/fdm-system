@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
 import { redirect, unstable_rethrow } from 'next/navigation';
-import { ClientsSection } from '@/components/dashboard/clients-section';
-import { PageError } from '@/components/dashboard/page-status';
-import { ClientsSkeleton } from '@/components/dashboard/page-skeletons';
-import { PageContainer } from '@/components/dashboard/page-container';
+import { ClientsSection } from '@/components/dashboard-clients/client-section';
+import { PageError } from '@/components/dashboard-layout/page-status';
+import { ClientsSkeleton } from '@/components/dashboard-layout/page-skeletons';
+import { PageContainer } from '@/components/dashboard-layout/page-container';
 import { getClients } from '@/lib/actions/clients';
 import { hasPermission } from '@/lib/permissions';
 import { getUserInfo } from '@/lib/user';

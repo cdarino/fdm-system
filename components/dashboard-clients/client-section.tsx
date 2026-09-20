@@ -44,11 +44,11 @@ import {
   type ClientStatusFilter,
 } from '@/lib/hooks/use-clients-page';
 import { formatActivityTime } from '@/lib/format-activity-time';
-import { CreateClientModal } from './create-client-modal';
-import { EditClientModal } from './edit-client-modal';
-import { DeleteClientDialog } from './delete-client-dialog';
+import { CreateClientModal } from './client-create-modal';
+import { EditClientModal } from './client-edit-modal';
+import { DeleteClientDialog } from './client-delete-dialog';
 import { ClientDetailsModal } from './client-details-modal';
-import { ClientRowsSkeleton } from './page-skeletons';
+import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import type { ClientListItem, ContactInfo } from '@/lib/types/client';
 
 const GUTTER = 'px-4 sm:px-6';

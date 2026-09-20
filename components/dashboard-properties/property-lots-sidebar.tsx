@@ -23,8 +23,8 @@ import {
   Table2,
   User,
 } from 'lucide-react';
-import { CreatePropertyLotModal } from './create-property-lot-modal';
-import { PropertyRowsSkeleton } from './page-skeletons';
+import { CreatePropertyLotModal } from './property-lot-create-modal';
+import { PropertyRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import {
   PropertyLotsProvider,
   usePropertyLots,

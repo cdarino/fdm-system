@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PanelLeftOpen } from 'lucide-react';
-import { SiteMap } from '@/components/dashboard/site-map';
-import { PropertyLotsSidebar } from '@/components/dashboard/property-lots-sidebar';
+import { SiteMap } from './map-site';
+import { PropertyLotsSidebar } from './property-lots-sidebar';
 import type { Site, SiteWithLots } from '@/lib/types/property';
 import { cn } from '@/lib/utils';
 

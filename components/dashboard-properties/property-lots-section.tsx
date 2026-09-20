@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
-import { CreatePropertyLotModal } from './create-property-lot-modal';
-import { PropertyRowsSkeleton } from './page-skeletons';
+import { CreatePropertyLotModal } from './property-lot-create-modal';
+import { PropertyRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import {
   PropertyLotsProvider,
   usePropertyLots,

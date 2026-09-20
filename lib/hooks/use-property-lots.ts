@@ -17,7 +17,7 @@ export type PropertyDialog = { type: 'create' } | null;
 
 /**
  * Sole owner of the property-lot server actions, mirroring `use-admin-users`.
- * Components under `components/dashboard/` consume this instead of importing
+ * Components under `components/dashboard-properties/` consume this instead of importing
  * from `lib/actions/` directly.
  */
 interface PropertyLotsContextValue {

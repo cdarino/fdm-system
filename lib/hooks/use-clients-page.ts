@@ -10,6 +10,7 @@ import {
   updateClient as updateClientAction,
   deleteClient as deleteClientAction,
   addContactInfo as addContactInfoAction,
+  updateContactInfo as updateContactInfoAction,
   deleteContactInfo as deleteContactInfoAction,
   createClientLog as createClientLogAction,
 } from '@/lib/actions/clients';
@@ -51,6 +52,7 @@ interface ClientsContextValue {
   getClientDetails: (clientId: string) => Promise<ClientWithDetails>;
   addContact: (clientId: string, input: CreateContactInfoInput) => Promise<ContactInfo>;
   deleteContact: (clientId: string, contactId: string) => Promise<void>;
+  setPrimaryContact: (clientId: string, contactId: string) => Promise<void>;
   addLog: (clientId: string, input: CreateClientLogInput) => Promise<ClientLog>;
   refreshClients: () => Promise<void>;
 }
@@ -173,6 +175,22 @@ export function ClientsProvider({
     );
   }, []);
 
+  const setPrimaryContact = useCallback(async (clientId: string, contactId: string) => {
+    await updateContactInfoAction(contactId, { is_primary: true });
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.client_id !== clientId) return c;
+        return {
+          ...c,
+          contact_info: c.contact_info.map((item) => ({
+            ...item,
+            is_primary: item.contact_id === contactId,
+          })),
+        };
+      })
+    );
+  }, []);
+
   const addLog = useCallback(async (clientId: string, input: CreateClientLogInput) => {
     const created = await createClientLogAction(clientId, input);
     setClients((prev) =>
@@ -212,6 +230,7 @@ export function ClientsProvider({
         getClientDetails,
         addContact,
         deleteContact,
+        setPrimaryContact,
         addLog,
         refreshClients,
       },

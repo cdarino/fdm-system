@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
-import { FdmLogo } from '@/components/fdm-logo';
-import { LoginForm, LoginFormFallback } from '@/components/login-form';
+import { FdmLogo } from '@/components/shared/fdm-logo';
+import { LoginForm, LoginFormFallback } from '@/components/auth/login-form';
 
 /**
  * The form reads the `next` query param with `useSearchParams`, which opts its

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { FdmLogo } from '@/components/fdm-logo';
+import { FdmLogo } from '@/components/shared/fdm-logo';
 
 export function Navbar() {
   return (

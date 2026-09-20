@@ -28,9 +28,15 @@ fdm-system/
 │   ├── auth/                   # Auth API routes (confirm, sign-up, forgot/update password, error)
 │   └── demo/                   # Demo page
 ├── components/
-│   ├── dashboard/              # Dashboard-specific components (sidebar, charts, modals, etc.)
+│   ├── auth/                   # Authentication forms & session controls
+│   ├── dashboard-admin/        # User management, roles checklist & admin modals
+│   ├── dashboard-clients/      # Client management table, modals & dialogs
+│   ├── dashboard-layout/       # Dashboard shell (sidebar, top-bar, skeletons, page-container)
+│   ├── dashboard-overview/     # Root dashboard cards, analytics charts & quick links
+│   ├── dashboard-properties/   # Property lots table & subdivision map components
+│   ├── dashboard-settings/     # Dashboard settings forms
 │   ├── landing/                # Landing page components (navbar, hero, features)
-│   ├── tutorial/               # Tutorial/onboarding components
+│   ├── shared/                 # Global cross-cutting shared brand & utility components
 │   └── ui/                     # shadcn/ui primitives and custom base components
 ├── lib/
 │   ├── actions/                # Server actions (auth guards, admin user/role, clients, properties, titles, reports)
@@ -99,9 +105,19 @@ Avoid Tailwind slash-opacity modifiers (e.g. `bg-primary/90`, `bg-success/10`) b
 
 `lib/hooks/use-mutation.ts` wraps any async function and returns `{ state, execute, reset }`. `state` is a discriminated union: `idle | pending | success | error`. The wrapped function must throw on failure — do not return error objects. `execute` returns `Promise<boolean>` for imperative flow control when needed.
 
+## Component Organization & Naming Conventions
+
+All component folders must remain strictly **1 level deep** directly under `components/`. Never create nested subfolders inside component folders (e.g. do **NOT** create `components/dashboard-properties/maps/`).
+
+- **Dashboard Domains**: Use the `dashboard-<plural-feature>` prefix (e.g. `dashboard-clients`, `dashboard-properties`, `dashboard-admin`, `dashboard-overview`, `dashboard-layout`, `dashboard-settings`).
+- **Subcategories via Filename Prefixes**: If a feature has a distinct subcategory, prefix the filenames rather than nesting subfolders (e.g. `map-site.tsx`, `map-site-picker.tsx` inside `components/dashboard-properties/`).
+- **Cross-App Assets**: Shared global brand/utility components live in `components/shared/`.
+- **Auth Forms**: Public authentication, reset, and password recovery forms live in `components/auth/`.
+- **Direct Imports**: Always import components directly from their file path without barrel `index.ts` files (e.g. `@/components/dashboard-clients/client-section`).
+
 ## Admin Panel Data Layer
 
-`lib/hooks/use-admin-users.ts` is the sole file that imports server actions and calls `router.refresh()` for the admin panel. UI components under `components/dashboard/` must not import from `lib/actions/` directly — consume data and mutations through the `useAdminUsers()` context hook instead.
+`lib/hooks/use-admin-users.ts` is the sole file that imports server actions and calls `router.refresh()` for the admin panel. UI components under `components/dashboard-admin/` must not import from `lib/actions/` directly — consume data and mutations through the `useAdminUsers()` context hook instead.
 
 ## Forms & Validation
 

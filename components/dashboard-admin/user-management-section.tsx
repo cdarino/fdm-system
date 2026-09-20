@@ -8,7 +8,7 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { RoleCheckboxList } from '@/components/dashboard/role-checkbox-list';
+import { RoleCheckboxList } from './role-checkbox-list';
 import {
   Plus,
   Settings2,
@@ -59,8 +59,8 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { UserRowsSkeleton } from './page-skeletons';
-import { CreateUserModal } from './create-user-modal';
+import { UserRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
+import { CreateUserModal } from './user-create-modal';
 import {
   AdminUsersProvider,
   useAdminUsers,

@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
 import { redirect, unstable_rethrow } from 'next/navigation';
-import { PropertyLotsSection } from '@/components/dashboard/property-lots-section';
-import { PageError } from '@/components/dashboard/page-status';
-import { PropertiesSkeleton } from '@/components/dashboard/page-skeletons';
-import { PageContainer } from '@/components/dashboard/page-container';
+import { PropertyLotsSection } from '@/components/dashboard-properties/property-lots-section';
+import { PageError } from '@/components/dashboard-layout/page-status';
+import { PropertiesSkeleton } from '@/components/dashboard-layout/page-skeletons';
+import { PageContainer } from '@/components/dashboard-layout/page-container';
 import { hasPermission } from '@/lib/permissions';
 import { getUserInfo } from '@/lib/user';
 import { getSites } from '@/lib/actions/sites';

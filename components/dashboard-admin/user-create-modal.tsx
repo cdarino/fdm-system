@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { RoleCheckboxList } from '@/components/dashboard/role-checkbox-list';
+import { RoleCheckboxList } from './role-checkbox-list';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,

@@ -3,11 +3,11 @@ import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
 import { checkIsSystemAdmin } from '@/lib/actions/check-user';
 import { getUserInfo } from '@/lib/user';
-import { QuickLinks } from '@/components/dashboard/quick-links';
-import { PageError } from '@/components/dashboard/page-status';
+import { QuickLinks } from '@/components/dashboard-overview/quick-links';
+import { PageError } from '@/components/dashboard-layout/page-status';
 import { getDashboardStats } from '@/lib/actions/dashboard';
-import { DashboardSkeleton } from '@/components/dashboard/page-skeletons';
-import { PageContainer } from '@/components/dashboard/page-container';
+import { DashboardSkeleton } from '@/components/dashboard-layout/page-skeletons';
+import { PageContainer } from '@/components/dashboard-layout/page-container';
 
 
 async function DashboardContent() {

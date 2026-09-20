@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ComingSoonModal } from './coming-soon-modal';
+import { ComingSoonModal } from '@/components/dashboard-layout/coming-soon-modal';
 
 interface QuickLinksProps {
   /**
