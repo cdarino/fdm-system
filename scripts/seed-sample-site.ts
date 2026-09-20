@@ -206,7 +206,7 @@ async function seedSite(seed: SiteSeed): Promise<void> {
   console.log(`✅ Site: ${site.name}`);
 
   await supabase.from("site_subdivision").delete().eq("site_id", site.site_id);
-  await supabase.from("property_lot").delete().eq("site_id", site.site_id);
+  await supabase.from("property_lot").update({ site_id: site.site_id }).eq("location", seed.name).is("site_id", null);
 
   const subdivisionRows = seed.subdivisions.map((s) => ({
     site_id: site.site_id,
@@ -230,9 +230,32 @@ async function seedSite(seed: SiteSeed): Promise<void> {
     status: l.status,
   }));
 
-  const { error: lotError } = await supabase.from("property_lot").insert(lotRows);
+  const { error: lotError } = await supabase
+    .from("property_lot")
+    .upsert(lotRows, { onConflict: "location,block_number,lot_number" });
   if (lotError) {
     throw new Error(`Failed to insert lots for "${seed.name}": ${lotError.message}`);
+  }
+
+  // Remove non-seed lots without ledger accounts
+  const { data: existingLots } = await supabase
+    .from("property_lot")
+    .select("property_id, block_number, lot_number")
+    .eq("site_id", site.site_id);
+
+  if (existingLots && existingLots.length > 0) {
+    const seedKeys = new Set(seed.lots.map((l) => `${l.block}-${l.lot}`));
+    for (const el of existingLots) {
+      if (!seedKeys.has(`${el.block_number}-${el.lot_number}`)) {
+        const { data: ledgers } = await supabase
+          .from("ledger_account")
+          .select("account_id")
+          .eq("property_id", el.property_id);
+        if (!ledgers || ledgers.length === 0) {
+          await supabase.from("property_lot").delete().eq("property_id", el.property_id);
+        }
+      }
+    }
   }
   console.log(`   ↳ ${subdivisionRows.length} subdivisions, ${lotRows.length} property lots`);
 }

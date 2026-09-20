@@ -135,3 +135,24 @@ export function fitViewBox(bounds: Bounds, marginRatio = 0.04, extraTopRatio = 0
   const y = bounds.minY - margin - extraTop;
   return `${x} ${y} ${width + margin * 2} ${height + margin * 2 + extraTop}`;
 }
+
+export function calculatePolygonAreaSqm(points: readonly [number, number][]): number {
+  if (points.length < 3) return 0;
+  // Project [lng, lat] coordinates to local metric space around initial vertex
+  const [lng0, lat0] = points[0];
+  const metersPerLng = 111320 * Math.cos((lat0 * Math.PI) / 180);
+  const metersPerLat = 110574;
+
+  let twiceArea = 0;
+  for (let i = 0; i < points.length; i++) {
+    const [x1Deg, y1Deg] = points[i];
+    const [x2Deg, y2Deg] = points[(i + 1) % points.length];
+    const x1 = (x1Deg - lng0) * metersPerLng;
+    const y1 = (y1Deg - lat0) * metersPerLat;
+    const x2 = (x2Deg - lng0) * metersPerLng;
+    const y2 = (y2Deg - lat0) * metersPerLat;
+    twiceArea += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(twiceArea) / 2;
+}
+

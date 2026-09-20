@@ -23,6 +23,12 @@ export interface SiteMapProps {
   className?: string;
   initialCenter?: [number, number]; // [lng, lat]
   initialZoom?: number;
+  isEditorMode?: boolean;
+  isPlotting?: boolean;
+  draftPoints?: [number, number][];
+  onAddDraftPoint?: (point: [number, number]) => void;
+  onDeletePlot?: (plot: { subdivisionId?: string; siteId: string; siteName: string; block: number; lot: number; status: string }) => void;
+  focusedSiteId?: string | null;
 }
 
 const SIDEBAR_WIDTH = 460;
@@ -34,6 +40,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   Reserved: '#5BC4E7',
   Sold: '#F5CE42',
   Forfeited: '#ef4444',
+  Available: '#6C7E8E',
   Unregistered: '#6C7E8E',
 };
 
@@ -42,8 +49,10 @@ const STATUS_PILL_MAP: Record<string, string> = {
   Reserved: 'bg-sidebar-accent text-accent-blue-foreground',
   Sold: 'bg-row-active text-accent-gold-foreground',
   Forfeited: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive',
+  Available: 'bg-muted text-muted-foreground',
   Unregistered: 'bg-muted text-muted-foreground',
 };
+
 
 export function SiteMap({
   site,
@@ -57,6 +66,12 @@ export function SiteMap({
   className,
   initialCenter = REGIONAL_CENTER,
   initialZoom = REGIONAL_ZOOM,
+  isEditorMode = false,
+  isPlotting = false,
+  draftPoints = [],
+  onAddDraftPoint,
+  onDeletePlot,
+  focusedSiteId,
 }: SiteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hoveredLotKeyRef = useRef<string | null>(hoveredLotKey ?? null);
@@ -65,6 +80,14 @@ export function SiteMap({
   onSelectLotPropertyRef.current = onSelectLotProperty;
   const onSelectUnregisteredRef = useRef(onSelectUnregistered);
   onSelectUnregisteredRef.current = onSelectUnregistered;
+  const isPlottingRef = useRef(isPlotting);
+  isPlottingRef.current = isPlotting;
+  const onAddDraftPointRef = useRef(onAddDraftPoint);
+  onAddDraftPointRef.current = onAddDraftPoint;
+  const onDeletePlotRef = useRef(onDeletePlot);
+  onDeletePlotRef.current = onDeletePlot;
+  const isEditorModeRef = useRef(isEditorMode);
+  isEditorModeRef.current = isEditorMode;
   const [token, setToken] = useState<string | null>(null);
   const [useOsmFallback, setUseOsmFallback] = useState(false);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
@@ -107,12 +130,12 @@ export function SiteMap({
   // Animate map padding when sidebar opens or closes
   useEffect(() => {
     if (!map) return;
-    const paddingLeft = isSidebarOpen ? SIDEBAR_WIDTH : 0;
+    const paddingLeft = isSidebarOpen && !isEditorMode ? SIDEBAR_WIDTH : 0;
     map.easeTo({
       padding: { top: 0, bottom: 0, left: paddingLeft, right: 0 },
       duration: 350,
     });
-  }, [map, isSidebarOpen]);
+  }, [map, isSidebarOpen, isEditorMode]);
 
   // Track zoom level changes
   useEffect(() => {
@@ -170,6 +193,54 @@ export function SiteMap({
     [map]
   );
 
+  // Focus view when focusedSiteId prop changes
+  useEffect(() => {
+    if (!map || !focusedSiteId) return;
+    const targetSite = allSites.find((s) => s.site_id === focusedSiteId);
+    if (targetSite) focusSite(targetSite);
+  }, [map, focusedSiteId, allSites, focusSite]);
+
+  // Dynamic GeoJSON for plotted draft points, connecting lines, and polygon fill
+  const draftGeoJson = useMemo(() => {
+    const pts = draftPoints ?? [];
+    const features: GeoJSON.Feature[] = [];
+
+    pts.forEach((p, idx) => {
+      features.push({
+        type: 'Feature',
+        properties: { isFirst: idx === 0, index: idx + 1 },
+        geometry: { type: 'Point', coordinates: p },
+      });
+    });
+
+    if (pts.length >= 2) {
+      features.push({
+        type: 'Feature',
+        properties: { type: 'line' },
+        geometry: { type: 'LineString', coordinates: pts },
+      });
+    }
+
+    if (pts.length >= 3) {
+      features.push({
+        type: 'Feature',
+        properties: { type: 'polygon' },
+        geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] },
+      });
+    }
+
+    return {
+      type: 'FeatureCollection' as const,
+      features,
+    };
+  }, [draftPoints]);
+
+  // Set map crosshair cursor when plotting
+  useEffect(() => {
+    if (!map) return;
+    map.getCanvas().style.cursor = isPlotting ? 'crosshair' : '';
+  }, [map, isPlotting]);
+
   // GeoJSON features for all site boundaries
   const sitesGeoJson = useMemo(() => {
     const features = allSites
@@ -215,7 +286,7 @@ export function SiteMap({
           const siteLotKey = `${s.site_id}:${sub.block_number}-${sub.lot_number}`;
           const lot = lotMap.get(lotKey);
           const isRegistered = Boolean(lot);
-          const status = lot?.status ?? 'Unregistered';
+          const status = lot?.status ?? 'Available';
           const areaSize = lot?.area_size ?? 252;
           const pricePerSqm = lot?.price_per_sqm ?? 6500;
 
@@ -343,7 +414,7 @@ export function SiteMap({
             STATUS_COLOR_MAP.Sold,
             'Forfeited',
             STATUS_COLOR_MAP.Forfeited,
-            STATUS_COLOR_MAP.Unregistered,
+            STATUS_COLOR_MAP.Available,
           ],
           'fill-opacity': [
             'case',
@@ -353,7 +424,7 @@ export function SiteMap({
               ['==', ['get', 'propertyId'], activeLotIdRef.current || '__NONE__'],
             ],
             0.85,
-            ['==', ['get', 'status'], 'Unregistered'],
+            ['any', ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
             0.35,
             0.75,
           ],
@@ -431,7 +502,53 @@ export function SiteMap({
     } else {
       (map.getSource('lots-data') as GeoJSONSource).setData(lotsGeoJson);
     }
-  }, [map, isReady, sitesGeoJson, lotsGeoJson]);
+
+    // Draft plotting source and layers
+    if (!map.getSource('draft-plot-data')) {
+      map.addSource('draft-plot-data', {
+        type: 'geojson',
+        data: draftGeoJson,
+      });
+
+      map.addLayer({
+        id: 'draft-fill',
+        type: 'fill',
+        source: 'draft-plot-data',
+        filter: ['==', ['get', 'type'], 'polygon'],
+        paint: {
+          'fill-color': '#0284c7',
+          'fill-opacity': 0.25,
+        },
+      });
+
+      map.addLayer({
+        id: 'draft-line',
+        type: 'line',
+        source: 'draft-plot-data',
+        filter: ['==', ['get', 'type'], 'line'],
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': 2.5,
+          'line-dasharray': [3, 2],
+        },
+      });
+
+      map.addLayer({
+        id: 'draft-vertices',
+        type: 'circle',
+        source: 'draft-plot-data',
+        filter: ['has', 'index'],
+        paint: {
+          'circle-radius': ['case', ['get', 'isFirst'], 7, 5],
+          'circle-color': ['case', ['get', 'isFirst'], '#22c55e', '#38bdf8'],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+      });
+    } else {
+      (map.getSource('draft-plot-data') as GeoJSONSource).setData(draftGeoJson);
+    }
+  }, [map, isReady, sitesGeoJson, lotsGeoJson, draftGeoJson]);
 
   // Update dynamic lot styles on selection change
   useEffect(() => {
@@ -448,7 +565,7 @@ export function SiteMap({
       STATUS_COLOR_MAP.Sold,
       'Forfeited',
       STATUS_COLOR_MAP.Forfeited,
-      STATUS_COLOR_MAP.Unregistered,
+      STATUS_COLOR_MAP.Available,
     ]);
 
     map.setPaintProperty('lots-fill', 'fill-opacity', [
@@ -459,7 +576,7 @@ export function SiteMap({
         ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
       ],
       0.85,
-      ['==', ['get', 'status'], 'Unregistered'],
+      ['any', ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
       0.35,
       0.75,
     ]);
@@ -518,14 +635,21 @@ export function SiteMap({
       });
 
       const handleMouseEnter = () => {
+        if (isPlottingRef.current) return;
         map.getCanvas().style.cursor = 'pointer';
       };
 
       const handleMouseLeave = () => {
+        if (isPlottingRef.current) return;
         map.getCanvas().style.cursor = '';
       };
 
       const handleClick = (e: import('maplibre-gl').MapLayerMouseEvent) => {
+        if (isPlottingRef.current) {
+          onAddDraftPointRef.current?.([e.lngLat.lng, e.lngLat.lat]);
+          return;
+        }
+
         const feature = e.features?.[0];
         if (!feature) return;
 
@@ -568,6 +692,12 @@ export function SiteMap({
 
         const isRegistered = p.isRegistered;
         const pillClass = STATUS_PILL_MAP[p.status] ?? STATUS_PILL_MAP.Unregistered;
+        const deleteButtonHtml = isEditorModeRef.current
+          ? `<button type="button" class="btn-delete-plot mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-[color-mix(in_srgb,var(--destructive)_40%,white)] bg-[color-mix(in_srgb,var(--destructive)_10%,white)] px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_18%,white)] cursor-pointer">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>
+              <span>Delete Plot</span>
+            </button>`
+          : '';
 
         const popupHtml = isRegistered
           ? `<div class="p-3 font-sans min-w-[220px] cursor-pointer">
@@ -592,6 +722,7 @@ export function SiteMap({
                 <span>View Details</span>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
+              ${deleteButtonHtml}
             </div>`
           : `<div class="p-3 font-sans min-w-[220px] cursor-pointer">
               <div class="flex items-start justify-between gap-2 border-b border-border pb-2">
@@ -602,17 +733,18 @@ export function SiteMap({
               </div>
               <div class="mt-2 flex items-center gap-2">
                 <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">
-                  Unregistered / Available
+                  Available
                 </span>
               </div>
               <dl class="mt-2.5 space-y-1 text-xs border-t border-border pt-2">
                 <div class="flex justify-between"><dt class="text-muted-foreground">Area:</dt><dd class="font-medium text-foreground">${p.areaSize} sqm</dd></div>
                 <div class="flex justify-between"><dt class="text-muted-foreground">Est. Price/sqm:</dt><dd class="font-medium text-foreground">₱${Number(p.pricePerSqm).toLocaleString()}</dd></div>
-                <div class="flex justify-between"><dt class="text-muted-foreground">Status:</dt><dd class="font-medium text-muted-foreground">Platted subdivision</dd></div>
+                <div class="flex justify-between"><dt class="text-muted-foreground">Status:</dt><dd class="font-medium text-foreground">Available</dd></div>
               </dl>
               <button type="button" class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 cursor-pointer">
                 <span>+ Register Lot</span>
               </button>
+              ${deleteButtonHtml}
             </div>`;
 
         popupInstance
@@ -628,6 +760,20 @@ export function SiteMap({
             contentEl.onclick = (ev: MouseEvent) => {
               const target = ev.target as HTMLElement | null;
               if (target?.closest('.maplibregl-popup-close-button')) {
+                return;
+              }
+
+              if (target?.closest('.btn-delete-plot')) {
+                popupInstance?.remove();
+                setActiveLotId(null);
+                onDeletePlotRef.current?.({
+                  subdivisionId: p.id,
+                  siteId: p.siteId,
+                  siteName: p.siteName,
+                  block: p.block,
+                  lot: p.lot,
+                  status: p.status,
+                });
                 return;
               }
 
@@ -669,6 +815,11 @@ export function SiteMap({
 
       // Close popup when clicking anywhere on the map outside lots
       const handleMapClick = (e: import('maplibre-gl').MapMouseEvent) => {
+        if (isPlottingRef.current) {
+          onAddDraftPointRef.current?.([e.lngLat.lng, e.lngLat.lat]);
+          return;
+        }
+
         const features = map.queryRenderedFeatures(e.point, { layers: ['lots-fill'] });
         if (features.length === 0) {
           popupInstance?.remove();
