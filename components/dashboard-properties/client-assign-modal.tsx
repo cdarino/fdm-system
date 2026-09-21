@@ -179,6 +179,7 @@ export function ClientAssignModal({
                 <button
                   type="button"
                   onClick={() => setSearch('')}
+                  aria-label="Clear search"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-3.5 w-3.5" />

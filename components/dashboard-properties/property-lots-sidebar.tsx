@@ -447,6 +447,7 @@ function PropertyLotsSidebarContent({
             <button
               type="button"
               onClick={() => setSearch('')}
+              aria-label="Clear search"
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
@@ -466,6 +467,7 @@ function PropertyLotsSidebarContent({
             )}
             title="Rows view"
             aria-label="Rows view"
+            aria-pressed={viewMode === 'cards'}
           >
             <LayoutList className="h-3.5 w-3.5" />
           </button>
@@ -480,6 +482,7 @@ function PropertyLotsSidebarContent({
             )}
             title="Table view"
             aria-label="Table view"
+            aria-pressed={viewMode === 'table'}
           >
             <Table2 className="h-3.5 w-3.5" />
           </button>
@@ -489,7 +492,7 @@ function PropertyLotsSidebarContent({
       {/* List Body */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {error ? (
-          <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+          <div role="alert" className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
             <p className="text-sm font-medium text-destructive">Could not load property lots</p>
             <p className="text-xs text-muted-foreground">{error}</p>
           </div>
