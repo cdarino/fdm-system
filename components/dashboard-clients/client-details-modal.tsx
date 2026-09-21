@@ -5,13 +5,25 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ShieldAlert, ShieldCheck, UserRound } from 'lucide-react';
+import {
+  Loader2,
+  ShieldAlert,
+  ShieldCheck,
+  UserRound,
+  FileDown,
+  Edit3,
+} from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
+import { getClientReportData } from '@/lib/actions/reports';
+import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
+import { toast } from 'sonner';
 import { ClientProfileContacts } from './client-profile-contacts';
 import { ClientProfileDocuments } from './client-profile-documents';
 import { ClientProfileProperties } from './client-profile-properties';
@@ -49,10 +61,10 @@ export function ClientDetailsModal({
   client: ClientListItem;
   open: boolean;
 }) {
-  const { getClientDetails, closeDialog } = useClients();
-
+  const { getClientDetails, closeDialog, openDialog } = useClients();
   const [details, setDetails] = useState<ClientWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,6 +81,19 @@ export function ClientDetailsModal({
 
   function updateDetails(updater: (prev: ClientWithDetails) => ClientWithDetails) {
     setDetails((prev) => (prev ? updater(prev) : prev));
+  }
+
+  async function handleExportPdf() {
+    setIsExportingPdf(true);
+    try {
+      const data = await getClientReportData(client.client_id);
+      generateClientPdfReport(data);
+      toast.success('Client PDF report generated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate PDF report');
+    } finally {
+      setIsExportingPdf(false);
+    }
   }
 
   const documents = details?.client_document ?? [];
@@ -182,6 +207,39 @@ export function ClientDetailsModal({
             </div>
           </Tabs>
         ) : null}
+
+        <DialogFooter className="pt-3 sm:justify-between items-center w-full">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isExportingPdf}
+              onClick={handleExportPdf}
+              className="gap-1.5 text-xs text-foreground"
+            >
+              {isExportingPdf ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span>Export PDF</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openDialog({ type: 'edit', client })}
+              className="gap-1.5 text-xs text-foreground"
+            >
+              <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>Edit Client</span>
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={closeDialog}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

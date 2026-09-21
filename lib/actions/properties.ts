@@ -22,7 +22,7 @@ interface RawPartyRow {
   ownership_percentage: number;
   is_primary: boolean;
   created_at: string;
-  client: { client_id: string; full_name: string; status: string } | null;
+  client: { client_id: string; full_name: string; status: string; address: string | null } | null;
 }
 
 interface RawLedgerRow {
@@ -93,7 +93,7 @@ export async function getPropertyLots(
           ownership_percentage,
           is_primary,
           created_at,
-          client:client_id(client_id, full_name, status)
+          client:client_id(client_id, full_name, status, address)
         )
       )
     `,
@@ -185,7 +185,7 @@ export async function getPropertyLotById(
           ownership_percentage,
           is_primary,
           created_at,
-          client:client_id(client_id, full_name, status)
+          client:client_id(client_id, full_name, status, address)
         )
       )
     `

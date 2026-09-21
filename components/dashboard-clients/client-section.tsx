@@ -24,7 +24,12 @@ import {
   Mail,
   UserRound,
   HelpCircle,
+  LayoutList,
+  Rows,
+  FileDown,
 } from 'lucide-react';
+import { getClientReportData } from '@/lib/actions/reports';
+import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import {
   Table,
   TableBody,
@@ -42,6 +47,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   ClientsProvider,
   useClients,
@@ -57,27 +63,13 @@ import { ArchiveClientDialog } from './client-archive-dialog';
 import { DocumentSearchDialog } from './document-search-dialog';
 import { MissingDocumentsDialog } from './missing-documents-dialog';
 import { ClientDetailsModal } from './client-details-modal';
+import { ClientCompactRow, ClientStatusPill } from './client-compact-row';
 import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import type { ClientListItem, ContactInfo } from '@/lib/types/client';
 
 const GUTTER = 'px-4 sm:px-6';
 const GUTTER_L = 'pl-4 sm:pl-6';
 const GUTTER_R = 'pr-4 sm:pr-6';
-
-function ClientStatusPill({ status }: { status: string }) {
-  const isActive = status.toLowerCase() === 'active';
-  const pillClass = isActive
-    ? 'bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success'
-    : 'bg-muted text-muted-foreground';
-  const dotClass = isActive ? 'bg-success' : 'bg-muted-foreground';
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${pillClass}`}>
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-      {status}
-    </span>
-  );
-}
 
 function StatusTabs({
   value,
@@ -364,6 +356,20 @@ function ClientRow({ client }: { client: ClientListItem }) {
               <Activity className="h-4 w-4 mr-2" />
               View details
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={async () => {
+                try {
+                  const data = await getClientReportData(client.client_id);
+                  generateClientPdfReport(data);
+                  toast.success('Client PDF report generated');
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to generate PDF report');
+                }
+              }}
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => openDialog({ type: 'edit', client })}>
               <Edit3 className="h-4 w-4 mr-2" />
               Edit client
@@ -417,6 +423,8 @@ function ClientsContent() {
 
   const [isDocumentSearchOpen, setIsDocumentSearchOpen] = useState(false);
   const [isMissingDocsOpen, setIsMissingDocsOpen] = useState(false);
+
+  const [viewMode, setViewMode] = useState<'standard' | 'compact'>('standard');
 
   const isFiltered = search.trim() !== '' || statusFilter !== 'all';
 
@@ -513,6 +521,36 @@ function ClientsContent() {
                 Clear
               </Button>
             )}
+            <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('standard')}
+                className={cn(
+                  'rounded-md p-1.5 transition-colors',
+                  viewMode === 'standard'
+                    ? 'bg-row-hover text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                title="Standard view"
+                aria-label="Standard view"
+              >
+                <LayoutList className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('compact')}
+                className={cn(
+                  'rounded-md p-1.5 transition-colors',
+                  viewMode === 'compact'
+                    ? 'bg-row-hover text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                title="Compact view"
+                aria-label="Compact view"
+              >
+                <Rows className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -534,28 +572,57 @@ function ClientsContent() {
           ) : (
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow className="bg-card hover:bg-card">
-                  <TableHead className={`h-11 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
-                    Client
-                  </TableHead>
-                  <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Contact Details
-                  </TableHead>
-                  <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Status
-                  </TableHead>
-                  <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:table-cell">
-                    Latest Activity
-                  </TableHead>
-                  <TableHead className={`h-11 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R} w-12`}>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                </TableRow>
+                {viewMode === 'standard' ? (
+                  <TableRow className="bg-card hover:bg-card">
+                    <TableHead className={`h-11 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
+                      Client
+                    </TableHead>
+                    <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Contact Details
+                    </TableHead>
+                    <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Status
+                    </TableHead>
+                    <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:table-cell">
+                      Latest Activity
+                    </TableHead>
+                    <TableHead className={`h-11 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R} w-12`}>
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                ) : (
+                  <TableRow className="bg-card hover:bg-card">
+                    <TableHead className={`h-9 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
+                      Client
+                    </TableHead>
+                    <TableHead className="h-9 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Address
+                    </TableHead>
+                    <TableHead className="h-9 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Status
+                    </TableHead>
+                    <TableHead className={`h-9 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R} w-12`}>
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                )}
               </TableHeader>
               <TableBody>
-                {visibleClients.map((client) => (
-                  <ClientRow key={client.client_id} client={client} />
-                ))}
+                {viewMode === 'standard'
+                  ? visibleClients.map((client) => (
+                      <ClientRow key={client.client_id} client={client} />
+                    ))
+                  : visibleClients.map((client) => (
+                      <ClientCompactRow
+                        key={client.client_id}
+                        client={client}
+                        gutterL={GUTTER_L}
+                        gutterR={GUTTER_R}
+                        onOpenDetails={() => openDialog({ type: 'details', client })}
+                        onOpenEdit={() => openDialog({ type: 'edit', client })}
+                        onOpenDelete={() => openDialog({ type: 'delete', client })}
+                      />
+                    ))}
               </TableBody>
             </Table>
           )}

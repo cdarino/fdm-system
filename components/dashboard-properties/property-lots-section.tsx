@@ -16,9 +16,12 @@ import {
   Check,
   Loader2,
   MoreHorizontal,
+  FileDown,
   UserPlus,
   UserMinus,
 } from 'lucide-react';
+import { getPropertyReportData } from '@/lib/actions/reports';
+import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
 import {
   Table,
   TableBody,
@@ -200,6 +203,16 @@ function LotActionsMenu({ lot }: { lot: PropertyLotWithClient }) {
   );
 }
 
+async function handleExportLotPdf(lot: PropertyLotWithClient) {
+  try {
+    const data = await getPropertyReportData(lot.property_id);
+    generatePropertyPdfReport(data);
+    toast.success('Property PDF report generated');
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : 'Failed to generate property report');
+  }
+}
+
 function LotRow({ lot }: { lot: PropertyLotWithClient }) {
   return (
     <TableRow className="transition-colors duration-150 hover:bg-row-hover">
@@ -226,11 +239,35 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
           ? <span className="text-foreground">{lot.client.full_name}</span>
           : <span className="text-muted-foreground">Unassigned</span>}
       </TableCell>
-      <TableCell className={`py-4 pl-3 ${GUTTER_R}`}>
+      <TableCell className={`py-4 px-3 ${GUTTER_R}`}>
         <div className="flex items-center justify-end gap-1">
           <StatusMenu lot={lot} />
           <LotActionsMenu lot={lot} />
         </div>
+      </TableCell>
+      <TableCell className={`py-4 pl-3 ${GUTTER_R} text-right`} onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 opacity-70 hover:opacity-100"
+              aria-label={`Actions for lot ${lotLabel(lot)}`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Actions
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => handleExportLotPdf(lot)}>
+              <FileDown className="h-4 w-4 mr-2" />
+              Export PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </TableCell>
     </TableRow>
   );
@@ -428,8 +465,11 @@ function PropertyLotsContent() {
                   <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground lg:table-cell">
                     Client
                   </TableHead>
-                  <TableHead className={`h-11 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R}`}>
+                  <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Status
+                  </TableHead>
+                  <TableHead className={`h-11 pl-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R}`}>
+                    Actions
                   </TableHead>
                 </TableRow>
               </TableHeader>

@@ -57,7 +57,7 @@ export interface PropertyLot {
 }
 
 export interface PropertyLotWithClient extends PropertyLot {
-  client: Pick<Client, 'client_id' | 'full_name' | 'status'> | null;
+  client: Pick<Client, 'client_id' | 'full_name' | 'status' | 'address'> | null;
   client_id?: string | null;
   active_account?: LedgerAccountWithParties | null;
 }
@@ -121,3 +121,28 @@ export interface GetPropertyLotsParams {
   sortBy?: 'location' | 'block_number' | 'lot_number' | 'status' | 'created_at';
   sortOrder?: 'asc' | 'desc';
 }
+
+export interface CreateSiteInput {
+  name: string;
+  description?: string | null;
+  boundary: [number, number][];
+}
+
+export interface CreateSubdivisionLotInput {
+  site_id: string;
+  block_number: number;
+  lot_number: number;
+  boundary: [number, number][];
+  area_size?: number;
+  price_per_sqm?: number;
+  create_property_lot?: boolean;
+}
+
+
+export interface DeleteSubdivisionLotInput {
+  subdivision_id?: string;
+  site_id: string;
+  block_number: number;
+  lot_number: number;
+}
+

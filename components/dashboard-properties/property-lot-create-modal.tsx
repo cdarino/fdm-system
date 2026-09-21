@@ -53,20 +53,45 @@ const PESO = new Intl.NumberFormat('en-PH', {
   maximumFractionDigits: 2,
 });
 
-export function CreatePropertyLotModal({ open, sites }: { open: boolean; sites: Site[] }) {
+export interface CreatePropertyLotModalProps {
+  open: boolean;
+  sites: Site[];
+  initialValues?: {
+    site_id?: string;
+    block_number?: number;
+    lot_number?: number;
+    area_size?: number;
+    price_per_sqm?: number;
+  };
+}
+
+export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePropertyLotModalProps) {
   const { createLot, closeDialog } = usePropertyLots();
   const { state, execute } = useMutation(createLot);
 
   const form = useForm<CreatePropertyLotFormData>({
     resolver: zodResolver(createPropertyLotSchema),
     defaultValues: {
-      site_id: '',
-      block_number: undefined,
-      lot_number: undefined,
-      area_size: undefined,
-      price_per_sqm: undefined,
+      site_id: initialValues?.site_id ?? '',
+      block_number: initialValues?.block_number ?? undefined,
+      lot_number: initialValues?.lot_number ?? undefined,
+      area_size: initialValues?.area_size ?? undefined,
+      price_per_sqm: initialValues?.price_per_sqm ?? undefined,
     },
   });
+
+  // Prefill form when opened with initial values
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        site_id: initialValues?.site_id ?? '',
+        block_number: initialValues?.block_number ?? undefined,
+        lot_number: initialValues?.lot_number ?? undefined,
+        area_size: initialValues?.area_size ?? undefined,
+        price_per_sqm: initialValues?.price_per_sqm ?? undefined,
+      });
+    }
+  }, [open, initialValues, form]);
 
   const { register, watch, formState: { errors } } = form;
 

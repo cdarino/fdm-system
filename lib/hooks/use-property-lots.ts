@@ -13,6 +13,7 @@ import type {
   PropertyLotWithClient,
   PropertyStatus,
   CreatePropertyLotInput,
+  UpdatePropertyLotInput,
   Site,
 } from '@/lib/types/property';
 
@@ -42,7 +43,8 @@ interface PropertyLotsContextValue {
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<void>;
   updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<void>;
-  assignClient: (propertyId: string, clientId: string, status?: PropertyStatus) => Promise<void>;
+  updateLot: (propertyId: string, input: UpdatePropertyLotInput) => Promise<void>;
+  assignClient: (propertyId: string, clientId: string | null, status?: PropertyStatus) => Promise<PropertyLotWithClient>;
   unassignClient: (propertyId: string) => Promise<void>;
   sites: Site[];
 }
@@ -126,17 +128,25 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     [router],
   );
 
-  /**
-   * Assigning opens or reuses the lot's active ledger account and makes the
-   * client its primary party, so the lot moves to Reserved unless a status is
-   * given. `assignPropertyClient` returns the re-read lot, which already
-   * carries the resolved client.
-   */
-  const assignClient = useCallback(
-    async (propertyId: string, clientId: string, status?: PropertyStatus): Promise<void> => {
-      const updated = await assignPropertyClient(propertyId, clientId, status);
-      setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
+  const updateLot = useCallback(
+    async (propertyId: string, input: UpdatePropertyLotInput): Promise<void> => {
+      const updated = await updatePropertyLot(propertyId, input);
+      setLots((prev) =>
+        prev.map((lot) => (lot.property_id === propertyId ? { ...lot, ...updated } : lot)),
+      );
       router.refresh();
+    },
+    [router],
+  );
+
+  const assignClient = useCallback(
+    async (propertyId: string, clientId: string | null, status?: PropertyStatus): Promise<PropertyLotWithClient> => {
+      const updated = await assignPropertyClient(propertyId, clientId, status);
+      setLots((prev) =>
+        prev.map((lot) => (lot.property_id === propertyId ? updated : lot)),
+      );
+      router.refresh();
+      return updated;
     },
     [router],
   );
@@ -168,6 +178,7 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
     closeDialog,
     createLot,
     updateLotStatus,
+    updateLot,
     assignClient,
     unassignClient,
     sites,

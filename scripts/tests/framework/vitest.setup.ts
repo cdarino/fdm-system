@@ -60,6 +60,8 @@ if (typeof g.window === "undefined") {
   g.window = {
     document: virtualDoc,
     location: { origin: "http://localhost:3000" },
+    btoa: (str: string) => Buffer.from(str, "binary").toString("base64"),
+    atob: (b64: string) => Buffer.from(b64, "base64").toString("binary"),
   };
 }
 if (typeof g.document === "undefined") {
