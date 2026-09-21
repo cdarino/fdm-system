@@ -69,8 +69,8 @@ export function LoginForm() {
     <>
       {/* Error Alert */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-800">{error}</p>
+        <div role="alert" className="mb-4 rounded-lg border border-destructive bg-[color-mix(in_srgb,var(--destructive)_10%,white)] p-4">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
@@ -85,11 +85,12 @@ export function LoginForm() {
             <Input
               id="email"
               type="email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@example.com"
               required
-              className="bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary rounded-lg"
+              className="w-full bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary rounded-lg"
               disabled={isLoading}
             />
           </div>
@@ -102,11 +103,12 @@ export function LoginForm() {
             <Input
               id="password"
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              className="bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary rounded-lg"
+              className="w-full bg-background border-input text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary rounded-lg"
               disabled={isLoading}
             />
           </div>

@@ -12,9 +12,9 @@ export function Navbar() {
           <Link href="/" className="group flex items-center space-x-3">
             <FdmLogo className="h-12 w-16 object-contain" />
             <div className="hidden sm:block">
-              <h1 className="text-sm font-bold leading-tight text-foreground">
+              <span className="text-sm font-bold leading-tight text-foreground">
                 First Davao<br />Millennium
-              </h1>
+              </span>
             </div>
           </Link>
 
@@ -34,4 +34,3 @@ export function Navbar() {
     </header>
   );
 }
-

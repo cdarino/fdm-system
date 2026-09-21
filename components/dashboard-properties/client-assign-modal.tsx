@@ -12,7 +12,6 @@ import {
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
@@ -33,7 +32,6 @@ export interface ClientAssignModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lot: PropertyLotWithClient;
-  onAssigned?: (updatedLot: PropertyLotWithClient) => void;
 }
 
 type StatusFilter = 'all' | 'Active' | 'Inactive';
@@ -57,7 +55,6 @@ export function ClientAssignModal({
   open,
   onOpenChange,
   lot,
-  onAssigned,
 }: ClientAssignModalProps) {
   const { assignClient } = usePropertyLots();
   const [clients, setClients] = useState<ClientListItem[]>([]);
@@ -143,7 +140,7 @@ export function ClientAssignModal({
 
           {/* Filters & Search Toolbar */}
           <div className="pt-3 flex flex-wrap items-center justify-between gap-2.5">
-            <div role="tablist" aria-label="Filter clients by status" className="inline-flex items-center gap-1 rounded-lg bg-row-hover p-0.5">
+            <div role="group" aria-label="Filter clients by status" className="inline-flex items-center gap-1 rounded-lg bg-row-hover p-0.5">
               {(['all', 'Active', 'Inactive'] as const).map((tab) => {
                 const isActive = statusFilter === tab;
                 return (
@@ -282,4 +279,3 @@ export function ClientAssignModal({
     </Dialog>
   );
 }
-

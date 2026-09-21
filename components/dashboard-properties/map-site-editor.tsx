@@ -23,7 +23,6 @@ import { calculatePolygonAreaSqm } from '@/lib/geometry';
 import type { Site, SiteWithLots } from '@/lib/types/property';
 import {
   PenTool,
-  Plus,
   Undo2,
   X,
   Check,
@@ -32,7 +31,6 @@ import {
   LandPlot,
   AlertTriangle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export interface SelectedPlotInfo {
   subdivisionId?: string;
@@ -492,4 +490,3 @@ export function MapSiteEditor({
     </>
   );
 }
-

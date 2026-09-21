@@ -14,8 +14,6 @@ import {
 
 export function generatePropertyPdfReport(data: PropertyReportData): void {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-
   // Render header
   let yPos = drawReportHeader(doc, {
     title: `Block ${data.lot.block_number}, Lot ${data.lot.lot_number}`,

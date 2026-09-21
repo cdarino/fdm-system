@@ -12,18 +12,18 @@
     --popover: #FFFFFF;
     --popover-foreground: #1A1D20;
     --primary: #5BC4E7;
-    --primary-foreground: #FFFFFF;
+    --primary-foreground: #1A1D20;
     --secondary: #F5CE42;
     --secondary-foreground: #1A1D20;
     /* --muted is a surface, --muted-foreground is text drawn on it. They were
        previously the same hex, so `bg-muted text-muted-foreground` rendered
        grey text on identical grey and was unreadable. */
     --muted: #EDF0F3;
-    --muted-foreground: #6C7E8E;
+    --muted-foreground: #526474;
     --accent: #5BC4E7;
-    --accent-foreground: #FFFFFF;
+    --accent-foreground: #1A1D20;
     --destructive: #ef4444;
-    --destructive-foreground: #FFFFFF;
+    --destructive-foreground: #1A1D20;
     --border: #E2E7EC;
     --input: #E2E7EC;
     --ring: #5BC4E7;
@@ -34,11 +34,11 @@
     --chart-5: #C0DCF1;
     --radius: 0.5rem;
     --success: #22C55E;
-    --success-foreground: #FFFFFF;
+    --success-foreground: #1A1D20;
     --sidebar: #FFFFFF;
     --sidebar-foreground: #1A1D20;
     --sidebar-primary: #5BC4E7;
-    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-primary-foreground: #1A1D20;
     --sidebar-accent: #E2F4FA;
     --sidebar-accent-foreground: #5BC4E7;
     --sidebar-border: #E2E7EC;
@@ -73,8 +73,8 @@
        of the 3:1 threshold for bold/large text and non-text UI, which is what
        these labels are. Adjust by moving LIGHTNESS and keeping saturation
        high; dropping saturation is what dulls them. */
-    --accent-blue-foreground: #0A8DB8;
-    --accent-gold-foreground: #AA880E;
+    --accent-blue-foreground: #08627D;
+    --accent-gold-foreground: #745B05;
 
     /* Lot status fills for the site map (Sprint 2 / r29).
        SVG presentation attributes take CSS values, not Tailwind classes, so
@@ -255,4 +255,3 @@
   background-color: var(--row-hover);
   color: var(--foreground);
 }
-

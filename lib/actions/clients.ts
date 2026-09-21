@@ -217,7 +217,7 @@ export async function getClientById(clientId: string): Promise<ClientWithDetails
 }
 
 export async function createClient(input: CreateClientInput): Promise<Client> {
-  const userId = await requirePermission("clients.create");
+  await requirePermission("clients.create");
   const supabase = await createSupabaseServerClient();
 
   const { data: client, error: clientError } = await supabase
@@ -267,7 +267,7 @@ export async function updateClient(
   clientId: string,
   input: UpdateClientInput
 ): Promise<Client> {
-  const userId = await requirePermission("clients.update");
+  await requirePermission("clients.update");
   const supabase = await createSupabaseServerClient();
 
   const updates: Record<string, unknown> = {};
@@ -299,10 +299,9 @@ export async function updateClient(
 }
 
 export async function archiveClient(
-  clientId: string,
-  reason?: string
+  clientId: string
 ): Promise<Client> {
-  const userId = await requirePermission("clients.update");
+  await requirePermission("clients.update");
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -327,7 +326,7 @@ export async function archiveClient(
 }
 
 export async function unarchiveClient(clientId: string): Promise<Client> {
-  const userId = await requirePermission("clients.update");
+  await requirePermission("clients.update");
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -827,4 +826,3 @@ export async function getClientLogs(clientId: string): Promise<ClientLog[]> {
 
   return data ?? [];
 }
-

@@ -72,7 +72,7 @@ const ROLE_TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>
  */
 function navItemClasses(isActive: boolean): string {
   return cn(
-    'flex w-full items-start justify-center rounded px-2 py-2 text-left text-sm font-medium transition-colors lg:justify-start lg:space-x-3 lg:px-4',
+    'flex w-full items-start justify-start space-x-3 rounded px-4 py-2 text-left text-sm font-medium transition-colors',
     isActive
       ? 'bg-sidebar-accent text-accent-blue-foreground'
       : 'text-muted-foreground hover:bg-background hover:text-foreground',
@@ -110,8 +110,8 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
 
           const content = (
             <>
-              <Icon className={cn('w-5 h-5 shrink-0', isActive && 'text-yellow-500')} />
-              <span className="sr-only lg:not-sr-only">{item.title}</span>
+              <Icon className="w-5 h-5 shrink-0" />
+              <span>{item.title}</span>
             </>
           );
 
@@ -143,7 +143,7 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
         {/* Role-based tabs, grouped under their department heading. */}
         {roleSections.map((section) => (
           <div key={section.category} className="pt-4 first:pt-2">
-            <p className="sr-only px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:not-sr-only">
+            <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {section.category}
             </p>
             {section.tabs.map((tab) => {
@@ -156,7 +156,7 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
               const content = (
                 <>
                   <Icon className="w-5 h-5 shrink-0" />
-                  <span className="sr-only lg:not-sr-only">{tab.title}</span>
+                  <span>{tab.title}</span>
                 </>
               );
 

@@ -20,6 +20,7 @@ import {
   SearchX,
   PanelLeftClose,
   LayoutList,
+  LayoutGrid,
   Table2,
   User,
 } from 'lucide-react';
@@ -188,7 +189,7 @@ function StatusTabs({
 }) {
   const tabs: StatusFilter[] = ['all', ...STATUSES];
   return (
-    <div role="tablist" aria-label="Filter by status" className="flex flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
+    <div role="group" aria-label="Filter by status" className="flex flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
       {tabs.map((tab) => {
         const isActive = value === tab;
         return (
@@ -293,7 +294,7 @@ function PropertyLotsSidebarContent({
     setStatusFilter,
   } = usePropertyLots();
 
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [renderedDialog, setRenderedDialog] = useState(activeDialog);
   const wasDialogOpenedRef = useRef(false);
 
@@ -458,33 +459,33 @@ function PropertyLotsSidebarContent({
         <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
           <button
             type="button"
-            onClick={() => setViewMode('cards')}
+            onClick={() => setViewMode('grid')}
             className={cn(
               'rounded-md p-1.5 transition-colors',
-              viewMode === 'cards'
+              viewMode === 'grid'
                 ? 'bg-row-hover text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             )}
-            title="Rows view"
-            aria-label="Rows view"
-            aria-pressed={viewMode === 'cards'}
+            title="Grid view"
+            aria-label="Grid view"
+            aria-pressed={viewMode === 'grid'}
           >
-            <LayoutList className="h-3.5 w-3.5" />
+            <LayoutGrid className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
-            onClick={() => setViewMode('table')}
+            onClick={() => setViewMode('list')}
             className={cn(
               'rounded-md p-1.5 transition-colors',
-              viewMode === 'table'
+              viewMode === 'list'
                 ? 'bg-row-hover text-foreground'
                 : 'text-muted-foreground hover:text-foreground'
             )}
-            title="Table view"
-            aria-label="Table view"
-            aria-pressed={viewMode === 'table'}
+            title="List view"
+            aria-label="List view"
+            aria-pressed={viewMode === 'list'}
           >
-            <Table2 className="h-3.5 w-3.5" />
+            <LayoutList className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -504,7 +505,7 @@ function PropertyLotsSidebarContent({
             onClear={clearFilters}
             onCreate={() => openDialog({ type: 'create' })}
           />
-        ) : viewMode === 'cards' ? (
+        ) : viewMode === 'grid' ? (
           <div className="divide-y divide-border">
             {visibleLots.map((lot) => (
               <LotRowItem

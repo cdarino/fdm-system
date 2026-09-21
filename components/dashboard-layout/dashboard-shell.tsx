@@ -27,6 +27,8 @@ export function DashboardShell({
     const savedPreference = window.localStorage.getItem('dashboard-sidebar-open');
     if (savedPreference !== null) {
       setIsSidebarOpen(savedPreference === 'true');
+    } else if (window.matchMedia('(max-width: 1023px)').matches) {
+      setIsSidebarOpen(false);
     }
     hasLoadedSidebarPreference.current = true;
   }, []);
@@ -39,10 +41,16 @@ export function DashboardShell({
 
   return (
     <div className="min-h-screen bg-background">
+      <a
+        href="#main-content"
+        className="fixed left-4 top-4 z-[60] -translate-y-20 rounded-md bg-card px-3 py-2 text-sm font-medium text-foreground shadow focus:translate-y-0"
+      >
+        Skip to main content
+      </a>
       <aside
         id="dashboard-navigation"
         className={`fixed bottom-0 left-0 top-0 z-40 flex flex-col border-r border-border bg-card transition-[width,transform] duration-200 ${
-          isSidebarOpen ? 'w-16 lg:w-60' : 'w-0 -translate-x-full overflow-hidden border-r-0'
+          isSidebarOpen ? 'w-72 max-w-[calc(100vw-2rem)] lg:w-60' : 'w-0 -translate-x-full overflow-hidden border-r-0'
         }`}
         aria-hidden={!isSidebarOpen}
         inert={!isSidebarOpen}
@@ -62,7 +70,7 @@ export function DashboardShell({
 
       <div
         className={`flex h-screen min-w-0 flex-col transition-[margin] duration-200 ${
-          isSidebarOpen ? 'ml-16 lg:ml-60' : 'ml-0'
+          isSidebarOpen ? 'ml-0 lg:ml-60' : 'ml-0'
         }`}
       >
         <div className="relative">
@@ -72,7 +80,7 @@ export function DashboardShell({
             variant="ghost"
             size="icon"
             className={`fixed top-3 z-50 h-10 w-10 text-muted-foreground hover:bg-background hover:text-foreground ${
-              isSidebarOpen ? 'left-5 lg:left-52' : 'left-2 sm:left-4'
+              isSidebarOpen ? 'left-[calc(min(18rem,_100vw_-_2rem)_-_3rem)] lg:left-52' : 'left-2 sm:left-4'
             }`}
             onClick={() => setIsSidebarOpen((open) => !open)}
             aria-label={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
@@ -87,7 +95,7 @@ export function DashboardShell({
             )}
           </Button>
         </div>
-        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {children}
         </main>
       </div>

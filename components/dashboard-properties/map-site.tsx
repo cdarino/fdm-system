@@ -867,6 +867,9 @@ export function SiteMap({
         // Marker element with SVG pin icon and title
         const el = document.createElement('div');
         el.className = 'group flex flex-col items-center cursor-pointer transition-transform hover:scale-110';
+        el.setAttribute('role', 'button');
+        el.tabIndex = 0;
+        el.setAttribute('aria-label', `Focus map on ${targetSite.name}`);
         el.innerHTML = `
           <div class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl ring-2 ring-white">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -881,6 +884,12 @@ export function SiteMap({
 
         el.addEventListener('click', () => {
           focusSite(targetSite);
+        });
+        el.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            focusSite(targetSite);
+          }
         });
 
         const marker = new Marker({ element: el }).setLngLat([center[0], center[1]]).addTo(map);
@@ -1014,6 +1023,7 @@ export function SiteMap({
           onClick={zoomIn}
           className="h-8 w-8 bg-card text-foreground shadow-sm hover:bg-row-hover"
           title="Zoom in"
+          aria-label="Zoom in"
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
@@ -1023,6 +1033,7 @@ export function SiteMap({
           onClick={zoomOut}
           className="h-8 w-8 bg-card text-foreground shadow-sm hover:bg-row-hover"
           title="Zoom out"
+          aria-label="Zoom out"
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
