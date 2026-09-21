@@ -1,0 +1,9 @@
+import Link from 'next/link';
+import { PageContainer } from '@/components/dashboard-layout/page-container';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+export default function ReportsPage() {
+  return <PageContainer><div className="space-y-6"><div><h1 className="text-2xl font-bold">Reports</h1><p className="mt-1 text-sm text-muted-foreground">Generate records from the source of truth, then use the browser print dialog to save or share PDFs.</p></div><div className="grid gap-4 md:grid-cols-3"><ReportCard title="Client & property report" description="Portfolio, documents, interactions, and active property records." href="/dashboard/clients" action="Open clients"/><ReportCard title="Title processing report" description="Monitor title-transfer queues, missing requirements, and target dates." href="/dashboard/legal" action="Open title queue"/><ReportCard title="Billing report" description="Review active accounts and balances before issuing an account statement." href="/dashboard/billing" action="Open billing"/></div><Card><CardHeader><CardTitle>FDM reporting principle</CardTitle><CardDescription>Reports draw from recorded transactions only. Pending agency requirements and “For review” financial records are visibly kept separate from completed work.</CardDescription></CardHeader><CardContent><p className="text-sm text-muted-foreground">Use your browser’s Print command to export an open report as PDF.</p></CardContent></Card></div></PageContainer>;
+}
+
+function ReportCard({ title, description, href, action }: { title: string; description: string; href: string; action: string }) { return <Card><CardHeader><CardTitle>{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent><Link href={href} className="text-sm font-medium text-primary hover:underline">{action}</Link></CardContent></Card>; }

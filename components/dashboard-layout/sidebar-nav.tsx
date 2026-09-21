@@ -26,7 +26,13 @@ interface SidebarNavProps {
   }[];
 }
 
-const allNavigationItems = [
+const allNavigationItems: Array<{
+  title: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  comingSoon?: boolean;
+  systemAdminOnly?: boolean;
+}> = [
   {
     title: 'Dashboard',
     href: '/dashboard',
