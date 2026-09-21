@@ -25,10 +25,14 @@ async function resolveClients(): Promise<ClientsAccess> {
     const allowed = await hasPermission('clients.read', user.id);
     if (!allowed) return { status: 'forbidden' };
 
+    // Archived clients ship with the first render so the Archived tab is
+    // populated without a second round trip. The client filters them out of
+    // every other tab.
     const result = await getClients({
       limit: 100,
       sortBy: 'full_name',
       sortOrder: 'asc',
+      includeArchived: true,
     });
     return { status: 'ok', clients: result.data };
   } catch (error) {

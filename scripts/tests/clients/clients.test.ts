@@ -76,6 +76,24 @@ describe("Client Management Actions", () => {
     expect(primaryContact?.value).toBe(email);
   });
 
+  it("getClientById returns a consolidated profile including property lots", async () => {
+    const client = await createClient({
+      full_name: faker.person.fullName(),
+      status: "Active",
+    });
+    testClientIds.push(client.client_id);
+
+    // Regression guard: `property_lot.client_id` was dropped in 20260914223800,
+    // so embedding property_lot directly from client throws PGRST200. The lots
+    // have to be walked through account_party -> ledger_account.
+    const details = await getClientById(client.client_id);
+
+    expect(details.client_id).toBe(client.client_id);
+    expect(Array.isArray(details.properties)).toBe(true);
+    expect(Array.isArray(details.client_document)).toBe(true);
+    expect(Array.isArray(details.client_log)).toBe(true);
+  });
+
   it("getClients filters by search term across name and TIN", async () => {
     const uniqueTag = `FakerTag-${Date.now()}`;
     const fullName = `${faker.person.fullName()} ${uniqueTag}`;

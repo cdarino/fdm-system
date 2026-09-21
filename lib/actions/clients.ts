@@ -25,6 +25,16 @@ import {
   REQUIRED_CLIENT_DOCUMENTS,
 } from "@/lib/types/client";
 
+import type { PropertyLot } from "@/lib/types/property";
+import { deleteEntityIndex } from "@/lib/actions/search-index";
+import {
+  uploadClientDocumentObject,
+  createClientDocumentUrl,
+  removeClientDocumentObject,
+  MAX_DOCUMENT_BYTES,
+  ALLOWED_DOCUMENT_TYPES,
+} from "@/lib/storage/client-documents";
+
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
 // Any automated system logs that are generated when calling client-related operations
@@ -140,14 +150,62 @@ export async function getClients(
   return buildPaginatedResult(clients, count ?? 0, page, limit);
 }
 
+/**
+ * Property lots a client holds, resolved through their active ledger account.
+ *
+ * There is no direct client -> property_lot link any more: the refactor in
+ * 20260914223800 dropped `property_lot.client_id` in favour of
+ * account_party -> ledger_account -> property_lot, so the ownership hop has to
+ * be walked explicitly. Mirrors the `client_id` filter in `getPropertyLots()`.
+ *
+ * Reading `property_lot` needs `properties.read`, which a caller holding only
+ * `clients.read` does not have. RLS answers that with an empty set rather than
+ * an error, so an empty array here means "none visible to you", not "none".
+ */
+async function resolveClientProperties(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  clientId: string
+): Promise<PropertyLot[]> {
+  const { data: partyRows, error: partyError } = await supabase
+    .from("account_party")
+    .select("ledger_account!inner(property_id, status)")
+    .eq("client_id", clientId)
+    .eq("ledger_account.status", "Active");
+
+  if (partyError) {
+    console.error(`Failed to resolve properties for client ${clientId}:`, partyError.message);
+    return [];
+  }
+
+  const propertyIds = (partyRows ?? [])
+    .map((row) => (row.ledger_account as { property_id?: string } | null)?.property_id)
+    .filter((id): id is string => Boolean(id));
+
+  if (propertyIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("property_lot")
+    .select("*")
+    .in("property_id", propertyIds)
+    .returns<PropertyLot[]>();
+
+  if (error) {
+    console.error(`Failed to fetch property lots for client ${clientId}:`, error.message);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 export async function getClientById(clientId: string): Promise<ClientWithDetails> {
   await requirePermission("clients.read");
   const supabase = await createSupabaseServerClient();
 
-  // Consolidated client profile: includes contacts, documents, interaction logs, and assigned property lots
+  // Consolidated client profile: contacts, documents and interaction logs embed
+  // directly; property lots are a separate hop (see resolveClientProperties).
   const { data, error } = await supabase
     .from("client")
-    .select("*, contact_info(*), client_document(*), client_log(*), properties:property_lot(*)")
+    .select("*, contact_info(*), client_document(*), client_log(*)")
     .eq("client_id", clientId)
     .single<ClientWithDetails>();
 
@@ -155,7 +213,7 @@ export async function getClientById(clientId: string): Promise<ClientWithDetails
     throw new Error(`Client not found: ${error?.message ?? "Unknown error"}`);
   }
 
-  return data;
+  return { ...data, properties: await resolveClientProperties(supabase, clientId) };
 }
 
 export async function createClient(input: CreateClientInput): Promise<Client> {
@@ -425,6 +483,84 @@ export async function deleteContactInfo(contactId: string): Promise<void> {
   }
 }
 
+/**
+ * Stores an uploaded file and records it against the client.
+ *
+ * This is the only path that produces a `client_document` row backed by a real
+ * object. `createClientDocument()` below writes metadata alone and exists for
+ * tests and seeds, whose `file_path` points at nothing.
+ */
+export async function uploadClientDocument(
+  clientId: string,
+  formData: FormData
+): Promise<ClientDocument> {
+  const userId = await requirePermission("clients.update");
+
+  const file = formData.get("file");
+  const documentType = formData.get("document_type");
+
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("No file was provided.");
+  }
+  if (typeof documentType !== "string" || !documentType) {
+    throw new Error("A document category is required.");
+  }
+
+  // The bucket enforces both of these as well, but a rejection there surfaces
+  // as an opaque storage error. Checking here is what lets the user be told
+  // which rule they broke.
+  if (file.size > MAX_DOCUMENT_BYTES) {
+    throw new Error("File is larger than the 10MB limit.");
+  }
+  if (!ALLOWED_DOCUMENT_TYPES.includes(file.type as (typeof ALLOWED_DOCUMENT_TYPES)[number])) {
+    throw new Error("Only PDF, JPEG and PNG files are accepted.");
+  }
+
+  const filePath = await uploadClientDocumentObject(clientId, file);
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("client_document")
+    .insert({
+      client_id: clientId,
+      document_type: documentType,
+      file_path: filePath,
+      uploaded_by: userId,
+    })
+    .select()
+    .single<ClientDocument>();
+
+  if (error || !data) {
+    // The object is already in the bucket and nothing now points at it, so
+    // without this it is unreachable storage that no one can find or clean up.
+    await removeClientDocumentObject(filePath).catch((cleanupError) => {
+      console.error(`Orphaned object ${filePath} after failed insert:`, cleanupError);
+    });
+    throw new Error(`Failed to save document metadata: ${error?.message ?? "Unknown error"}`);
+  }
+
+  return data;
+}
+
+/** Signed, short-lived URL for viewing one stored document. */
+export async function getClientDocumentUrl(documentId: string): Promise<string> {
+  await requirePermission("clients.read");
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("client_document")
+    .select("file_path")
+    .eq("document_id", documentId)
+    .single<{ file_path: string }>();
+
+  if (error || !data) {
+    throw new Error(`Document not found: ${error?.message ?? "Unknown error"}`);
+  }
+
+  return createClientDocumentUrl(data.file_path);
+}
+
+/** Metadata-only insert. See `uploadClientDocument()` for the real upload path. */
 export async function createClientDocument(
   clientId: string,
   input: CreateClientDocumentInput
@@ -489,6 +625,12 @@ export async function deleteClientDocument(documentId: string): Promise<void> {
   await requirePermission("clients.update");
   const supabase = await createSupabaseServerClient();
 
+  const { data: existing } = await supabase
+    .from("client_document")
+    .select("file_path")
+    .eq("document_id", documentId)
+    .single<{ file_path: string }>();
+
   const { error } = await supabase
     .from("client_document")
     .delete()
@@ -496,6 +638,21 @@ export async function deleteClientDocument(documentId: string): Promise<void> {
 
   if (error) {
     throw new Error(`Failed to delete client document: ${error.message}`);
+  }
+
+  // The extracted text outlives its document otherwise, leaving the contents of
+  // a deleted ID or deed searchable by everyone.
+  await deleteEntityIndex("client_document", documentId).catch((indexError) => {
+    console.error(`Failed to clear search index for ${documentId}:`, indexError);
+  });
+
+  // Row first, object second. A failed object delete leaves one orphan that can
+  // be swept later, whereas deleting the object first would leave a row
+  // pointing at nothing, which breaks the list for everyone.
+  if (existing?.file_path) {
+    await removeClientDocumentObject(existing.file_path).catch((cleanupError) => {
+      console.error(`Orphaned object ${existing.file_path} after row delete:`, cleanupError);
+    });
   }
 }
 
