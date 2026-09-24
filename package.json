@@ -6,7 +6,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.ts",
+    "seed:baseline": "tsx --env-file=.env.local scripts/seed-baseline.ts",
+    "seed:admin": "npm run seed:baseline",
+    "seed:dev": "tsx --env-file=.env.local scripts/seed-dev.ts",
+    "seed:production": "vercel env pull .env.production.local --environment=production --yes && tsx --env-file=.env.production.local scripts/seed-production.ts",
     "seed:sample-site": "tsx --env-file=.env.local scripts/seed-sample-site.ts",
     "seed:sample-site:clear": "tsx --env-file=.env.local scripts/seed-sample-site.ts --clear",
     "test:e2e": "vitest run",
@@ -34,6 +37,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.3.0",
+    "dotenv": "^18.0.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.511.0",
@@ -67,6 +71,7 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
+    "vercel": "^59.25.0",
     "vitest": "^3.2.7"
   }
 }
