@@ -38,17 +38,3 @@ export const STATUS_PILL: Record<PropertyStatus, { pill: string; dot: string }> 
     dot: 'bg-destructive',
   },
 };
-
-/**
- * CSS variable strings for SVG `fill` / `stroke`.
- *
- * `fill` is a per-status token defined in globals.css (tinted into white in
- * light mode, into the card in dark mode). `stroke` reuses the existing strong
- * brand tokens, so the outline of a status matches its pill's dot.
- */
-export const STATUS_SVG: Record<PropertyStatus, { fill: string; stroke: string }> = {
-  Open: { fill: 'var(--status-open-fill)', stroke: 'var(--success)' },
-  Reserved: { fill: 'var(--status-reserved-fill)', stroke: 'var(--primary)' },
-  Sold: { fill: 'var(--status-sold-fill)', stroke: 'var(--row-accent)' },
-  Forfeited: { fill: 'var(--status-forfeited-fill)', stroke: 'var(--destructive)' },
-};

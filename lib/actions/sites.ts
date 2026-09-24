@@ -84,42 +84,6 @@ export async function getSiteWithLots(siteId: string): Promise<SiteWithLots> {
   };
 }
 
-/**
- * Subdivisions for a site that do not yet have a matching property_lot.
- * Used to populate the subdivision picker when creating a new property.
- */
-export async function getUnclaimedSubdivisions(siteId: string): Promise<SiteSubdivision[]> {
-  await requirePermission("properties.read");
-  const supabase = await createClient();
-
-  const [subdivisionsResult, lotsResult] = await Promise.all([
-    supabase
-      .from("site_subdivision")
-      .select("subdivision_id, site_id, block_number, lot_number, boundary")
-      .eq("site_id", siteId)
-      .order("block_number", { ascending: true })
-      .order("lot_number", { ascending: true })
-      .returns<SiteSubdivision[]>(),
-    supabase
-      .from("property_lot")
-      .select("block_number, lot_number")
-      .eq("site_id", siteId)
-      .returns<{ block_number: number; lot_number: number }[]>(),
-  ]);
-
-  if (subdivisionsResult.error) {
-    throw new Error(`Failed to fetch subdivisions: ${subdivisionsResult.error.message}`);
-  }
-
-  const claimedKeys = new Set(
-    (lotsResult.data ?? []).map((l) => `${l.block_number}-${l.lot_number}`)
-  );
-
-  return (subdivisionsResult.data ?? []).filter(
-    (s) => !claimedKeys.has(`${s.block_number}-${s.lot_number}`)
-  );
-}
-
 /** All sites with their subdivisions and registered property lots. */
 export async function getAllSitesWithLots(): Promise<SiteWithLots[]> {
   await requirePermission("properties.read");

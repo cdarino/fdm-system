@@ -17,8 +17,6 @@ import {
   type UpdateContactInfoInput,
   type CreateClientDocumentInput,
   type CreateClientLogInput,
-  type ClientInteractionInput,
-  type ClientDocumentChecklist,
   type ClientDocumentNotification,
   type GetClientsParams,
   type PaginatedResult,
@@ -36,11 +34,6 @@ import {
 } from "@/lib/storage/client-documents";
 
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
-
-// Any automated system logs that are generated when calling client-related operations
-// (like updating contact info, updating name) are disabled and commented out.
-// Mainly because this may not scale well considering the 500MB size limit for Supabase
-// projects under the free plan.
 
 async function resolveUserNames(userIds: string[]): Promise<Map<string, string>> {
   const userMap = new Map<string, string>();
@@ -252,14 +245,6 @@ export async function createClient(input: CreateClientInput): Promise<Client> {
     }
   }
 
-  // Audit registration in client log
-//   await supabase.from("client_log").insert({
-//     client_id: client.client_id,
-//     event_type: "CLIENT_REGISTERED",
-//     description: "New client registered in system",
-//     performed_by: userId,
-//   });
-
   return client;
 }
 
@@ -287,14 +272,6 @@ export async function updateClient(
     throw new Error(`Failed to update client: ${error?.message ?? "Unknown error"}`);
   }
 
-  // Audit update in client log
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "CLIENT_UPDATED",
-//     description: `Client updated fields: ${Object.keys(updates).join(", ")}`,
-//     performed_by: userId,
-//   });
-
   return data;
 }
 
@@ -315,13 +292,6 @@ export async function archiveClient(
     throw new Error(`Failed to archive client: ${error?.message ?? "Unknown error"}`);
   }
 
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "CLIENT_ARCHIVED",
-//     description: reason ? `Archived: ${reason.trim()}` : "Client archived by admin staff",
-//     performed_by: userId,
-//   });
-
   return data;
 }
 
@@ -340,24 +310,7 @@ export async function unarchiveClient(clientId: string): Promise<Client> {
     throw new Error(`Failed to unarchive client: ${error?.message ?? "Unknown error"}`);
   }
 
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "CLIENT_RESTORED",
-//     description: "Client restored from archive to active status",
-//     performed_by: userId,
-//   });
-
   return data;
-}
-
-export async function getArchivedClients(
-  params?: GetClientsParams
-): Promise<PaginatedResult<Client>> {
-  return getClients({
-    ...params,
-    status: "Archived",
-    includeArchived: true,
-  });
 }
 
 export async function deleteClient(clientId: string): Promise<void> {
@@ -405,23 +358,6 @@ export async function addContactInfo(
   }
 
   return data;
-}
-
-export async function getClientContacts(clientId: string): Promise<ContactInfo[]> {
-  await requirePermission("clients.read");
-  const supabase = await createSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from("contact_info")
-    .select("*")
-    .eq("client_id", clientId)
-    .order("is_primary", { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to fetch contact details: ${error.message}`);
-  }
-
-  return data ?? [];
 }
 
 export async function updateContactInfo(
@@ -582,14 +518,6 @@ export async function createClientDocument(
     throw new Error(`Failed to save document metadata: ${error?.message ?? "Unknown error"}`);
   }
 
-  // Audit document upload in client log
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "DOCUMENT_UPLOADED",
-//     description: `Uploaded document of category '${input.document_type}'`,
-//     performed_by: userId,
-//   });
-
   return data;
 }
 
@@ -656,31 +584,6 @@ export async function deleteClientDocument(documentId: string): Promise<void> {
 }
 
 /**
- * Checks whether all required documents are present for a given client.
- */
-export async function checkClientDocumentStatus(
-  clientId: string
-): Promise<ClientDocumentChecklist> {
-  await requirePermission("clients.read");
-  const documents = await getClientDocuments(clientId);
-
-  const presentTypes = Array.from(
-    new Set(documents.map((doc) => doc.document_type))
-  );
-
-  const missingTypes = REQUIRED_CLIENT_DOCUMENTS.filter(
-    (req) => !presentTypes.includes(req)
-  );
-
-  return {
-    client_id: clientId,
-    is_complete: missingTypes.length === 0,
-    present_documents: presentTypes,
-    missing_documents: missingTypes,
-  };
-}
-
-/**
  * Returns all active clients that have missing required documents.
  */
 export async function getClientsWithMissingDocuments(): Promise<ClientDocumentNotification[]> {
@@ -723,65 +626,6 @@ export async function getClientsWithMissingDocuments(): Promise<ClientDocumentNo
   }
 
   return notifications;
-}
-
-/**
- * Staff notification alert helper for incomplete client paperwork files.
- */
-export async function getClientDocumentNotifications(): Promise<ClientDocumentNotification[]> {
-  return getClientsWithMissingDocuments();
-}
-
-/**
- * Logs a client communication or customer service interaction.
- */
-export async function recordClientInteraction(
-  clientId: string,
-  input: ClientInteractionInput
-): Promise<ClientLog> {
-  const userId = await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
-
-  const eventType = `INTERACTION_${input.interaction_type.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
-
-  const { data, error } = await supabase
-    .from("client_log")
-    .insert({
-      client_id: clientId,
-      event_type: eventType,
-      description: input.notes.trim(),
-      performed_by: userId,
-    })
-    .select()
-    .single<ClientLog>();
-
-  if (error || !data) {
-    throw new Error(`Failed to record client interaction: ${error?.message ?? "Unknown error"}`);
-  }
-
-  return data;
-}
-
-/**
- * Retrieves past interactions and communications history for a client.
- */
-export async function getClientInteractions(clientId: string): Promise<ClientLog[]> {
-  await requirePermission("clients.read");
-  const supabase = await createSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from("client_log")
-    .select("*")
-    .eq("client_id", clientId)
-    .ilike("event_type", "INTERACTION_%")
-    .order("time", { ascending: false })
-    .returns<ClientLog[]>();
-
-  if (error) {
-    throw new Error(`Failed to fetch client interactions: ${error.message}`);
-  }
-
-  return data ?? [];
 }
 
 export async function createClientLog(

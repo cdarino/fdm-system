@@ -96,18 +96,6 @@ export interface CreateClientLogInput {
   description?: string | null;
 }
 
-export interface ClientInteractionInput {
-  interaction_type: 'Call' | 'Meeting' | 'Email' | 'Note' | 'Follow-up' | 'Title Update' | string;
-  notes: string;
-}
-
-export interface ClientDocumentChecklist {
-  client_id: string;
-  is_complete: boolean;
-  present_documents: DocType[];
-  missing_documents: DocType[];
-}
-
 export interface ClientDocumentNotification {
   client_id: string;
   full_name: string;

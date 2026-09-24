@@ -33,7 +33,7 @@ fdm-system/
 │   ├── dashboard-admin/        # User management, roles checklist & admin modals
 │   ├── dashboard-clients/      # Client management table, modals & dialogs
 │   ├── dashboard-layout/       # Dashboard shell (sidebar, top-bar, skeletons, page-container)
-│   ├── dashboard-overview/     # Root dashboard cards, analytics charts & quick links
+│   ├── dashboard-overview/     # Dashboard quick links
 │   ├── dashboard-properties/   # Property lots table & subdivision map components
 │   ├── dashboard-settings/     # Dashboard settings forms
 │   ├── landing/                # Landing page components (navbar, hero, features)
@@ -114,7 +114,7 @@ Avoid Tailwind slash-opacity modifiers (e.g. `bg-primary/90`, `bg-success/10`) b
 All component folders must remain strictly **1 level deep** directly under `components/`. Never create nested subfolders inside component folders (e.g. do **NOT** create `components/dashboard-properties/maps/`).
 
 - **Dashboard Domains**: Use the `dashboard-<plural-feature>` prefix (e.g. `dashboard-clients`, `dashboard-properties`, `dashboard-admin`, `dashboard-overview`, `dashboard-layout`, `dashboard-settings`).
-- **Subcategories via Filename Prefixes**: If a feature has a distinct subcategory, prefix the filenames rather than nesting subfolders (e.g. `map-site.tsx`, `map-site-picker.tsx` inside `components/dashboard-properties/`).
+- **Subcategories via Filename Prefixes**: If a feature has a distinct subcategory, prefix the filenames rather than nesting subfolders (e.g. `map-site.tsx`, `map-site-editor.tsx` inside `components/dashboard-properties/`).
 - **Cross-App Assets**: Shared global brand/utility components live in `components/shared/`.
 - **Auth Forms**: Public authentication, reset, and password recovery forms live in `components/auth/`.
 - **Direct Imports**: Always import components directly from their file path without barrel `index.ts` files (e.g. `@/components/dashboard-clients/client-section`).
