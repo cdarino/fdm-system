@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.ts",
+    "seed:admin": "npm run seed:baseline",
     "seed:sample-site": "tsx --env-file=.env.local scripts/seed-sample-site.ts",
     "seed:sample-site:clear": "tsx --env-file=.env.local scripts/seed-sample-site.ts --clear",
     "test:e2e": "vitest run",
@@ -19,7 +19,10 @@
     "test:e2e:permissions": "vitest run scripts/tests/permissions/permissions-guard.test.ts",
     "test:e2e:arcgis": "vitest run scripts/tests/arcgis/arcgis-token.test.ts",
     "test:e2e:map": "vitest run scripts/tests/properties/map-site.test.ts",
-    "test:e2e:utils": "vitest run scripts/tests/utils/utils.test.ts"
+    "test:e2e:utils": "vitest run scripts/tests/utils/utils.test.ts",
+    "seed:baseline": "tsx --env-file=.env.local scripts/seed-baseline.ts",
+    "seed:dev": "tsx --env-file=.env.local scripts/seed-dev.ts",
+    "seed:production": "vercel env pull .env.production.local --environment=production --yes && tsx --env-file=.env.production.local scripts/seed-production.ts"
   },
   "dependencies": {
     "@esri/arcgis-rest-request": "^4.11.0",
@@ -48,7 +51,8 @@
     "tailwind-merge": "^3.3.0",
     "tesseract.js": "^7.0.0",
     "tsx": "^4.23.12",
-    "zod": "^4.6.4"
+    "zod": "^4.6.4",
+    "dotenv": "^18.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -64,6 +68,7 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "vercel": "^59.25.0"
   }
 }

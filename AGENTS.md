@@ -49,7 +49,11 @@ fdm-system/
 │   ├── types/                  # Domain TypeScript types (client, property, title, report)
 │   └── pagination.ts           # Shared offset & pagination calculation
 ├── scripts/                    # Standalone scripts & test suite
-│   ├── seed-admin.ts           # Admin user seeding script
+│   ├── seed-baseline.ts        # Baseline superadmin & system_admin role seeding
+│   ├── seed-admin.ts           # Admin user seeding script (delegates to seed-baseline)
+│   ├── seed-dev.ts             # Full development seeding (baseline + sample sites)
+│   ├── seed-production.ts      # Production baseline seeding with Vercel env & safety guards
+│   ├── seed-sample-site.ts     # Sample development sites & property subdivisions
 │   └── tests/                  # Vitest E2E integration test suite
 │       ├── framework/          # Setup, session management, Next.js mocks
 │       ├── admin/              # User management & role tests
