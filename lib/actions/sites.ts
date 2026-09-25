@@ -7,7 +7,7 @@ import {
   LOT_WITH_CLIENT_SELECT,
   mapLotWithAccount,
   type RawLotRow,
-} from "@/lib/actions/properties";
+} from "@/lib/property-lots";
 import type {
   Site,
   SiteWithLots,
