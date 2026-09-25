@@ -35,3 +35,4 @@ if (process.argv[1]?.includes("seed-dev")) {
     process.exit(1);
   });
 }
+

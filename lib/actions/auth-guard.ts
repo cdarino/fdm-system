@@ -49,3 +49,4 @@ export async function requireAnyPermission(permissionNames: string[]): Promise<s
 
   throw new Error(`Forbidden: You do not have any of the required permissions: ${permissionNames.join(", ")}`);
 }
+

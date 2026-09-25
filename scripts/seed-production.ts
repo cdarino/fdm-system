@@ -89,21 +89,28 @@ async function main() {
     const prodEnv = loadEnv(PROD_ENV_FILE);
     const localEnv = loadEnv(LOCAL_ENV_FILE);
 
-    // Target Supabase URL & Admin Email from Vercel config
-    const supabaseUrl = prodEnv.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+    // Target Supabase URL: check Vercel prod config -> .env.local PROD_SUPABASE_URL -> prompt
+    let supabaseUrl =
+      prodEnv.NEXT_PUBLIC_SUPABASE_URL ||
+      localEnv.PROD_SUPABASE_URL ||
+      localEnv.PROD_NEXT_PUBLIC_SUPABASE_URL ||
+      localEnv.PRODUCTION_SUPABASE_URL;
+
+    if (!supabaseUrl) {
+      console.log("ℹ️   Production Supabase URL was not found in Vercel or .env.local (PROD_SUPABASE_URL).");
+      supabaseUrl = await prompt.ask("🌐 Enter production SUPABASE_URL (e.g. https://xxxx.supabase.co): ");
+    }
+
+    if (!supabaseUrl) {
+      console.error("❌  Production SUPABASE_URL is required to seed the production database.");
+      process.exit(1);
+    }
+
     const adminEmail =
       prodEnv.ADMIN_EMAIL ??
       localEnv.PROD_ADMIN_EMAIL ??
-      process.env.ADMIN_EMAIL ??
+      localEnv.PRODUCTION_ADMIN_EMAIL ??
       "admin@example.com";
-
-    if (!supabaseUrl) {
-      console.error(
-        "❌  Missing NEXT_PUBLIC_SUPABASE_URL from Vercel production environment.\n" +
-        "    Make sure the Vercel project has NEXT_PUBLIC_SUPABASE_URL configured."
-      );
-      process.exit(1);
-    }
 
     // 3. Resolve Production Secret Key: .env.local -> prompt
     let serviceRoleKey =

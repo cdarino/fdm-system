@@ -3,6 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/actions/auth-guard";
 import { calculatePolygonAreaSqm } from "@/lib/geometry";
+import {
+  LOT_WITH_CLIENT_SELECT,
+  mapLotWithAccount,
+  type RawLotRow,
+} from "@/lib/property-lots";
 import type {
   Site,
   SiteWithLots,
@@ -63,11 +68,11 @@ export async function getSiteWithLots(siteId: string): Promise<SiteWithLots> {
       .returns<SiteSubdivision[]>(),
     supabase
       .from("property_lot")
-      .select("*, client:client_id(client_id, full_name, status)")
+      .select(LOT_WITH_CLIENT_SELECT)
       .eq("site_id", siteId)
       .order("block_number", { ascending: true })
       .order("lot_number", { ascending: true })
-      .returns<PropertyLotWithClient[]>(),
+      .returns<RawLotRow[]>(),
   ]);
 
   if (subdivisionsResult.error) {
@@ -80,8 +85,44 @@ export async function getSiteWithLots(siteId: string): Promise<SiteWithLots> {
   return {
     ...site,
     subdivisions: subdivisionsResult.data ?? [],
-    lots: lotsResult.data ?? [],
+    lots: (lotsResult.data ?? []).map(mapLotWithAccount),
   };
+}
+
+/**
+ * Subdivisions for a site that do not yet have a matching property_lot.
+ * Used to populate the subdivision picker when creating a new property.
+ */
+export async function getUnclaimedSubdivisions(siteId: string): Promise<SiteSubdivision[]> {
+  await requirePermission("properties.read");
+  const supabase = await createClient();
+
+  const [subdivisionsResult, lotsResult] = await Promise.all([
+    supabase
+      .from("site_subdivision")
+      .select("subdivision_id, site_id, block_number, lot_number, boundary")
+      .eq("site_id", siteId)
+      .order("block_number", { ascending: true })
+      .order("lot_number", { ascending: true })
+      .returns<SiteSubdivision[]>(),
+    supabase
+      .from("property_lot")
+      .select("block_number, lot_number")
+      .eq("site_id", siteId)
+      .returns<{ block_number: number; lot_number: number }[]>(),
+  ]);
+
+  if (subdivisionsResult.error) {
+    throw new Error(`Failed to fetch subdivisions: ${subdivisionsResult.error.message}`);
+  }
+
+  const claimedKeys = new Set(
+    (lotsResult.data ?? []).map((l) => `${l.block_number}-${l.lot_number}`)
+  );
+
+  return (subdivisionsResult.data ?? []).filter(
+    (s) => !claimedKeys.has(`${s.block_number}-${s.lot_number}`)
+  );
 }
 
 /** All sites with their subdivisions and registered property lots. */
@@ -103,10 +144,10 @@ export async function getAllSitesWithLots(): Promise<SiteWithLots[]> {
       .returns<SiteSubdivision[]>(),
     supabase
       .from("property_lot")
-      .select("*, client:client_id(client_id, full_name, status)")
+      .select(LOT_WITH_CLIENT_SELECT)
       .order("block_number", { ascending: true })
       .order("lot_number", { ascending: true })
-      .returns<PropertyLotWithClient[]>(),
+      .returns<RawLotRow[]>(),
   ]);
 
   if (sitesResult.error) {
@@ -126,8 +167,9 @@ export async function getAllSitesWithLots(): Promise<SiteWithLots[]> {
     subdivisionsBySite.set(sub.site_id, list);
   }
 
+  const lots = (lotsResult.data ?? []).map(mapLotWithAccount);
   const lotsBySite = new Map<string, PropertyLotWithClient[]>();
-  for (const lot of lotsResult.data ?? []) {
+  for (const lot of lots) {
     if (!lot.site_id) continue;
     const list = lotsBySite.get(lot.site_id) ?? [];
     list.push(lot);

@@ -10,7 +10,7 @@ import { PropertyMapCard } from '@/components/dashboard-overview/property-map-ca
 import { PortfolioChart } from '@/components/dashboard-overview/portfolio-charts';
 import { ClientFollowUps } from '@/components/dashboard-overview/client-follow-ups';
 import { PageError } from '@/components/dashboard-layout/page-status';
-import { getDashboardStats } from '@/lib/actions/dashboard';
+import { getDashboardOverview } from '@/lib/actions/dashboard-overview';
 import { DashboardSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import { PageContainer } from '@/components/dashboard-layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -30,7 +30,7 @@ async function DashboardContent() {
     const user = await getUserInfo();
     if (!user) return <PageError message="Please log in to access the dashboard" />;
     const [isSystemAdmin, stats, roles, sections] = await Promise.all([
-      checkIsSystemAdmin(user.id), getDashboardStats(), getCurrentUserRoleNames(), getCurrentUserRoleSections(),
+      checkIsSystemAdmin(user.id), getDashboardOverview(), getCurrentUserRoleNames(), getCurrentUserRoleSections(),
     ]);
     const focus = isSystemAdmin ? ROLE_FOCUS.system_admin : roles.length > 1
       ? { title: 'Your work, all in one place', description: 'Stay on top of client records and property activity across your assigned departments.' }
