@@ -3,6 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/actions/auth-guard";
 import { calculatePolygonAreaSqm } from "@/lib/geometry";
+import {
+  LOT_WITH_CLIENT_SELECT,
+  mapLotWithAccount,
+  type RawLotRow,
+} from "@/lib/actions/properties";
 import type {
   Site,
   SiteWithLots,
@@ -63,11 +68,11 @@ export async function getSiteWithLots(siteId: string): Promise<SiteWithLots> {
       .returns<SiteSubdivision[]>(),
     supabase
       .from("property_lot")
-      .select("*, client:client_id(client_id, full_name, status)")
+      .select(LOT_WITH_CLIENT_SELECT)
       .eq("site_id", siteId)
       .order("block_number", { ascending: true })
       .order("lot_number", { ascending: true })
-      .returns<PropertyLotWithClient[]>(),
+      .returns<RawLotRow[]>(),
   ]);
 
   if (subdivisionsResult.error) {
@@ -80,7 +85,7 @@ export async function getSiteWithLots(siteId: string): Promise<SiteWithLots> {
   return {
     ...site,
     subdivisions: subdivisionsResult.data ?? [],
-    lots: lotsResult.data ?? [],
+    lots: (lotsResult.data ?? []).map(mapLotWithAccount),
   };
 }
 
@@ -139,10 +144,10 @@ export async function getAllSitesWithLots(): Promise<SiteWithLots[]> {
       .returns<SiteSubdivision[]>(),
     supabase
       .from("property_lot")
-      .select("*, client:client_id(client_id, full_name, status)")
+      .select(LOT_WITH_CLIENT_SELECT)
       .order("block_number", { ascending: true })
       .order("lot_number", { ascending: true })
-      .returns<PropertyLotWithClient[]>(),
+      .returns<RawLotRow[]>(),
   ]);
 
   if (sitesResult.error) {
@@ -162,8 +167,9 @@ export async function getAllSitesWithLots(): Promise<SiteWithLots[]> {
     subdivisionsBySite.set(sub.site_id, list);
   }
 
+  const lots = (lotsResult.data ?? []).map(mapLotWithAccount);
   const lotsBySite = new Map<string, PropertyLotWithClient[]>();
-  for (const lot of lotsResult.data ?? []) {
+  for (const lot of lots) {
     if (!lot.site_id) continue;
     const list = lotsBySite.get(lot.site_id) ?? [];
     list.push(lot);
