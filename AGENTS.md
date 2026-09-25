@@ -33,7 +33,7 @@ fdm-system/
 │   ├── dashboard-admin/        # User management, roles checklist & admin modals
 │   ├── dashboard-clients/      # Client management table, modals & dialogs
 │   ├── dashboard-layout/       # Dashboard shell (sidebar, top-bar, skeletons, page-container)
-│   ├── dashboard-overview/     # Dashboard quick links
+│   ├── dashboard-overview/     # Role-aware overview, record follow-ups, portfolio charts & quick links
 │   ├── dashboard-properties/   # Property lots table & subdivision map components
 │   ├── dashboard-settings/     # Dashboard settings forms
 │   ├── landing/                # Landing page components (navbar, hero, features)

@@ -33,51 +33,20 @@ function TitleSkeleton({ withSubtitle = true }: { withSubtitle?: boolean }) {
 export function DashboardSkeleton() {
   return (
     <LoadingRegion label="Loading dashboard…">
-      <div className="space-y-8">
-        {/* Welcome banner */}
-        <div className="rounded-2xl border border-border bg-card p-8">
-          <Skeleton className="h-8 w-72 max-w-full" />
-          <Skeleton className="mt-3 h-4 w-96 max-w-full" />
+      <div className="mx-auto w-full max-w-7xl space-y-6">
+        <TitleSkeleton />
+        <Card variant="prominent" padding="lg">
+          <Skeleton className="h-5 w-36" />
+          <Skeleton className="mt-4 h-9 w-96 max-w-full" />
+          <Skeleton className="mt-3 h-4 w-full max-w-xl" />
+        </Card>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }, (_, i) => <Card key={i} padding="default"><Skeleton className="h-4 w-32" /><Skeleton className="mt-4 h-9 w-20" /><Skeleton className="mt-3 h-3 w-40 max-w-full" /></Card>)}
         </div>
-
-        {/* Administration callout — present for system admins only, but the
-            fallback cannot know the role yet, so it reserves the space. */}
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-4 w-72 max-w-full" />
-          </div>
-          <Skeleton className="h-9 w-40 rounded-lg" />
+        <div className="grid gap-6 lg:grid-cols-2">
+          {Array.from({ length: 2 }, (_, i) => <Card key={i} padding="default"><Skeleton className="h-5 w-40" /><Skeleton className="mt-6 h-56 w-full" /></Card>)}
         </div>
-
-        <div className="space-y-6">
-          <Skeleton className="h-7 w-56" />
-
-          {/* Stats grid */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-3">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-8 w-12" />
-                  </div>
-                  <Skeleton className="h-12 w-12 rounded-lg" />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Quick links */}
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <Skeleton className="h-5 w-32" />
-            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 rounded-xl" />
-              ))}
-            </div>
-          </div>
-        </div>
+        <Card padding="default"><Skeleton className="h-5 w-40" /><Skeleton className="mt-4 h-20 w-full" /></Card>
       </div>
     </LoadingRegion>
   );

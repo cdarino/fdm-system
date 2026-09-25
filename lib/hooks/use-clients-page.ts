@@ -2,7 +2,8 @@
 
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useStatusFilter } from '@/lib/hooks/use-status-filter';
 import {
   getClients,
   getClientById,
@@ -44,7 +45,7 @@ import type {
   CreateClientLogInput,
 } from '@/lib/types/client';
 
-export type ClientStatusFilter = 'all' | 'Active' | 'Inactive' | 'Archived';
+export type ClientStatusFilter = 'all-records' | 'all' | 'Active' | 'Inactive' | 'Archived';
 
 /** Status that takes a client out of the working list. Set by `archiveClient`. */
 export const ARCHIVED_STATUS = 'Archived';
@@ -125,21 +126,35 @@ export function ClientsProvider({
   initialClients?: ClientListItem[];
 }) {
   const router = useRouter();
+  const requestedClient = useSearchParams().get('client');
   const [clients, setClients] = useState<ClientListItem[]>(initialClients);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeDialog, setActiveDialog] = useState<ClientDialog>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useStatusFilter<ClientStatusFilter>(['all', 'all-records', 'Active', 'Inactive', 'Archived'], 'all');
   const [missingDocumentAlerts, setMissingDocumentAlerts] = useState<ClientDocumentNotification[]>([]);
 
+  // Dashboard follow-ups can open any permitted record, even outside the first list page.
+  useEffect(() => {
+    if (!requestedClient) return;
+    let cancelled = false;
+    getClientById(requestedClient).then(client => {
+      if (!cancelled) setActiveDialog({ type: 'details', client: { ...client, latest_activity: null } });
+    }).catch(error => {
+      if (!cancelled) setError(error instanceof Error ? error.message : 'Could not open client record');
+    });
+    return () => { cancelled = true; };
+  }, [requestedClient]);
+
+
   /**
-   * Archived clients are held in the same list but shown only under their own
-   * tab. Every other tab, "All" included, hides them, so archiving takes a
-   * client out of the working view without hiding the record from the page.
+   * The working tabs exclude archived clients. The explicit All records tab
+   * includes them so the dashboard total opens the matching set of records.
    */
   const visibleClients = useMemo(() => {
     return clients.filter((client) => {
+      if (statusFilter === 'all-records') return matchesSearch(client, search);
       const isArchived = client.status === ARCHIVED_STATUS;
 
       if (statusFilter === 'Archived') {
@@ -156,7 +171,14 @@ export function ClientsProvider({
   }, [clients, search, statusFilter]);
 
   const openDialog = useCallback((dialog: ClientDialog) => setActiveDialog(dialog), []);
-  const closeDialog = useCallback(() => setActiveDialog(null), []);
+  const closeDialog = useCallback(() => {
+    setActiveDialog(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('client')) {
+      url.searchParams.delete('client');
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, []);
 
   const refreshClients = useCallback(async () => {
     setIsLoading(true);

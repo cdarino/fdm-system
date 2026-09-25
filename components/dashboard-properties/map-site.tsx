@@ -29,6 +29,7 @@ export interface SiteMapProps {
   onAddDraftPoint?: (point: [number, number]) => void;
   onDeletePlot?: (plot: { subdivisionId?: string; siteId: string; siteName: string; block: number; lot: number; status: string }) => void;
   focusedSiteId?: string | null;
+  preview?: boolean;
 }
 
 const SIDEBAR_WIDTH = 460;
@@ -72,6 +73,7 @@ export function SiteMap({
   onAddDraftPoint,
   onDeletePlot,
   focusedSiteId,
+  preview = false,
 }: SiteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hoveredLotKeyRef = useRef<string | null>(hoveredLotKey ?? null);
@@ -186,11 +188,11 @@ export function SiteMap({
         {
           padding: { top: 80, bottom: 80, left: 80, right: 80 },
           maxZoom: 17.5,
-          duration: 900,
+          duration: preview ? 0 : 900,
         }
       );
     },
-    [map]
+    [map, preview]
   );
 
   // Focus view when focusedSiteId prop changes
@@ -1016,7 +1018,7 @@ export function SiteMap({
       <div ref={containerRef} className="h-full w-full z-0" />
 
       {/* Floating map controls (top-right) */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col gap-1.5 shadow-md">
+      {!preview && <div className="absolute top-4 right-4 z-10 flex flex-col gap-1.5 shadow-md">
         <Button
           variant="outline"
           size="icon"
@@ -1037,10 +1039,10 @@ export function SiteMap({
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
-      </div>
+      </div>}
 
       {/* Map status indicators (bottom-right) */}
-      <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+      {!preview && <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
         {useOsmFallback && (
           <div className="flex items-center gap-1.5 rounded-full border border-warning bg-card px-2.5 py-1 text-xs text-warning shadow-md">
             <AlertTriangle className="h-3 w-3" />
@@ -1058,10 +1060,10 @@ export function SiteMap({
         <div className="rounded-full border border-border bg-card px-2.5 py-1 text-xs font-mono text-muted-foreground shadow-md">
           Zoom: {currentZoom.toFixed(1)}x
         </div>
-      </div>
+      </div>}
 
       {/* Loading overlay while requesting ArcGIS token */}
-      {isPending && (
+      {isPending && !preview && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground shadow-lg">
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
           <span>Connecting ArcGIS Satellite Imagery...</span>

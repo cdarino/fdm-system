@@ -92,21 +92,6 @@ export function useMapLibreMap(
     };
   }, [containerRef]);
 
-  const updatePadding = useCallback(
-    (padding: Partial<MapLibrePadding>) => {
-      if (!mapRef.current) return;
-      const full: MapLibrePadding = {
-        top: padding.top ?? 0,
-        bottom: padding.bottom ?? 0,
-        left: padding.left ?? 0,
-        right: padding.right ?? 0,
-      };
-      mapRef.current.setPadding(full);
-      mapRef.current.resize();
-    },
-    []
-  );
-
   const zoomIn = useCallback(() => {
     mapRef.current?.zoomIn({ duration: 250 });
   }, []);
@@ -120,7 +105,6 @@ export function useMapLibreMap(
     isReady,
     zoomIn,
     zoomOut,
-    updatePadding,
   };
 }
 
