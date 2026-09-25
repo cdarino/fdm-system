@@ -35,3 +35,17 @@ export async function requirePermission(permissionName: string): Promise<string>
 
   return user.id;
 }
+
+export async function requireAnyPermission(permissionNames: string[]): Promise<string> {
+  const user = await getUserInfo();
+  if (!user) {
+    throw new Error("Unauthorized: You must be logged in to perform this action.");
+  }
+
+  for (const name of permissionNames) {
+    const allowed = await hasPermission(name, user.id);
+    if (allowed) return user.id;
+  }
+
+  throw new Error(`Forbidden: You do not have any of the required permissions: ${permissionNames.join(", ")}`);
+}
