@@ -10,5 +10,6 @@
   //
   // Pin the editor to the workspace TypeScript so it matches `npm run build`.
   "typescript.tsdk": "node_modules/typescript/lib",
-  "typescript.enablePromptUseWorkspaceTsdk": true
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "antigravity.enableInlineDiff": false
 }

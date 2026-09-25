@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, createElement, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -9,28 +9,51 @@ import {
   createClient as createClientAction,
   updateClient as updateClientAction,
   deleteClient as deleteClientAction,
+  archiveClient as archiveClientAction,
+  unarchiveClient as unarchiveClientAction,
   addContactInfo as addContactInfoAction,
   updateContactInfo as updateContactInfoAction,
   deleteContactInfo as deleteContactInfoAction,
   createClientLog as createClientLogAction,
+  uploadClientDocument as uploadClientDocumentAction,
+  deleteClientDocument as deleteClientDocumentAction,
+  getClientDocumentUrl as getClientDocumentUrlAction,
+  getClientsWithMissingDocuments,
 } from '@/lib/actions/clients';
+import {
+  getPropertyLots,
+  assignPropertyClient,
+} from '@/lib/actions/properties';
+import {
+  indexEntityText,
+  searchDocumentText,
+  getEntityIndex,
+} from '@/lib/actions/search-index';
+import type { DocumentSearchHit } from '@/lib/types/search';
+import type { PropertyLot, PropertyLotWithClient } from '@/lib/types/property';
 import type {
   ClientListItem,
   ClientWithDetails,
   ContactInfo,
   ClientLog,
+  ClientDocument,
+  ClientDocumentNotification,
   CreateClientInput,
   UpdateClientInput,
   CreateContactInfoInput,
   CreateClientLogInput,
 } from '@/lib/types/client';
 
-export type ClientStatusFilter = 'all' | 'Active' | 'Inactive';
+export type ClientStatusFilter = 'all' | 'Active' | 'Inactive' | 'Archived';
+
+/** Status that takes a client out of the working list. Set by `archiveClient`. */
+export const ARCHIVED_STATUS = 'Archived';
 
 export type ClientDialog =
   | { type: 'create' }
   | { type: 'edit'; client: ClientListItem }
   | { type: 'delete'; client: ClientListItem }
+  | { type: 'archive'; client: ClientListItem }
   | { type: 'details'; client: ClientListItem }
   | null;
 
@@ -49,11 +72,25 @@ interface ClientsContextValue {
   createClient: (input: CreateClientInput) => Promise<void>;
   updateClient: (clientId: string, input: UpdateClientInput) => Promise<void>;
   deleteClient: (clientId: string) => Promise<void>;
+  archiveClient: (clientId: string) => Promise<void>;
+  restoreClient: (clientId: string) => Promise<void>;
   getClientDetails: (clientId: string) => Promise<ClientWithDetails>;
   addContact: (clientId: string, input: CreateContactInfoInput) => Promise<ContactInfo>;
   deleteContact: (clientId: string, contactId: string) => Promise<void>;
   setPrimaryContact: (clientId: string, contactId: string) => Promise<void>;
   addLog: (clientId: string, input: CreateClientLogInput) => Promise<ClientLog>;
+  uploadDocument: (clientId: string, formData: FormData) => Promise<ClientDocument>;
+  deleteDocument: (documentId: string) => Promise<void>;
+  getDocumentUrl: (documentId: string) => Promise<string>;
+  indexDocumentText: (documentId: string, content: string, keywords: string) => Promise<void>;
+  searchDocuments: (query: string) => Promise<DocumentSearchHit[]>;
+  getDocumentText: (documentId: string) => Promise<string | null>;
+  /** Clients whose required paperwork is incomplete, refreshed after uploads. */
+  missingDocumentAlerts: ClientDocumentNotification[];
+  refreshMissingDocumentAlerts: () => Promise<void>;
+  listUnassignedLots: () => Promise<PropertyLotWithClient[]>;
+  assignLot: (propertyId: string, clientId: string) => Promise<PropertyLot>;
+  unassignLot: (propertyId: string) => Promise<void>;
   refreshClients: () => Promise<void>;
 }
 
@@ -94,12 +131,27 @@ export function ClientsProvider({
   const [activeDialog, setActiveDialog] = useState<ClientDialog>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
+  const [missingDocumentAlerts, setMissingDocumentAlerts] = useState<ClientDocumentNotification[]>([]);
 
+  /**
+   * Archived clients are held in the same list but shown only under their own
+   * tab. Every other tab, "All" included, hides them, so archiving takes a
+   * client out of the working view without hiding the record from the page.
+   */
   const visibleClients = useMemo(() => {
     return clients.filter((client) => {
-      if (!matchesSearch(client, search)) return false;
-      if (statusFilter !== 'all' && client.status.toLowerCase() !== statusFilter.toLowerCase()) return false;
-      return true;
+      const isArchived = client.status === ARCHIVED_STATUS;
+
+      if (statusFilter === 'Archived') {
+        if (!isArchived) return false;
+      } else {
+        if (isArchived) return false;
+        if (statusFilter !== 'all' && client.status.toLowerCase() !== statusFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
+      return matchesSearch(client, search);
     });
   }, [clients, search, statusFilter]);
 
@@ -110,7 +162,14 @@ export function ClientsProvider({
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getClients({ limit: 200, sortBy: 'full_name', sortOrder: 'asc' });
+      // `includeArchived` fetches both sets in one query; `visibleClients`
+      // decides which of them the current tab shows.
+      const result = await getClients({
+        limit: 200,
+        sortBy: 'full_name',
+        sortOrder: 'asc',
+        includeArchived: true,
+      });
       setClients(result.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load clients');
@@ -141,6 +200,27 @@ export function ClientsProvider({
   const deleteClient = useCallback(async (clientId: string) => {
     await deleteClientAction(clientId);
     setClients((prev) => prev.filter((c) => c.client_id !== clientId));
+    router.refresh();
+  }, [router]);
+
+  /**
+   * Archive and restore both just move the client's status, so the row stays in
+   * state and changes which tab it belongs to. Dropping it from the list
+   * instead would leave the Archived tab empty until a refetch.
+   */
+  const archiveClient = useCallback(async (clientId: string) => {
+    const updated = await archiveClientAction(clientId);
+    setClients((prev) =>
+      prev.map((c) => (c.client_id === clientId ? { ...c, ...updated } : c))
+    );
+    router.refresh();
+  }, [router]);
+
+  const restoreClient = useCallback(async (clientId: string) => {
+    const updated = await unarchiveClientAction(clientId);
+    setClients((prev) =>
+      prev.map((c) => (c.client_id === clientId ? { ...c, ...updated } : c))
+    );
     router.refresh();
   }, [router]);
 
@@ -209,6 +289,85 @@ export function ClientsProvider({
     return created;
   }, []);
 
+  /**
+   * Documents live on the detail view rather than the list row, so these do not
+   * touch `clients` state. The modal owns the loaded document list and updates
+   * it from what these return.
+   */
+  const uploadDocument = useCallback(async (clientId: string, formData: FormData) => {
+    return await uploadClientDocumentAction(clientId, formData);
+  }, []);
+
+  const deleteDocument = useCallback(async (documentId: string) => {
+    await deleteClientDocumentAction(documentId);
+  }, []);
+
+  const getDocumentUrl = useCallback(async (documentId: string) => {
+    return await getClientDocumentUrlAction(documentId);
+  }, []);
+
+  const indexDocumentText = useCallback(
+    async (documentId: string, content: string, keywords: string) => {
+      await indexEntityText({
+        entity_id: documentId,
+        entity_type: 'client_document',
+        content,
+        keywords,
+      });
+    },
+    []
+  );
+
+  /**
+   * Lots with no client on them, which are the only ones offered when assigning
+   * from a client's profile. Taking a lot from another client is a different
+   * decision and belongs on the lots table, where the current owner is visible.
+   */
+  const searchDocuments = useCallback(async (query: string) => {
+    return await searchDocumentText(query);
+  }, []);
+
+  /**
+   * One query answers both surfaces: the warning marker on each affected client
+   * row, and the dialog listing everyone who needs chasing. Checking per row
+   * would be a query per client.
+   */
+  const refreshMissingDocumentAlerts = useCallback(async () => {
+    try {
+      setMissingDocumentAlerts(await getClientsWithMissingDocuments());
+    } catch (err) {
+      // A failed check must not take the clients page down with it; the markers
+      // simply do not appear.
+      console.error('Failed to load missing document alerts:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshMissingDocumentAlerts();
+  }, [refreshMissingDocumentAlerts]);
+
+  /** The full OCR text, as opposed to the excerpt a search result carries. */
+  const getDocumentText = useCallback(async (documentId: string) => {
+    const entry = await getEntityIndex('client_document', documentId);
+    return entry?.content ?? null;
+  }, []);
+
+  const listUnassignedLots = useCallback(async () => {
+    const result = await getPropertyLots({ limit: 200, sortBy: 'location', sortOrder: 'asc' });
+    return result.data.filter((lot) => !lot.client);
+  }, []);
+
+  const assignLot = useCallback(async (propertyId: string, clientId: string) => {
+    const updated = await assignPropertyClient(propertyId, clientId);
+    router.refresh();
+    return updated;
+  }, [router]);
+
+  const unassignLot = useCallback(async (propertyId: string) => {
+    await assignPropertyClient(propertyId, null);
+    router.refresh();
+  }, [router]);
+
   return createElement(
     ClientsContext.Provider,
     {
@@ -227,11 +386,24 @@ export function ClientsProvider({
         createClient,
         updateClient,
         deleteClient,
+        archiveClient,
+        restoreClient,
         getClientDetails,
         addContact,
         deleteContact,
         setPrimaryContact,
         addLog,
+        uploadDocument,
+        deleteDocument,
+        getDocumentUrl,
+        indexDocumentText,
+        searchDocuments,
+        getDocumentText,
+        missingDocumentAlerts,
+        refreshMissingDocumentAlerts,
+        listUnassignedLots,
+        assignLot,
+        unassignLot,
         refreshClients,
       },
     },

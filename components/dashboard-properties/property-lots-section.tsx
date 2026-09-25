@@ -5,7 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
-import { Plus, Search, X, LandPlot, SearchX, Map, ChevronDown, Check, Loader2, MoreHorizontal, FileDown } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  X,
+  LandPlot,
+  SearchX,
+  Map,
+  ChevronDown,
+  Check,
+  Loader2,
+  MoreHorizontal,
+  FileDown,
+  UserPlus,
+  UserMinus,
+} from 'lucide-react';
 import { getPropertyReportData } from '@/lib/actions/reports';
 import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
 import {
@@ -27,6 +41,7 @@ import {
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import { CreatePropertyLotModal } from './property-lot-create-modal';
+import { AssignLotClientDialog } from './property-lot-assign-dialog';
 import { PropertyRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import {
   PropertyLotsProvider,
@@ -129,6 +144,65 @@ function StatusMenu({ lot }: { lot: PropertyLotWithClient }) {
   );
 }
 
+function LotActionsMenu({ lot }: { lot: PropertyLotWithClient }) {
+  const { openDialog, unassignClient } = usePropertyLots();
+  const { state, execute } = useMutation(unassignClient);
+  const isPending = state.status === 'pending';
+
+  useEffect(() => {
+    if (state.status === 'error') {
+      toast.error(state.error);
+    }
+  }, [state]);
+
+  async function handleUnassign() {
+    const ok = await execute(lot.property_id);
+    if (ok) {
+      toast.success(`${lotLabel(lot)} unassigned`);
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild disabled={isPending}>
+        <Button
+          aria-label={`Actions for ${lotLabel(lot)}`}
+          size="icon"
+          variant="ghost"
+          className="opacity-70 hover:opacity-100"
+        >
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <MoreHorizontal className="h-4 w-4" />
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Client
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => openDialog({ type: 'assign', lot })}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          {lot.client ? 'Reassign client' : 'Assign client'}
+        </DropdownMenuItem>
+        {lot.client && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              void handleUnassign();
+            }}
+          >
+            <UserMinus className="h-4 w-4 mr-2" />
+            Unassign client
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 async function handleExportLotPdf(lot: PropertyLotWithClient) {
   try {
     const data = await getPropertyReportData(lot.property_id);
@@ -165,8 +239,11 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
           ? <span className="text-foreground">{lot.client.full_name}</span>
           : <span className="text-muted-foreground">Unassigned</span>}
       </TableCell>
-      <TableCell className="py-4 px-3">
-        <StatusMenu lot={lot} />
+      <TableCell className={`py-4 px-3 ${GUTTER_R}`}>
+        <div className="flex items-center justify-end gap-1">
+          <StatusMenu lot={lot} />
+          <LotActionsMenu lot={lot} />
+        </div>
       </TableCell>
       <TableCell className={`py-4 pl-3 ${GUTTER_R} text-right`} onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
@@ -417,6 +494,9 @@ function PropertyLotsContent() {
       </Card>
 
       {renderedDialog?.type === 'create' && <CreatePropertyLotModal open={activeDialog !== null} sites={sites} />}
+      {renderedDialog?.type === 'assign' && (
+        <AssignLotClientDialog lot={renderedDialog.lot} open={activeDialog !== null} />
+      )}
     </>
   );
 }

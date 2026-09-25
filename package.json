@@ -6,7 +6,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.ts",
+    "seed:baseline": "tsx --env-file=.env.local scripts/seed-baseline.ts",
+    "seed:admin": "npm run seed:baseline",
+    "seed:dev": "tsx --env-file=.env.local scripts/seed-dev.ts",
+    "seed:production": "vercel env pull .env.production.local --environment=production --yes && tsx --env-file=.env.production.local scripts/seed-production.ts",
     "seed:sample-site": "tsx --env-file=.env.local scripts/seed-sample-site.ts",
     "seed:sample-site:clear": "tsx --env-file=.env.local scripts/seed-sample-site.ts --clear",
     "test:e2e": "vitest run",
@@ -34,12 +37,14 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.3.0",
+    "dotenv": "^18.0.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.511.0",
     "maplibre-gl": "^6.10.0",
     "next": "latest",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "^6.3.289",
     "radix-ui": "^1.6.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -48,6 +53,7 @@
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.3.0",
+    "tesseract.js": "^7.0.0",
     "tsx": "^4.23.12",
     "zod": "^4.6.4"
   },
@@ -65,6 +71,7 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
+    "vercel": "^59.25.0",
     "vitest": "^3.2.7"
   }
 }

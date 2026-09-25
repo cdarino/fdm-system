@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,10 @@ import {
   MoreHorizontal,
   Activity,
   Edit3,
+  Archive,
+  ArchiveRestore,
+  FileSearch,
+  ShieldAlert,
   Trash2,
   Copy,
   Check,
@@ -47,12 +51,17 @@ import { cn } from '@/lib/utils';
 import {
   ClientsProvider,
   useClients,
+  ARCHIVED_STATUS,
   type ClientStatusFilter,
 } from '@/lib/hooks/use-clients-page';
+import { useMutation } from '@/lib/hooks/use-mutation';
 import { formatActivityTime } from '@/lib/format-activity-time';
 import { CreateClientModal } from './client-create-modal';
 import { EditClientModal } from './client-edit-modal';
 import { DeleteClientDialog } from './client-delete-dialog';
+import { ArchiveClientDialog } from './client-archive-dialog';
+import { DocumentSearchDialog } from './document-search-dialog';
+import { MissingDocumentsDialog } from './missing-documents-dialog';
 import { ClientDetailsModal } from './client-details-modal';
 import { ClientCompactRow, ClientStatusPill } from './client-compact-row';
 import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
@@ -75,6 +84,7 @@ function StatusTabs({
     { value: 'all', label: 'All' },
     { value: 'Active', label: 'Active' },
     { value: 'Inactive', label: 'Inactive' },
+    { value: 'Archived', label: 'Archived' },
   ];
 
   return (
@@ -243,7 +253,24 @@ function EmptyState({
 }
 
 function ClientRow({ client }: { client: ClientListItem }) {
-  const { openDialog } = useClients();
+  const { openDialog, restoreClient, missingDocumentAlerts } = useClients();
+  const missingDocs = missingDocumentAlerts.find(
+    (alert) => alert.client_id === client.client_id
+  );
+  const { state: restoreState, execute: runRestore } = useMutation(restoreClient);
+  const isArchived = client.status === ARCHIVED_STATUS;
+  const isRestoring = restoreState.status === 'pending';
+
+  useEffect(() => {
+    if (restoreState.status === 'error') {
+      toast.error(restoreState.error);
+    }
+  }, [restoreState]);
+
+  async function handleRestore() {
+    const ok = await runRestore(client.client_id);
+    if (ok) toast.success(`${client.full_name} restored`);
+  }
 
   return (
     <TableRow
@@ -257,7 +284,20 @@ function ClientRow({ client }: { client: ClientListItem }) {
             <UserRound className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
+              {missingDocs && (
+                <span
+                  title={`Missing: ${missingDocs.missing_documents.join(', ')}`}
+                  className="shrink-0"
+                >
+                  <ShieldAlert
+                    className="h-3.5 w-3.5 text-destructive"
+                    aria-label={`Incomplete file, missing ${missingDocs.missing_documents.join(', ')}`}
+                  />
+                </span>
+              )}
+            </div>
             <p className="truncate text-xs text-muted-foreground">
               {client.address || 'No address recorded'}
             </p>
@@ -335,6 +375,23 @@ function ClientRow({ client }: { client: ClientListItem }) {
               Edit client
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            {isArchived ? (
+              <DropdownMenuItem
+                disabled={isRestoring}
+                onSelect={(e) => {
+                  e.preventDefault();
+                  void handleRestore();
+                }}
+              >
+                <ArchiveRestore className="h-4 w-4 mr-2" />
+                Restore client
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={() => openDialog({ type: 'archive', client })}>
+                <Archive className="h-4 w-4 mr-2" />
+                Archive client
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onSelect={() => openDialog({ type: 'delete', client })}
@@ -361,16 +418,34 @@ function ClientsContent() {
     setStatusFilter,
     activeDialog,
     openDialog,
+    missingDocumentAlerts,
   } = useClients();
+
+  const [isDocumentSearchOpen, setIsDocumentSearchOpen] = useState(false);
+  const [isMissingDocsOpen, setIsMissingDocsOpen] = useState(false);
 
   const [viewMode, setViewMode] = useState<'standard' | 'compact'>('standard');
 
   const isFiltered = search.trim() !== '' || statusFilter !== 'all';
 
+  /**
+   * Denominator for the footer: the set the current tab draws from, not every
+   * loaded row. On the Archived tab that is the archived clients; everywhere
+   * else it is the working list, which excludes them.
+   */
+  const tabTotal =
+    statusFilter === 'Archived'
+      ? clients.filter((c) => c.status === ARCHIVED_STATUS).length
+      : clients.filter((c) => c.status !== ARCHIVED_STATUS).length;
+
+  // Archived clients are excluded from every count except their own, so "All"
+  // keeps meaning the working list rather than every row ever created.
+  const active = clients.filter((c) => c.status !== ARCHIVED_STATUS);
   const counts: Record<ClientStatusFilter, number> = {
-    all: clients.length,
-    Active: clients.filter((c) => c.status.toLowerCase() === 'active').length,
-    Inactive: clients.filter((c) => c.status.toLowerCase() === 'inactive').length,
+    all: active.length,
+    Active: active.filter((c) => c.status.toLowerCase() === 'active').length,
+    Inactive: active.filter((c) => c.status.toLowerCase() === 'inactive').length,
+    Archived: clients.length - active.length,
   };
 
   function clearFilters() {
@@ -391,13 +466,34 @@ function ClientsContent() {
               Manage client records, contact information, and activity history.
             </p>
           </div>
-          <Button
-            onClick={() => openDialog({ type: 'create' })}
-            className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
-          >
-            <Plus className="h-4 w-4" />
-            New Client
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {missingDocumentAlerts.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setIsMissingDocsOpen(true)}
+                className="gap-2 border-destructive bg-card text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_8%,white)] hover:text-destructive"
+              >
+                <ShieldAlert className="h-4 w-4" />
+                {missingDocumentAlerts.length} incomplete
+                {missingDocumentAlerts.length === 1 ? ' file' : ' files'}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => setIsDocumentSearchOpen(true)}
+              className="gap-2 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
+            >
+              <FileSearch className="h-4 w-4" />
+              Search documents
+            </Button>
+            <Button
+              onClick={() => openDialog({ type: 'create' })}
+              className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+            >
+              <Plus className="h-4 w-4" />
+              New Client
+            </Button>
+          </div>
         </div>
 
         {/* Filters and search */}
@@ -539,8 +635,8 @@ function ClientsContent() {
               {isLoading
                 ? 'Loading clients…'
                 : isFiltered
-                  ? `Showing ${visibleClients.length} of ${clients.length} client${clients.length === 1 ? '' : 's'}`
-                  : `${clients.length} client${clients.length === 1 ? '' : 's'}`}
+                  ? `Showing ${visibleClients.length} of ${tabTotal} client${tabTotal === 1 ? '' : 's'}`
+                  : `${tabTotal} client${tabTotal === 1 ? '' : 's'}`}
             </p>
           </div>
         )}
@@ -550,6 +646,9 @@ function ClientsContent() {
       {activeDialog?.type === 'create' && <CreateClientModal open={true} />}
       {activeDialog?.type === 'edit' && <EditClientModal client={activeDialog.client} open={true} />}
       {activeDialog?.type === 'delete' && <DeleteClientDialog client={activeDialog.client} open={true} />}
+      {activeDialog?.type === 'archive' && <ArchiveClientDialog client={activeDialog.client} open={true} />}
+      <DocumentSearchDialog open={isDocumentSearchOpen} onOpenChange={setIsDocumentSearchOpen} />
+      <MissingDocumentsDialog open={isMissingDocsOpen} onOpenChange={setIsMissingDocsOpen} />
       {activeDialog?.type === 'details' && <ClientDetailsModal client={activeDialog.client} open={true} />}
     </>
   );
