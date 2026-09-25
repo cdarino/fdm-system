@@ -66,23 +66,6 @@ export function ringCentroid(ring: Ring): Point {
   return [(minX + maxX) / 2, (minY + maxY) / 2];
 }
 
-/**
- * Area enclosed by a ring, via the shoelace formula.
- *
- * Absolute value, so winding order does not matter. Because the local space is
- * metres, this comes out in square metres and can be compared directly against
- * `property_lot.area_size` — which is how a mis-drawn lot gets caught.
- */
-export function ringArea(ring: Ring): number {
-  let twiceArea = 0;
-  for (let i = 0; i < ring.length; i++) {
-    const [x1, y1] = ring[i];
-    const [x2, y2] = ring[(i + 1) % ring.length];
-    twiceArea += x1 * y2 - x2 * y1;
-  }
-  return Math.abs(twiceArea) / 2;
-}
-
 export function calculatePolygonAreaSqm(points: readonly [number, number][]): number {
   if (points.length < 3) return 0;
   // Project [lng, lat] coordinates to local metric space around initial vertex

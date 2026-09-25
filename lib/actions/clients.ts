@@ -521,33 +521,6 @@ export async function createClientDocument(
   return data;
 }
 
-export async function getClientDocuments(
-  clientId: string,
-  params?: { category?: DocType }
-): Promise<ClientDocument[]> {
-  await requirePermission("clients.read");
-  const supabase = await createSupabaseServerClient();
-
-  let query = supabase
-    .from("client_document")
-    .select("*")
-    .eq("client_id", clientId);
-
-  if (params?.category) {
-    query = query.eq("document_type", params.category);
-  }
-
-  const { data, error } = await query
-    .order("uploaded_at", { ascending: false })
-    .returns<ClientDocument[]>();
-
-  if (error) {
-    throw new Error(`Failed to fetch client documents: ${error.message}`);
-  }
-
-  return data ?? [];
-}
-
 export async function deleteClientDocument(documentId: string): Promise<void> {
   await requirePermission("clients.update");
   const supabase = await createSupabaseServerClient();

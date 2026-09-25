@@ -3,6 +3,7 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { useStatusFilter } from '@/lib/hooks/use-status-filter';
 import {
   getPropertyLots,
   createPropertyLot,
@@ -88,7 +89,7 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
   const [error, setError] = useState<string | null>(null);
   const [activeDialog, setActiveDialog] = useState<PropertyDialog>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useStatusFilter<StatusFilter>(['all', 'Open', 'Reserved', 'Sold', 'Forfeited'], 'all');
 
   const visibleLots = useMemo(() => {
     return lots.filter((lot) => {

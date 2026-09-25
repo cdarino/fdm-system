@@ -81,7 +81,8 @@ function StatusTabs({
   counts: Record<ClientStatusFilter, number>;
 }) {
   const tabs: { value: ClientStatusFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
+    { value: 'all', label: 'Current' },
+    { value: 'all-records', label: 'All records' },
     { value: 'Active', label: 'Active' },
     { value: 'Inactive', label: 'Inactive' },
     { value: 'Archived', label: 'Archived' },
@@ -91,7 +92,7 @@ function StatusTabs({
     <div
       role="group"
       aria-label="Filter clients by status"
-      className="inline-flex items-center gap-1 rounded-lg bg-row-hover p-1"
+      className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1"
     >
       {tabs.map((tab) => {
         const isActive = value === tab.value;
@@ -429,19 +430,18 @@ function ClientsContent() {
 
   /**
    * Denominator for the footer: the set the current tab draws from, not every
-   * loaded row. On the Archived tab that is the archived clients; everywhere
-   * else it is the working list, which excludes them.
+   * loaded row. All records includes archives; Current excludes them.
    */
-  const tabTotal =
+  const tabTotal = statusFilter === 'all-records' ? clients.length :
     statusFilter === 'Archived'
       ? clients.filter((c) => c.status === ARCHIVED_STATUS).length
       : clients.filter((c) => c.status !== ARCHIVED_STATUS).length;
 
-  // Archived clients are excluded from every count except their own, so "All"
-  // keeps meaning the working list rather than every row ever created.
+  // Current clients exclude archives; All records matches the dashboard total.
   const active = clients.filter((c) => c.status !== ARCHIVED_STATUS);
   const counts: Record<ClientStatusFilter, number> = {
     all: active.length,
+    'all-records': clients.length,
     Active: active.filter((c) => c.status.toLowerCase() === 'active').length,
     Inactive: active.filter((c) => c.status.toLowerCase() === 'inactive').length,
     Archived: clients.length - active.length,

@@ -1,113 +1,15 @@
-'use client';
-
-import { useState } from 'react';
 import Link from 'next/link';
-import { ComingSoonModal } from '@/components/dashboard-layout/coming-soon-modal';
+import { ArrowUpRight, LandPlot, Users, Settings, ShieldCheck } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
-interface QuickLinksProps {
-  /**
-   * Whether the signed-in user holds `properties.read`.
-   *
-   * Without it the Property Lots page redirects straight back to the dashboard,
-   * so the tile is hidden rather than offered and then refused — matching how
-   * the sidebar hides role sections and the overview hides stats.
-   */
-  canViewProperties?: boolean;
-  labels?: {
-    viewProperties?: string;
-    viewReports?: string;
-    settings?: string;
-    helpAndSupport?: string;
-  };
-}
-
-interface QuickLink {
-  key: string;
-  label: string;
-  className: string;
-  /** Omitted while the destination does not exist; the tile then explains itself. */
-  href?: string;
-  hidden?: boolean;
-}
-
-const ACCENT_TILE =
-  'bg-sidebar-accent hover:bg-[color-mix(in_srgb,var(--primary)_20%,white)] text-accent-blue-foreground';
-const GOLD_TILE =
-  'bg-chart-4 hover:bg-[color-mix(in_srgb,var(--secondary)_20%,white)] text-accent-gold-foreground';
-const MUTED_TILE = 'bg-muted hover:bg-border text-muted-foreground';
-
-export function QuickLinks({
-  canViewProperties = false,
-  labels = {
-    viewProperties: 'View Properties',
-    viewReports: 'View Reports',
-    settings: 'Settings',
-    helpAndSupport: 'Help & Support',
-  },
-}: QuickLinksProps) {
-  const [modalState, setModalState] = useState<{ isOpen: boolean; title: string }>({
-    isOpen: false,
-    title: 'Coming Soon!',
-  });
-
-  const handleComingSoon = (title: string) => {
-    setModalState({ isOpen: true, title });
-  };
-
-  const links: QuickLink[] = [
-    {
-      key: 'viewProperties',
-      label: labels.viewProperties ?? 'View Properties',
-      className: ACCENT_TILE,
-      href: '/dashboard/properties',
-      hidden: !canViewProperties,
-    },
-    {
-      key: 'viewReports',
-      label: labels.viewReports ?? 'View Reports',
-      className: GOLD_TILE,
-    },
-    {
-      key: 'settings',
-      label: labels.settings ?? 'Settings',
-      className: MUTED_TILE,
-      href: '/dashboard/settings',
-    },
-    {
-      key: 'helpAndSupport',
-      label: labels.helpAndSupport ?? 'Help & Support',
-      className: MUTED_TILE,
-    },
-  ];
-
-  const visible = links.filter((link) => !link.hidden);
-
-  return (
-    <>
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <h3 className="mb-4 text-lg font-bold text-foreground">Quick Links</h3>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {visible.map((link) => {
-            const tile = `flex items-center justify-center rounded-lg p-4 text-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${link.className}`;
-
-            return link.href ? (
-              <Link key={link.key} href={link.href} className={tile}>
-                {link.label}
-              </Link>
-            ) : (
-              <button key={link.key} onClick={() => handleComingSoon(link.label)} className={tile}>
-                {link.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <ComingSoonModal
-        isOpen={modalState.isOpen}
-        onClose={() => setModalState({ ...modalState, isOpen: false })}
-        title={modalState.title}
-      />
-    </>
-  );
+export function QuickLinks({ canViewProperties, canViewClients, isSystemAdmin }: { canViewProperties: boolean; canViewClients: boolean; isSystemAdmin: boolean }) {
+  const links = [
+    { label: 'Client directory', detail: 'Profiles, documents & activity', href: '/dashboard/clients', icon: Users, visible: canViewClients },
+    { label: 'Property map', detail: 'Locate lots & review assignments', href: '/dashboard/properties/map', icon: LandPlot, visible: canViewProperties },
+    { label: 'User management', detail: 'Team members & access', href: '/dashboard/admin', icon: ShieldCheck, visible: isSystemAdmin },
+    { label: 'Account settings', detail: 'Manage your password', href: '/dashboard/settings', icon: Settings, visible: true },
+  ].filter(link => link.visible);
+  return <Card><CardHeader><CardTitle>Your workspace</CardTitle><CardDescription>Go straight to the tools you need</CardDescription></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    {links.map(({ icon: Icon, ...link }) => <Link key={link.href} href={link.href} className="group flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><div className="rounded-lg bg-sidebar-accent p-2 text-accent-blue-foreground"><Icon className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{link.label}</p><p className="mt-1 text-xs text-muted-foreground">{link.detail}</p></div><ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" /></Link>)}
+  </CardContent></Card>;
 }
