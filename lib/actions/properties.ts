@@ -15,7 +15,7 @@ import type {
   GetPropertyLotsParams,
 } from "@/lib/types/property";
 
-interface RawPartyRow {
+export interface RawPartyRow {
   account_id: string;
   client_id: string;
   role: string;
@@ -25,7 +25,7 @@ interface RawPartyRow {
   client: { client_id: string; full_name: string; status: string; address: string | null } | null;
 }
 
-interface RawLedgerRow {
+export interface RawLedgerRow {
   account_id: string;
   property_id: string;
   status: "Active" | "Matured" | "Delinquent" | "Cancelled";
@@ -36,11 +36,33 @@ interface RawLedgerRow {
   parties: RawPartyRow[];
 }
 
-interface RawLotRow extends PropertyLot {
+export interface RawLotRow extends PropertyLot {
   ledger_accounts?: RawLedgerRow[];
 }
 
-function mapLotWithAccount(lot: RawLotRow): PropertyLotWithClient {
+export const LOT_WITH_CLIENT_SELECT = `
+  *,
+  ledger_accounts:ledger_account(
+    account_id,
+    property_id,
+    status,
+    total_contract_price,
+    remaining_balance,
+    created_at,
+    updated_at,
+    parties:account_party(
+      account_id,
+      client_id,
+      role,
+      ownership_percentage,
+      is_primary,
+      created_at,
+      client:client_id(client_id, full_name, status, address)
+    )
+  )
+`;
+
+export function mapLotWithAccount(lot: RawLotRow): PropertyLotWithClient {
   const activeAccount = lot.ledger_accounts?.find((a) => a.status === "Active") ?? null;
   const primaryParty = activeAccount?.parties?.find((p) => p.is_primary) ?? activeAccount?.parties?.[0] ?? null;
 
@@ -75,30 +97,7 @@ export async function getPropertyLots(
 
   let query = supabase
     .from("property_lot")
-    .select(
-      `
-      *,
-      ledger_accounts:ledger_account(
-        account_id,
-        property_id,
-        status,
-        total_contract_price,
-        remaining_balance,
-        created_at,
-        updated_at,
-        parties:account_party(
-          account_id,
-          client_id,
-          role,
-          ownership_percentage,
-          is_primary,
-          created_at,
-          client:client_id(client_id, full_name, status, address)
-        )
-      )
-    `,
-      { count: "exact" }
-    );
+    .select(LOT_WITH_CLIENT_SELECT, { count: "exact" });
 
   if (params?.search?.trim()) {
     query = query.ilike("location", `%${params.search.trim()}%`);
@@ -167,29 +166,7 @@ export async function getPropertyLotById(
 
   const { data, error } = await supabase
     .from("property_lot")
-    .select(
-      `
-      *,
-      ledger_accounts:ledger_account(
-        account_id,
-        property_id,
-        status,
-        total_contract_price,
-        remaining_balance,
-        created_at,
-        updated_at,
-        parties:account_party(
-          account_id,
-          client_id,
-          role,
-          ownership_percentage,
-          is_primary,
-          created_at,
-          client:client_id(client_id, full_name, status, address)
-        )
-      )
-    `
-    )
+    .select(LOT_WITH_CLIENT_SELECT)
     .eq("property_id", propertyId)
     .single<RawLotRow>();
 
