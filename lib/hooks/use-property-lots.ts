@@ -10,7 +10,9 @@ import {
   updatePropertyLot,
   assignPropertyClient,
 } from '@/lib/actions/properties';
+import type { ActionResult } from '@/lib/actions/action-result';
 import type {
+  PropertyLot,
   PropertyLotWithClient,
   PropertyStatus,
   CreatePropertyLotInput,
@@ -42,11 +44,11 @@ interface PropertyLotsContextValue {
   setStatusFilter: (status: StatusFilter) => void;
   openDialog: (dialog: PropertyDialog) => void;
   closeDialog: () => void;
-  createLot: (input: CreatePropertyLotInput) => Promise<void>;
-  updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<void>;
-  updateLot: (propertyId: string, input: UpdatePropertyLotInput) => Promise<void>;
-  assignClient: (propertyId: string, clientId: string | null, status?: PropertyStatus) => Promise<PropertyLotWithClient>;
-  unassignClient: (propertyId: string) => Promise<void>;
+  createLot: (input: CreatePropertyLotInput) => Promise<ActionResult<PropertyLot>>;
+  updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<ActionResult<PropertyLot>>;
+  updateLot: (propertyId: string, input: UpdatePropertyLotInput) => Promise<ActionResult<PropertyLot>>;
+  assignClient: (propertyId: string, clientId: string | null, status?: PropertyStatus) => Promise<ActionResult<PropertyLotWithClient>>;
+  unassignClient: (propertyId: string) => Promise<ActionResult<PropertyLotWithClient>>;
   sites: Site[];
 }
 
@@ -110,44 +112,55 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
   const closeDialog = useCallback(() => setActiveDialog(null), []);
 
   const createLot = useCallback(
-    async (input: CreatePropertyLotInput): Promise<void> => {
-      const created = await createPropertyLot(input);
+    async (input: CreatePropertyLotInput): Promise<ActionResult<PropertyLot>> => {
+      const result = await createPropertyLot(input);
+      if (!result.success) return result;
+      const created = result.data;
       setLots((prev) => [{ ...created, client: null }, ...prev]);
       router.refresh();
+      return result;
     },
     [router],
   );
 
   const updateLotStatus = useCallback(
-    async (propertyId: string, status: PropertyStatus): Promise<void> => {
-      const updated = await updatePropertyLot(propertyId, { status });
+    async (propertyId: string, status: PropertyStatus): Promise<ActionResult<PropertyLot>> => {
+      const result = await updatePropertyLot(propertyId, { status });
+      if (!result.success) return result;
+      const updated = result.data;
       setLots((prev) =>
         prev.map((lot) => (lot.property_id === propertyId ? { ...lot, ...updated } : lot)),
       );
       router.refresh();
+      return result;
     },
     [router],
   );
 
   const updateLot = useCallback(
-    async (propertyId: string, input: UpdatePropertyLotInput): Promise<void> => {
-      const updated = await updatePropertyLot(propertyId, input);
+    async (propertyId: string, input: UpdatePropertyLotInput): Promise<ActionResult<PropertyLot>> => {
+      const result = await updatePropertyLot(propertyId, input);
+      if (!result.success) return result;
+      const updated = result.data;
       setLots((prev) =>
         prev.map((lot) => (lot.property_id === propertyId ? { ...lot, ...updated } : lot)),
       );
       router.refresh();
+      return result;
     },
     [router],
   );
 
   const assignClient = useCallback(
-    async (propertyId: string, clientId: string | null, status?: PropertyStatus): Promise<PropertyLotWithClient> => {
-      const updated = await assignPropertyClient(propertyId, clientId, status);
+    async (propertyId: string, clientId: string | null, status?: PropertyStatus): Promise<ActionResult<PropertyLotWithClient>> => {
+      const result = await assignPropertyClient(propertyId, clientId, status);
+      if (!result.success) return result;
+      const updated = result.data;
       setLots((prev) =>
         prev.map((lot) => (lot.property_id === propertyId ? updated : lot)),
       );
       router.refresh();
-      return updated;
+      return result;
     },
     [router],
   );
@@ -157,10 +170,13 @@ export function PropertyLotsProvider({ children, sites }: { children: ReactNode;
    * payment history of a withdrawn sale survives. The lot returns to Open.
    */
   const unassignClient = useCallback(
-    async (propertyId: string): Promise<void> => {
-      const updated = await assignPropertyClient(propertyId, null);
+    async (propertyId: string): Promise<ActionResult<PropertyLotWithClient>> => {
+      const result = await assignPropertyClient(propertyId, null);
+      if (!result.success) return result;
+      const updated = result.data;
       setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
       router.refresh();
+      return result;
     },
     [router],
   );

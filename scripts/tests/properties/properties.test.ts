@@ -16,6 +16,7 @@ import {
   getTestAdminClient,
   runTrackedCleanups,
 } from "../framework/session";
+import { unwrap } from "../framework/action-helper";
 
 describe("Property Lot Management Actions", () => {
   const testPropertyIds: string[] = [];
@@ -59,13 +60,13 @@ describe("Property Lot Management Actions", () => {
     const areaSize = faker.number.float({ min: 100, max: 500, fractionDigits: 1 });
     const pricePerSqm = faker.number.int({ min: 8000, max: 25000 });
 
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: subdivision,
       block_number: blockNum,
       lot_number: lotNum,
       area_size: areaSize,
       price_per_sqm: pricePerSqm,
-    });
+    }));
 
     expect(lot.property_id).toBeDefined();
     expect(lot.location).toBe(subdivision);
@@ -83,45 +84,44 @@ describe("Property Lot Management Actions", () => {
     const blockNum = faker.number.int({ min: 100, max: 999 });
     const lotNum = faker.number.int({ min: 1, max: 50 });
 
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: locationName,
       block_number: blockNum,
       lot_number: lotNum,
       area_size: 200,
       price_per_sqm: 15000,
-    });
+    }));
     testPropertyIds.push(lot.property_id);
 
     // Attempt to create identical block and lot at same location
-    await expect(
-      createPropertyLot({
-        location: locationName,
-        block_number: blockNum,
-        lot_number: lotNum,
-        area_size: 220,
-        price_per_sqm: 16000,
-      })
-    ).rejects.toThrow();
+    const dupRes = await createPropertyLot({
+      location: locationName,
+      block_number: blockNum,
+      lot_number: lotNum,
+      area_size: 220,
+      price_per_sqm: 16000,
+    });
+    expect(dupRes.success).toBe(false);
   });
 
   it("getPropertyLots filters by location search, status, and block/lot", async () => {
     const uniqueLoc = `Search Hills ${Date.now()}`;
-    const lot1 = await createPropertyLot({
+    const lot1 = unwrap(await createPropertyLot({
       location: uniqueLoc,
       block_number: 10,
       lot_number: 1,
       area_size: 120,
       price_per_sqm: 8000,
       status: "Open",
-    });
-    const lot2 = await createPropertyLot({
+    }));
+    const lot2 = unwrap(await createPropertyLot({
       location: uniqueLoc,
       block_number: 10,
       lot_number: 2,
       area_size: 140,
       price_per_sqm: 8000,
       status: "Sold",
-    });
+    }));
     testPropertyIds.push(lot1.property_id, lot2.property_id);
 
     // Filter by search/location
@@ -145,20 +145,20 @@ describe("Property Lot Management Actions", () => {
 
   it("updatePropertyLot modifies property dimensions and price", async () => {
     const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: "Update Estate",
       block_number: blockNum,
       lot_number: 8,
       area_size: 150,
       price_per_sqm: 10000,
-    });
+    }));
     testPropertyIds.push(lot.property_id);
 
-    const updated = await updatePropertyLot(lot.property_id, {
+    const updated = unwrap(await updatePropertyLot(lot.property_id, {
       area_size: 175.25,
       price_per_sqm: 11200,
       status: "Reserved",
-    });
+    }));
 
     expect(Number(updated.area_size)).toBe(175.25);
     expect(Number(updated.price_per_sqm)).toBe(11200);
@@ -167,21 +167,21 @@ describe("Property Lot Management Actions", () => {
 
   it("assignPropertyClient assigns lot to client with default Reserved status", async () => {
     const clientName = faker.person.fullName();
-    const client = await createClient({ full_name: clientName });
+    const client = unwrap(await createClient({ full_name: clientName }));
     testClientIds.push(client.client_id);
 
     const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: "Assignment Palms",
       block_number: blockNum,
       lot_number: 3,
       area_size: 160,
       price_per_sqm: 11000,
-    });
+    }));
     testPropertyIds.push(lot.property_id);
 
     // Assign client without explicit status -> should default to Reserved
-    const assigned = await assignPropertyClient(lot.property_id, client.client_id);
+    const assigned = unwrap(await assignPropertyClient(lot.property_id, client.client_id));
     expect(assigned.client_id).toBe(client.client_id);
     expect(assigned.status).toBe("Reserved");
 
@@ -192,62 +192,62 @@ describe("Property Lot Management Actions", () => {
   });
 
   it("assignPropertyClient updates status to Sold when explicitly specified", async () => {
-    const client = await createClient({ full_name: faker.person.fullName() });
+    const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client.client_id);
 
     const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: "Closing Palms",
       block_number: blockNum,
       lot_number: 4,
       area_size: 160,
       price_per_sqm: 11000,
-    });
+    }));
     testPropertyIds.push(lot.property_id);
 
-    const soldLot = await assignPropertyClient(lot.property_id, client.client_id, "Sold");
+    const soldLot = unwrap(await assignPropertyClient(lot.property_id, client.client_id, "Sold"));
     expect(soldLot.client_id).toBe(client.client_id);
     expect(soldLot.status).toBe("Sold");
   });
 
   it("assignPropertyClient clears client and resets status to Open", async () => {
-    const client = await createClient({ full_name: faker.person.fullName() });
+    const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client.client_id);
 
     const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: "Reset Estate",
       block_number: blockNum,
       lot_number: 7,
       area_size: 190,
       price_per_sqm: 9500,
       status: "Open",
-    });
+    }));
     testPropertyIds.push(lot.property_id);
 
     // Assign client first
-    await assignPropertyClient(lot.property_id, client.client_id);
+    unwrap(await assignPropertyClient(lot.property_id, client.client_id));
 
     // Unassign client -> should default to Open
-    const cleared = await assignPropertyClient(lot.property_id, null);
+    const cleared = unwrap(await assignPropertyClient(lot.property_id, null));
     expect(cleared.client_id).toBeNull();
     expect(cleared.status).toBe("Open");
     expect(cleared.active_account).toBeNull();
   });
 
   it("assignPropertyParties supports multiple co-owners on a single lot", async () => {
-    const client1 = await createClient({ full_name: faker.person.fullName() });
-    const client2 = await createClient({ full_name: faker.person.fullName() });
+    const client1 = unwrap(await createClient({ full_name: faker.person.fullName() }));
+    const client2 = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client1.client_id, client2.client_id);
 
     const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: "Co-Ownership Estates",
       block_number: blockNum,
       lot_number: 12,
       area_size: 200,
       price_per_sqm: 10000,
-    });
+    }));
     testPropertyIds.push(lot.property_id);
 
     const assigned = await assignPropertyParties(
@@ -269,20 +269,20 @@ describe("Property Lot Management Actions", () => {
   });
 
   it("database enforces single active ledger per lot preventing double-selling", async () => {
-    const client1 = await createClient({ full_name: faker.person.fullName() });
+    const client1 = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client1.client_id);
 
     const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: "Double Sell Prevention Park",
       block_number: blockNum,
       lot_number: 15,
       area_size: 150,
       price_per_sqm: 12000,
-    });
+    }));
     testPropertyIds.push(lot.property_id);
 
-    await assignPropertyClient(lot.property_id, client1.client_id, "Sold");
+    unwrap(await assignPropertyClient(lot.property_id, client1.client_id, "Sold"));
 
     // Direct database attempt to insert a second active ledger for the same lot
     const adminClient = getTestAdminClient();
@@ -300,17 +300,18 @@ describe("Property Lot Management Actions", () => {
 
   it("deletePropertyLot removes lot from database", async () => {
     const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = await createPropertyLot({
+    const lot = unwrap(await createPropertyLot({
       location: "Delete Estate",
       block_number: blockNum,
       lot_number: 99,
       area_size: 210,
       price_per_sqm: 13000,
-    });
+    }));
 
-    await deletePropertyLot(lot.property_id);
+    unwrap(await deletePropertyLot(lot.property_id));
 
     await expect(getPropertyLotById(lot.property_id)).rejects.toThrow("Property lot not found");
   });
 });
+
 

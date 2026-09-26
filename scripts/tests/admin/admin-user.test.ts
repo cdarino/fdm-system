@@ -49,14 +49,16 @@ describe("Admin User Management Actions", () => {
   });
 
   it("registerUser rejects when unauthenticated", async () => {
-    await expect(
-      registerUser({
-        email: faker.internet.email(),
-        password: "TempPassword123!",
-        firstName: faker.person.firstName(),
-        lastName: faker.person.lastName(),
-      })
-    ).rejects.toThrow(/You must be logged in|unauthorized/i);
+    const res = await registerUser({
+      email: faker.internet.email(),
+      password: "TempPassword123!",
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(/You must be logged in|unauthorized/i);
+    }
   });
 
   it("registerUser creates a user with metadata and roles when authorized as admin", async () => {
@@ -79,12 +81,12 @@ describe("Admin User Management Actions", () => {
 
     expect(res.success).toBe(true);
     if (res.success) {
-      createdUserIds.push(res.userId);
+      createdUserIds.push(res.data.userId);
 
       const listRes = await listUsers();
       expect(listRes.success).toBe(true);
       if (listRes.success) {
-        const found = listRes.users.find((u) => u.id === res.userId);
+        const found = listRes.users.find((u) => u.id === res.data.userId);
         expect(found).toBeDefined();
         expect(found?.firstName).toBe(firstName);
         expect(found?.lastName).toBe(lastName);
@@ -106,28 +108,32 @@ describe("Admin User Management Actions", () => {
       lastName: faker.person.lastName(),
     });
     expect(first.success).toBe(true);
-    if (first.success) createdUserIds.push(first.userId);
+    if (first.success) createdUserIds.push(first.data.userId);
 
-    await expect(
-      registerUser({
-        email: existingEmail,
-        password: "ValidPassword123!",
-        firstName: faker.person.firstName(),
-        lastName: faker.person.lastName(),
-      })
-    ).rejects.toThrow(/already exists/i);
+    const dupRes = await registerUser({
+      email: existingEmail,
+      password: "ValidPassword123!",
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
+    });
+    expect(dupRes.success).toBe(false);
+    if (!dupRes.success) {
+      expect(dupRes.error).toMatch(/already exists/i);
+    }
   });
 
   it("registerUser returns descriptive error on invalid email format", async () => {
     await loginAsAdmin();
-    await expect(
-      registerUser({
-        email: "invalid-email-format",
-        password: "ValidPassword123!",
-        firstName: faker.person.firstName(),
-        lastName: faker.person.lastName(),
-      })
-    ).rejects.toThrow(/That email address is not valid/i);
+    const invRes = await registerUser({
+      email: "invalid-email-format",
+      password: "ValidPassword123!",
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
+    });
+    expect(invRes.success).toBe(false);
+    if (!invRes.success) {
+      expect(invRes.error).toMatch(/email/i);
+    }
   });
 
   it("listUsers returns full user list with roles and ban flags for admin", async () => {
@@ -164,7 +170,11 @@ describe("Admin User Management Actions", () => {
     const adminSession = await loginAsAdmin();
     const adminId = adminSession.user.id;
 
-    await expect(toggleUser(adminId, false)).rejects.toThrow(SELF_DEACTIVATE_ERROR);
+    const res = await toggleUser(adminId, false);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(SELF_DEACTIVATE_ERROR);
+    }
   });
 
   it("toggleUser deactivates and reactivates a target user", async () => {
@@ -195,7 +205,11 @@ describe("Admin User Management Actions", () => {
     const adminSession = await loginAsAdmin();
     const adminId = adminSession.user.id;
 
-    await expect(deleteUser(adminId)).rejects.toThrow(SELF_DELETE_ERROR);
+    const res = await deleteUser(adminId);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(SELF_DELETE_ERROR);
+    }
   });
 
   it("deleteUser removes user and their associated roles", async () => {

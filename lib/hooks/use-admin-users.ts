@@ -3,6 +3,7 @@
 import { createContext, createElement, useContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ActionResult } from '@/lib/actions/action-result';
 import {
   listUsers,
   registerUser,
@@ -10,9 +11,9 @@ import {
   deleteUser as deleteUserAction,
   updateUserProfile as updateUserProfileAction,
 } from '@/lib/actions/admin-user';
-import type { UserListItem, RegisterUserParams } from '@/lib/actions/admin-user';
+import type { UserListItem, RegisterUserParams, UpdateUserProfileResult, DeleteUserResult } from '@/lib/actions/admin-user';
 import { getActiveRoles, setUserRoles as setUserRolesAction } from '@/lib/actions/admin-roles';
-import type { RbacRole } from '@/lib/actions/admin-roles';
+import type { RbacRole, SetUserRolesResult } from '@/lib/actions/admin-roles';
 import { roleLabel } from '@/lib/role-labels';
 
 export type StatusFilter = 'all' | 'active' | 'inactive';
@@ -45,11 +46,11 @@ interface AdminUsersContextValue {
   selectUser: (id: string | null) => void;
   openDialog: (dialog: AdminDialog) => void;
   closeDialog: () => void;
-  createUser: (params: RegisterUserParams) => Promise<void>;
-  updateUserName: (userId: string, firstName: string, lastName: string) => Promise<void>;
-  updateUserRoles: (userId: string, roleIds: string[]) => Promise<void>;
-  toggleUserStatus: (userId: string, isBanned: boolean) => Promise<void>;
-  deleteUser: (userId: string) => Promise<void>;
+  createUser: (params: RegisterUserParams) => Promise<ActionResult<{ userId: string }>>;
+  updateUserName: (userId: string, firstName: string, lastName: string) => Promise<ActionResult<UpdateUserProfileResult>>;
+  updateUserRoles: (userId: string, roleIds: string[]) => Promise<ActionResult<SetUserRolesResult>>;
+  toggleUserStatus: (userId: string, isBanned: boolean) => Promise<ActionResult<{ success: true }>>;
+  deleteUser: (userId: string) => Promise<ActionResult<DeleteUserResult>>;
 }
 
 const AdminUsersContext = createContext<AdminUsersContextValue | null>(null);
@@ -128,10 +129,13 @@ export function AdminUsersProvider({
     setActiveDialog(null);
   }
 
-  async function createUser(params: RegisterUserParams): Promise<void> {
+  async function createUser(params: RegisterUserParams): Promise<ActionResult<{ userId: string }>> {
     const result = await registerUser(params);
+    if (!result.success) {
+      return result;
+    }
     const newUser: UserListItem = {
-      id: result.userId,
+      id: result.data.userId,
       email: params.email,
       firstName: params.firstName,
       lastName: params.lastName,
@@ -142,34 +146,43 @@ export function AdminUsersProvider({
     };
     setUsers((prev) => [newUser, ...prev.filter((u) => u.id !== newUser.id)]);
     router.refresh();
+    return result;
   }
 
-  async function updateUserName(userId: string, firstName: string, lastName: string): Promise<void> {
-    await updateUserProfileAction(userId, firstName, lastName);
+  async function updateUserName(userId: string, firstName: string, lastName: string): Promise<ActionResult<UpdateUserProfileResult>> {
+    const result = await updateUserProfileAction(userId, firstName, lastName);
+    if (!result.success) return result;
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, firstName, lastName } : u)));
     router.refresh();
+    return result;
   }
 
-  async function updateUserRoles(userId: string, roleIds: string[]): Promise<void> {
-    await setUserRolesAction(userId, roleIds);
+  async function updateUserRoles(userId: string, roleIds: string[]): Promise<ActionResult<SetUserRolesResult>> {
+    const result = await setUserRolesAction(userId, roleIds);
+    if (!result.success) return result;
     const updatedRoles = roles
       .filter((r) => roleIds.includes(r.id))
       .map(({ id, name }) => ({ id, name }));
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, roles: updatedRoles } : u)));
     router.refresh();
+    return result;
   }
 
-  async function toggleUserStatus(userId: string, isBanned: boolean): Promise<void> {
-    await toggleUserAction(userId, isBanned);
+  async function toggleUserStatus(userId: string, isBanned: boolean): Promise<ActionResult<{ success: true }>> {
+    const result = await toggleUserAction(userId, isBanned);
+    if (!result.success) return result;
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, isBanned: !isBanned } : u)));
     router.refresh();
+    return result;
   }
 
-  async function deleteUser(userId: string): Promise<void> {
-    await deleteUserAction(userId);
+  async function deleteUser(userId: string): Promise<ActionResult<DeleteUserResult>> {
+    const result = await deleteUserAction(userId);
+    if (!result.success) return result;
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     if (selectedUserId === userId) setSelectedUserId(null);
     router.refresh();
+    return result;
   }
 
   const value: AdminUsersContextValue = {

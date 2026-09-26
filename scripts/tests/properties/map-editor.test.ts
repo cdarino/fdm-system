@@ -14,6 +14,7 @@ import {
   logoutUser,
   getTestAdminClient,
 } from "../framework/session";
+import { unwrap } from "../framework/action-helper";
 
 describe("Map Editor Actions - Plotting Lots, Deleting Plots, Creating Sites", () => {
   const testSiteIds: string[] = [];
@@ -64,11 +65,11 @@ describe("Map Editor Actions - Plotting Lots, Deleting Plots, Creating Sites", (
       [125.71, 7.11],
     ];
 
-    const site = await createSite({
+    const site = unwrap(await createSite({
       name: siteName,
       description: "A newly plotted test subdivision site",
       boundary,
-    });
+    }));
 
     testSiteIds.push(site.site_id);
 
@@ -90,12 +91,12 @@ describe("Map Editor Actions - Plotting Lots, Deleting Plots, Creating Sites", (
       [125.712, 7.103],
     ];
 
-    const { subdivision, lot } = await createSubdivisionLot({
+    const { subdivision, lot } = unwrap(await createSubdivisionLot({
       site_id: siteId,
       block_number: 1,
       lot_number: 1,
       boundary: lotBoundary,
-    });
+    }));
 
     expect(subdivision).toBeDefined();
     expect(subdivision.block_number).toBe(1);
@@ -111,7 +112,6 @@ describe("Map Editor Actions - Plotting Lots, Deleting Plots, Creating Sites", (
     expect(siteWithLots.lots.some((l) => l.block_number === 1 && l.lot_number === 1)).toBe(false);
   });
 
-
   it("rejects duplicate block and lot number on the same site", async () => {
     const siteId = testSiteIds[0];
     const lotBoundary: [number, number][] = [
@@ -121,14 +121,13 @@ describe("Map Editor Actions - Plotting Lots, Deleting Plots, Creating Sites", (
       [125.712, 7.103],
     ];
 
-    await expect(
-      createSubdivisionLot({
-        site_id: siteId,
-        block_number: 1,
-        lot_number: 1,
-        boundary: lotBoundary,
-      })
-    ).rejects.toThrow();
+    const dupRes = await createSubdivisionLot({
+      site_id: siteId,
+      block_number: 1,
+      lot_number: 1,
+      boundary: lotBoundary,
+    });
+    expect(dupRes.success).toBe(false);
   });
 
   it("deletes the plot if it is wrong", async () => {
@@ -142,24 +141,24 @@ describe("Map Editor Actions - Plotting Lots, Deleting Plots, Creating Sites", (
       [125.714, 7.105],
     ];
 
-    const { subdivision } = await createSubdivisionLot({
+    const { subdivision } = unwrap(await createSubdivisionLot({
       site_id: siteId,
       block_number: 2,
       lot_number: 5,
       boundary: lotBoundary,
-    });
+    }));
 
     // Verify it was created
     let siteWithLots = await getSiteWithLots(siteId);
     expect(siteWithLots.subdivisions.some((s) => s.block_number === 2 && s.lot_number === 5)).toBe(true);
 
     // Now delete the plot
-    await deleteSubdivisionLot({
+    unwrap(await deleteSubdivisionLot({
       subdivision_id: subdivision.subdivision_id,
       site_id: siteId,
       block_number: 2,
       lot_number: 5,
-    });
+    }));
 
     // Verify it is completely removed
     siteWithLots = await getSiteWithLots(siteId);
@@ -178,45 +177,48 @@ describe("Map Editor Actions - Plotting Lots, Deleting Plots, Creating Sites", (
       [125.716, 7.107],
     ];
 
-    const { subdivision, lot } = await createSubdivisionLot({
+    const { subdivision, lot } = unwrap(await createSubdivisionLot({
       site_id: siteId,
       block_number: 3,
       lot_number: 1,
       boundary: lotBoundary,
       create_property_lot: true,
-    });
+    }));
 
     expect(lot).toBeDefined();
     // Mark it as Reserved
-    await updatePropertyLot(lot!.property_id, { status: "Reserved" });
+    unwrap(await updatePropertyLot(lot!.property_id, { status: "Reserved" }));
 
     // Attempt to delete the plot should fail
-    await expect(
-      deleteSubdivisionLot({
-        subdivision_id: subdivision.subdivision_id,
-        site_id: siteId,
-        block_number: 3,
-        lot_number: 1,
-      })
-    ).rejects.toThrow(/reserved/i);
-
-    // Clean up by resetting to Open then deleting
-    await updatePropertyLot(lot!.property_id, { status: "Open" });
-    await deleteSubdivisionLot({
+    const delRes = await deleteSubdivisionLot({
       subdivision_id: subdivision.subdivision_id,
       site_id: siteId,
       block_number: 3,
       lot_number: 1,
     });
+    expect(delRes.success).toBe(false);
+    if (!delRes.success) {
+      expect(delRes.error).toMatch(/reserved/i);
+    }
+
+    // Clean up by resetting to Open then deleting
+    unwrap(await updatePropertyLot(lot!.property_id, { status: "Open" }));
+    unwrap(await deleteSubdivisionLot({
+      subdivision_id: subdivision.subdivision_id,
+      site_id: siteId,
+      block_number: 3,
+      lot_number: 1,
+    }));
   });
 
   it("deletes the created site during cleanup", async () => {
     const siteId = testSiteIds[0];
-    await deleteSite(siteId);
+    unwrap(await deleteSite(siteId));
 
     const admin = getTestAdminClient();
     const { data: found } = await admin.from("site").select("site_id").eq("site_id", siteId).maybeSingle();
     expect(found).toBeNull();
   });
 });
+
 

@@ -4,6 +4,13 @@ import { createClient as createSupabaseServerClient } from "@/lib/supabase/serve
 import { requirePermission } from "@/lib/actions/auth-guard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  type ActionResult,
+  actionSuccess,
+  actionError,
+  actionZodError,
+} from "@/lib/actions/action-result";
+import { createClientSchema, updateClientSchema } from "@/lib/validations/client";
+import {
   type Client,
   type ClientListItem,
   type ClientWithDetails,
@@ -216,139 +223,138 @@ export async function getClientById(clientId: string): Promise<ClientWithDetails
   return { ...data, properties: await resolveClientProperties(supabase, clientId) };
 }
 
-export async function createClient(input: CreateClientInput): Promise<Client> {
-  const userId = await requirePermission("clients.create");
-  const supabase = await createSupabaseServerClient();
-
-  const { data: client, error: clientError } = await supabase
-    .from("client")
-    .insert({
-      full_name: input.full_name.trim(),
-      address: input.address?.trim() ?? null,
-      tin_number: input.tin_number?.trim() ?? null,
-      status: input.status?.trim() ?? "Active",
-    })
-    .select()
-    .single<Client>();
-
-  if (clientError || !client) {
-    throw new Error(`Failed to create client: ${clientError?.message ?? "Unknown error"}`);
-  }
-
-  if (input.contacts && input.contacts.length > 0) {
-    const contactRows = input.contacts.map((c) => ({
-      client_id: client.client_id,
-      type: c.type.trim(),
-      value: c.value.trim(),
-      is_primary: Boolean(c.is_primary),
-    }));
-
-    const { error: contactError } = await supabase
-      .from("contact_info")
-      .insert(contactRows);
-
-    if (contactError) {
-      throw new Error(`Client created but failed to add contacts: ${contactError.message}`);
+export async function createClient(input: unknown): Promise<ActionResult<Client>> {
+  try {
+    const parsed = createClientSchema.safeParse(input);
+    if (!parsed.success) {
+      return actionZodError(parsed.error);
     }
+    const validatedInput = parsed.data;
+
+    await requirePermission("clients.create");
+    const supabase = await createSupabaseServerClient();
+
+    const { data: client, error: clientError } = await supabase
+      .from("client")
+      .insert({
+        full_name: validatedInput.full_name,
+        address: validatedInput.address ?? null,
+        tin_number: validatedInput.tin_number ?? null,
+        status: validatedInput.status ?? "Active",
+      })
+      .select()
+      .single<Client>();
+
+    if (clientError || !client) {
+      return actionError(`Failed to create client: ${clientError?.message ?? "Unknown error"}`);
+    }
+
+    const rawInput = input as CreateClientInput;
+    if (rawInput?.contacts && rawInput.contacts.length > 0) {
+      const contactRows = rawInput.contacts.map((c) => ({
+        client_id: client.client_id,
+        type: c.type.trim(),
+        value: c.value.trim(),
+        is_primary: Boolean(c.is_primary),
+      }));
+
+      const { error: contactError } = await supabase
+        .from("contact_info")
+        .insert(contactRows);
+
+      if (contactError) {
+        return actionError(`Client created but failed to add contacts: ${contactError.message}`);
+      }
+    }
+
+    return actionSuccess(client);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to create client");
   }
-
-  // Audit registration in client log
-//   await supabase.from("client_log").insert({
-//     client_id: client.client_id,
-//     event_type: "CLIENT_REGISTERED",
-//     description: "New client registered in system",
-//     performed_by: userId,
-//   });
-
-  return client;
 }
 
 export async function updateClient(
   clientId: string,
-  input: UpdateClientInput
-): Promise<Client> {
-  const userId = await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
+  input: unknown
+): Promise<ActionResult<Client>> {
+  try {
+    const parsed = updateClientSchema.safeParse(input);
+    if (!parsed.success) {
+      return actionZodError(parsed.error);
+    }
+    const validatedInput = parsed.data;
 
-  const updates: Record<string, unknown> = {};
-  if (input.full_name !== undefined) updates.full_name = input.full_name.trim();
-  if (input.address !== undefined) updates.address = input.address ? input.address.trim() : null;
-  if (input.tin_number !== undefined) updates.tin_number = input.tin_number ? input.tin_number.trim() : null;
-  if (input.status !== undefined) updates.status = input.status.trim();
+    await requirePermission("clients.update");
+    const supabase = await createSupabaseServerClient();
 
-  const { data, error } = await supabase
-    .from("client")
-    .update(updates)
-    .eq("client_id", clientId)
-    .select()
-    .single<Client>();
+    const updates: Record<string, unknown> = {};
+    if (validatedInput.full_name !== undefined) updates.full_name = validatedInput.full_name;
+    if (validatedInput.address !== undefined) updates.address = validatedInput.address;
+    if (validatedInput.tin_number !== undefined) updates.tin_number = validatedInput.tin_number;
+    if (validatedInput.status !== undefined) updates.status = validatedInput.status;
 
-  if (error || !data) {
-    throw new Error(`Failed to update client: ${error?.message ?? "Unknown error"}`);
+    const { data, error } = await supabase
+      .from("client")
+      .update(updates)
+      .eq("client_id", clientId)
+      .select()
+      .single<Client>();
+
+    if (error || !data) {
+      return actionError(`Failed to update client: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to update client");
   }
-
-  // Audit update in client log
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "CLIENT_UPDATED",
-//     description: `Client updated fields: ${Object.keys(updates).join(", ")}`,
-//     performed_by: userId,
-//   });
-
-  return data;
 }
 
 export async function archiveClient(
   clientId: string,
   reason?: string
-): Promise<Client> {
-  const userId = await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
+): Promise<ActionResult<Client>> {
+  try {
+    await requirePermission("clients.update");
+    const supabase = await createSupabaseServerClient();
 
-  const { data, error } = await supabase
-    .from("client")
-    .update({ status: "Archived" })
-    .eq("client_id", clientId)
-    .select()
-    .single<Client>();
+    const { data, error } = await supabase
+      .from("client")
+      .update({ status: "Archived" })
+      .eq("client_id", clientId)
+      .select()
+      .single<Client>();
 
-  if (error || !data) {
-    throw new Error(`Failed to archive client: ${error?.message ?? "Unknown error"}`);
+    if (error || !data) {
+      return actionError(`Failed to archive client: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to archive client");
   }
-
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "CLIENT_ARCHIVED",
-//     description: reason ? `Archived: ${reason.trim()}` : "Client archived by admin staff",
-//     performed_by: userId,
-//   });
-
-  return data;
 }
 
-export async function unarchiveClient(clientId: string): Promise<Client> {
-  const userId = await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
+export async function unarchiveClient(clientId: string): Promise<ActionResult<Client>> {
+  try {
+    await requirePermission("clients.update");
+    const supabase = await createSupabaseServerClient();
 
-  const { data, error } = await supabase
-    .from("client")
-    .update({ status: "Active" })
-    .eq("client_id", clientId)
-    .select()
-    .single<Client>();
+    const { data, error } = await supabase
+      .from("client")
+      .update({ status: "Active" })
+      .eq("client_id", clientId)
+      .select()
+      .single<Client>();
 
-  if (error || !data) {
-    throw new Error(`Failed to unarchive client: ${error?.message ?? "Unknown error"}`);
+    if (error || !data) {
+      return actionError(`Failed to unarchive client: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to unarchive client");
   }
-
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "CLIENT_RESTORED",
-//     description: "Client restored from archive to active status",
-//     performed_by: userId,
-//   });
-
-  return data;
 }
 
 export async function getArchivedClients(
@@ -361,51 +367,61 @@ export async function getArchivedClients(
   });
 }
 
-export async function deleteClient(clientId: string): Promise<void> {
-  await requirePermission("clients.delete");
-  const supabase = await createSupabaseServerClient();
+export async function deleteClient(clientId: string): Promise<ActionResult<void>> {
+  try {
+    await requirePermission("clients.delete");
+    const supabase = await createSupabaseServerClient();
 
-  const { error } = await supabase
-    .from("client")
-    .delete()
-    .eq("client_id", clientId);
+    const { error } = await supabase
+      .from("client")
+      .delete()
+      .eq("client_id", clientId);
 
-  if (error) {
-    throw new Error(`Failed to delete client: ${error.message}`);
+    if (error) {
+      return actionError(`Failed to delete client: ${error.message}`);
+    }
+
+    return actionSuccess(undefined);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to delete client");
   }
 }
 
 export async function addContactInfo(
   clientId: string,
   input: CreateContactInfoInput
-): Promise<ContactInfo> {
-  await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
+): Promise<ActionResult<ContactInfo>> {
+  try {
+    await requirePermission("clients.update");
+    const supabase = await createSupabaseServerClient();
 
-  // Reset other contacts' primary flag if this contact is marked primary
-  if (input.is_primary) {
-    await supabase
+    // Reset other contacts' primary flag if this contact is marked primary
+    if (input.is_primary) {
+      await supabase
+        .from("contact_info")
+        .update({ is_primary: false })
+        .eq("client_id", clientId);
+    }
+
+    const { data, error } = await supabase
       .from("contact_info")
-      .update({ is_primary: false })
-      .eq("client_id", clientId);
+      .insert({
+        client_id: clientId,
+        type: input.type.trim(),
+        value: input.value.trim(),
+        is_primary: Boolean(input.is_primary),
+      })
+      .select()
+      .single<ContactInfo>();
+
+    if (error || !data) {
+      return actionError(`Failed to add contact info: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to add contact info");
   }
-
-  const { data, error } = await supabase
-    .from("contact_info")
-    .insert({
-      client_id: clientId,
-      type: input.type.trim(),
-      value: input.value.trim(),
-      is_primary: Boolean(input.is_primary),
-    })
-    .select()
-    .single<ContactInfo>();
-
-  if (error || !data) {
-    throw new Error(`Failed to add contact info: ${error?.message ?? "Unknown error"}`);
-  }
-
-  return data;
 }
 
 export async function getClientContacts(clientId: string): Promise<ContactInfo[]> {
@@ -428,58 +444,68 @@ export async function getClientContacts(clientId: string): Promise<ContactInfo[]
 export async function updateContactInfo(
   contactId: string,
   input: UpdateContactInfoInput
-): Promise<ContactInfo> {
-  await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
+): Promise<ActionResult<ContactInfo>> {
+  try {
+    await requirePermission("clients.update");
+    const supabase = await createSupabaseServerClient();
 
-  // Reset sibling contacts if setting primary to true
-  if (input.is_primary) {
-    const { data: current } = await supabase
-      .from("contact_info")
-      .select("client_id")
-      .eq("contact_id", contactId)
-      .single<{ client_id: string }>();
-
-    if (current?.client_id) {
-      await supabase
+    // Reset sibling contacts if setting primary to true
+    if (input.is_primary) {
+      const { data: current } = await supabase
         .from("contact_info")
-        .update({ is_primary: false })
-        .eq("client_id", current.client_id);
+        .select("client_id")
+        .eq("contact_id", contactId)
+        .single<{ client_id: string }>();
+
+      if (current?.client_id) {
+        await supabase
+          .from("contact_info")
+          .update({ is_primary: false })
+          .eq("client_id", current.client_id);
+      }
     }
+
+    const updates: Record<string, unknown> = {
+      last_updated: new Date().toISOString(),
+    };
+    if (input.type !== undefined) updates.type = input.type.trim();
+    if (input.value !== undefined) updates.value = input.value.trim();
+    if (input.is_primary !== undefined) updates.is_primary = input.is_primary;
+
+    const { data, error } = await supabase
+      .from("contact_info")
+      .update(updates)
+      .eq("contact_id", contactId)
+      .select()
+      .single<ContactInfo>();
+
+    if (error || !data) {
+      return actionError(`Failed to update contact info: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to update contact info");
   }
-
-  const updates: Record<string, unknown> = {
-    last_updated: new Date().toISOString(),
-  };
-  if (input.type !== undefined) updates.type = input.type.trim();
-  if (input.value !== undefined) updates.value = input.value.trim();
-  if (input.is_primary !== undefined) updates.is_primary = input.is_primary;
-
-  const { data, error } = await supabase
-    .from("contact_info")
-    .update(updates)
-    .eq("contact_id", contactId)
-    .select()
-    .single<ContactInfo>();
-
-  if (error || !data) {
-    throw new Error(`Failed to update contact info: ${error?.message ?? "Unknown error"}`);
-  }
-
-  return data;
 }
 
-export async function deleteContactInfo(contactId: string): Promise<void> {
-  await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
+export async function deleteContactInfo(contactId: string): Promise<ActionResult<void>> {
+  try {
+    await requirePermission("clients.update");
+    const supabase = await createSupabaseServerClient();
 
-  const { error } = await supabase
-    .from("contact_info")
-    .delete()
-    .eq("contact_id", contactId);
+    const { error } = await supabase
+      .from("contact_info")
+      .delete()
+      .eq("contact_id", contactId);
 
-  if (error) {
-    throw new Error(`Failed to delete contact info: ${error.message}`);
+    if (error) {
+      return actionError(`Failed to delete contact info: ${error.message}`);
+    }
+
+    return actionSuccess(undefined);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to delete contact info");
   }
 }
 
@@ -493,53 +519,57 @@ export async function deleteContactInfo(contactId: string): Promise<void> {
 export async function uploadClientDocument(
   clientId: string,
   formData: FormData
-): Promise<ClientDocument> {
-  const userId = await requirePermission("clients.update");
+): Promise<ActionResult<ClientDocument>> {
+  try {
+    const userId = await requirePermission("clients.update");
 
-  const file = formData.get("file");
-  const documentType = formData.get("document_type");
+    const file = formData.get("file");
+    const documentType = formData.get("document_type");
 
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("No file was provided.");
+    if (!(file instanceof File) || file.size === 0) {
+      return actionError("No file was provided.");
+    }
+    if (typeof documentType !== "string" || !documentType) {
+      return actionError("A document category is required.");
+    }
+
+    // The bucket enforces both of these as well, but a rejection there surfaces
+    // as an opaque storage error. Checking here is what lets the user be told
+    // which rule they broke.
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      return actionError("File is larger than the 10MB limit.");
+    }
+    if (!ALLOWED_DOCUMENT_TYPES.includes(file.type as (typeof ALLOWED_DOCUMENT_TYPES)[number])) {
+      return actionError("Only PDF, JPEG and PNG files are accepted.");
+    }
+
+    const filePath = await uploadClientDocumentObject(clientId, file);
+
+    const supabase = await createSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("client_document")
+      .insert({
+        client_id: clientId,
+        document_type: documentType,
+        file_path: filePath,
+        uploaded_by: userId,
+      })
+      .select()
+      .single<ClientDocument>();
+
+    if (error || !data) {
+      // The object is already in the bucket and nothing now points at it, so
+      // without this it is unreachable storage that no one can find or clean up.
+      await removeClientDocumentObject(filePath).catch((cleanupError) => {
+        console.error(`Orphaned object ${filePath} after failed insert:`, cleanupError);
+      });
+      return actionError(`Failed to save document metadata: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to upload client document");
   }
-  if (typeof documentType !== "string" || !documentType) {
-    throw new Error("A document category is required.");
-  }
-
-  // The bucket enforces both of these as well, but a rejection there surfaces
-  // as an opaque storage error. Checking here is what lets the user be told
-  // which rule they broke.
-  if (file.size > MAX_DOCUMENT_BYTES) {
-    throw new Error("File is larger than the 10MB limit.");
-  }
-  if (!ALLOWED_DOCUMENT_TYPES.includes(file.type as (typeof ALLOWED_DOCUMENT_TYPES)[number])) {
-    throw new Error("Only PDF, JPEG and PNG files are accepted.");
-  }
-
-  const filePath = await uploadClientDocumentObject(clientId, file);
-
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("client_document")
-    .insert({
-      client_id: clientId,
-      document_type: documentType,
-      file_path: filePath,
-      uploaded_by: userId,
-    })
-    .select()
-    .single<ClientDocument>();
-
-  if (error || !data) {
-    // The object is already in the bucket and nothing now points at it, so
-    // without this it is unreachable storage that no one can find or clean up.
-    await removeClientDocumentObject(filePath).catch((cleanupError) => {
-      console.error(`Orphaned object ${filePath} after failed insert:`, cleanupError);
-    });
-    throw new Error(`Failed to save document metadata: ${error?.message ?? "Unknown error"}`);
-  }
-
-  return data;
 }
 
 /** Signed, short-lived URL for viewing one stored document. */
@@ -583,14 +613,6 @@ export async function createClientDocument(
     throw new Error(`Failed to save document metadata: ${error?.message ?? "Unknown error"}`);
   }
 
-  // Audit document upload in client log
-//   await supabase.from("client_log").insert({
-//     client_id: clientId,
-//     event_type: "DOCUMENT_UPLOADED",
-//     description: `Uploaded document of category '${input.document_type}'`,
-//     performed_by: userId,
-//   });
-
   return data;
 }
 
@@ -621,40 +643,44 @@ export async function getClientDocuments(
   return data ?? [];
 }
 
-export async function deleteClientDocument(documentId: string): Promise<void> {
-  await requirePermission("clients.update");
-  const supabase = await createSupabaseServerClient();
+export async function deleteClientDocument(documentId: string): Promise<ActionResult<void>> {
+  try {
+    await requirePermission("clients.update");
+    const supabase = await createSupabaseServerClient();
 
-  const { data: existing } = await supabase
-    .from("client_document")
-    .select("file_path")
-    .eq("document_id", documentId)
-    .single<{ file_path: string }>();
+    const { data: existing } = await supabase
+      .from("client_document")
+      .select("file_path")
+      .eq("document_id", documentId)
+      .single<{ file_path: string }>();
 
-  const { error } = await supabase
-    .from("client_document")
-    .delete()
-    .eq("document_id", documentId);
+    const { error } = await supabase
+      .from("client_document")
+      .delete()
+      .eq("document_id", documentId);
 
-  if (error) {
-    throw new Error(`Failed to delete client document: ${error.message}`);
-  }
+    if (error) {
+      return actionError(`Failed to delete client document: ${error.message}`);
+    }
 
-  // The extracted text outlives its document otherwise, leaving the contents of
-  // a deleted ID or deed searchable by everyone.
-  await deleteEntityIndex("client_document", documentId).catch((indexError) => {
-    console.error(`Failed to clear search index for ${documentId}:`, indexError);
-  });
-
-  // Row first, object second. A failed object delete leaves one orphan that can
-  // be swept later, whereas deleting the object first would leave a row
-  // pointing at nothing, which breaks the list for everyone.
-  if (existing?.file_path) {
-    await removeClientDocumentObject(existing.file_path).catch((cleanupError) => {
-      console.error(`Orphaned object ${existing.file_path} after row delete:`, cleanupError);
+    // The extracted text outlives its document otherwise, leaving the contents of
+    // a deleted ID or deed searchable by everyone.
+    await deleteEntityIndex("client_document", documentId).catch((indexError) => {
+      console.error(`Failed to clear search index for ${documentId}:`, indexError);
     });
+
+    if (existing?.file_path) {
+      await removeClientDocumentObject(existing.file_path).catch((storageError) => {
+        console.error(`Failed to remove storage object ${existing.file_path}:`, storageError);
+      });
+    }
+
+    return actionSuccess(undefined);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to delete client document");
   }
 }
+
 
 /**
  * Checks whether all required documents are present for a given client.

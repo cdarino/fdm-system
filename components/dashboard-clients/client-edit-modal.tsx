@@ -26,22 +26,7 @@ import { useClients } from '@/lib/hooks/use-clients-page';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import type { ClientListItem } from '@/lib/types/client';
-
-const clientSchema = z.object({
-  full_name: z.string().trim().min(1, 'Full name is required'),
-  address: z.string().trim().optional(),
-  tin_number: z
-    .string()
-    .trim()
-    .refine(
-      (val) => !val || /^\d{3}-\d{3}-\d{3}$/.test(val),
-      'TIN must follow the format XXX-XXX-XXX with numbers only'
-    )
-    .optional(),
-  status: z.enum(['Active', 'Inactive']),
-});
-
-type ClientFormData = z.infer<typeof clientSchema>;
+import { clientSchema, type ClientFormData } from '@/lib/validations/client';
 
 export function EditClientModal({
   client,

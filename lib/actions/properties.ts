@@ -2,6 +2,13 @@
 
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/actions/auth-guard";
+import {
+  type ActionResult,
+  actionSuccess,
+  actionError,
+  actionZodError,
+} from "@/lib/actions/action-result";
+import { createPropertyLotSchema, updateLotSchema } from "@/lib/validations/property";
 import type { PaginatedResult } from "@/lib/types/client";
 import type {
   PropertyLot,
@@ -114,78 +121,116 @@ export async function getPropertyLotById(
 }
 
 export async function createPropertyLot(
-  input: CreatePropertyLotInput
-): Promise<PropertyLot> {
-  await requirePermission("properties.create");
-  const supabase = await createSupabaseServerClient();
+  input: unknown
+): Promise<ActionResult<PropertyLot>> {
+  try {
+    const parsed = createPropertyLotSchema.safeParse(input);
+    if (!parsed.success) {
+      return actionZodError(parsed.error);
+    }
+    const validatedInput = parsed.data;
 
-  const { data, error } = await supabase
-    .from("property_lot")
-    .insert({
-      location: input.location.trim(),
-      block_number: input.block_number,
-      lot_number: input.lot_number,
-      area_size: input.area_size,
-      price_per_sqm: input.price_per_sqm,
-      status: input.status ?? "Open",
-      // Geometry is set later by the lot editor; a lot may belong to a site
-      // before it has been drawn, which is what makes an "undrawn lots on this
-      // site" work queue possible.
-      site_id: input.site_id ?? null,
-    })
-    .select()
-    .single<PropertyLot>();
+    await requirePermission("properties.create");
+    const supabase = await createSupabaseServerClient();
 
-  if (error || !data) {
-    throw new Error(`Failed to create property lot: ${error?.message ?? "Unknown error"}`);
+    let location = validatedInput.location?.trim();
+    if (!location && validatedInput.site_id) {
+      const { data: site } = await supabase
+        .from("site")
+        .select("name")
+        .eq("site_id", validatedInput.site_id)
+        .single<{ name: string }>();
+      location = site?.name ?? "Unknown Location";
+    }
+
+    if (!location) {
+      return actionError("Location or site is required to create a property lot");
+    }
+
+    const { data, error } = await supabase
+      .from("property_lot")
+      .insert({
+        location,
+        block_number: validatedInput.block_number,
+        lot_number: validatedInput.lot_number,
+        area_size: validatedInput.area_size,
+        price_per_sqm: validatedInput.price_per_sqm,
+        status: validatedInput.status ?? "Open",
+        site_id: validatedInput.site_id ?? null,
+      })
+      .select()
+      .single<PropertyLot>();
+
+    if (error || !data) {
+      return actionError(`Failed to create property lot: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to create property lot");
   }
-
-  return data;
 }
 
 export async function updatePropertyLot(
   propertyId: string,
-  input: UpdatePropertyLotInput
-): Promise<PropertyLot> {
-  await requirePermission("properties.update");
-  const supabase = await createSupabaseServerClient();
+  input: unknown
+): Promise<ActionResult<PropertyLot>> {
+  try {
+    const parsed = updateLotSchema.safeParse(input);
+    if (!parsed.success) {
+      return actionZodError(parsed.error);
+    }
+    const validatedInput = parsed.data;
 
-  const updates: Record<string, unknown> = {};
-  if (input.location !== undefined) updates.location = input.location.trim();
-  if (input.block_number !== undefined) updates.block_number = input.block_number;
-  if (input.lot_number !== undefined) updates.lot_number = input.lot_number;
-  if (input.area_size !== undefined) updates.area_size = input.area_size;
-  if (input.price_per_sqm !== undefined) updates.price_per_sqm = input.price_per_sqm;
-  if (input.status !== undefined) updates.status = input.status;
+    await requirePermission("properties.update");
+    const supabase = await createSupabaseServerClient();
 
-  const { data, error } = await supabase
-    .from("property_lot")
-    .update(updates)
-    .eq("property_id", propertyId)
-    .select()
-    .single<PropertyLot>();
+    const rawInput = (input ?? {}) as UpdatePropertyLotInput;
+    const updates: Record<string, unknown> = {};
+    if (rawInput.location !== undefined) updates.location = rawInput.location.trim();
+    if (rawInput.block_number !== undefined) updates.block_number = rawInput.block_number;
+    if (rawInput.lot_number !== undefined) updates.lot_number = rawInput.lot_number;
+    if (validatedInput.area_size !== undefined) updates.area_size = validatedInput.area_size;
+    if (validatedInput.price_per_sqm !== undefined) updates.price_per_sqm = validatedInput.price_per_sqm;
+    if (validatedInput.status !== undefined) updates.status = validatedInput.status;
 
-  if (error || !data) {
-    throw new Error(`Failed to update property lot: ${error?.message ?? "Unknown error"}`);
+    const { data, error } = await supabase
+      .from("property_lot")
+      .update(updates)
+      .eq("property_id", propertyId)
+      .select()
+      .single<PropertyLot>();
+
+    if (error || !data) {
+      return actionError(`Failed to update property lot: ${error?.message ?? "Unknown error"}`);
+    }
+
+    return actionSuccess(data);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to update property lot");
   }
-
-  return data;
 }
 
-export async function deletePropertyLot(propertyId: string): Promise<void> {
-  await requirePermission("properties.delete");
-  const supabase = await createSupabaseServerClient();
+export async function deletePropertyLot(propertyId: string): Promise<ActionResult<void>> {
+  try {
+    await requirePermission("properties.delete");
+    const supabase = await createSupabaseServerClient();
 
-  // Clean up ledger accounts associated with this lot
-  await supabase.from("ledger_account").delete().eq("property_id", propertyId);
+    // Clean up ledger accounts associated with this lot
+    await supabase.from("ledger_account").delete().eq("property_id", propertyId);
 
-  const { error } = await supabase
-    .from("property_lot")
-    .delete()
-    .eq("property_id", propertyId);
+    const { error } = await supabase
+      .from("property_lot")
+      .delete()
+      .eq("property_id", propertyId);
 
-  if (error) {
-    throw new Error(`Failed to delete property lot: ${error.message}`);
+    if (error) {
+      return actionError(`Failed to delete property lot: ${error.message}`);
+    }
+
+    return actionSuccess(undefined);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to delete property lot");
   }
 }
 
@@ -194,106 +239,111 @@ export async function assignPropertyClient(
   clientId: string | null,
   status?: PropertyStatus,
   options?: AssignPropertyOptions
-): Promise<PropertyLotWithClient> {
-  await requirePermission("properties.update");
-  const supabase = await createSupabaseServerClient();
+): Promise<ActionResult<PropertyLotWithClient>> {
+  try {
+    await requirePermission("properties.update");
+    const supabase = await createSupabaseServerClient();
 
-  // Cancel active ledger account and reset to Open if clearing client
-  if (!clientId) {
-    await supabase
-      .from("ledger_account")
-      .update({ status: "Cancelled" })
-      .eq("property_id", propertyId)
-      .eq("status", "Active");
+    // Cancel active ledger account and reset to Open if clearing client
+    if (!clientId) {
+      await supabase
+        .from("ledger_account")
+        .update({ status: "Cancelled" })
+        .eq("property_id", propertyId)
+        .eq("status", "Active");
 
-    const { data: clearedLot, error: clearErr } = await supabase
+      const { data: clearedLot, error: clearErr } = await supabase
+        .from("property_lot")
+        .update({ status: status ?? "Open" })
+        .eq("property_id", propertyId)
+        .select()
+        .single<PropertyLot>();
+
+      if (clearErr || !clearedLot) {
+        return actionError(`Failed to unassign property lot: ${clearErr?.message ?? "Unknown error"}`);
+      }
+
+      return actionSuccess({
+        ...clearedLot,
+        client: null,
+        client_id: null,
+        active_account: null,
+      });
+    }
+
+    const { data: lot, error: lotErr } = await supabase
       .from("property_lot")
-      .update({ status: status ?? "Open" })
+      .select("area_size, price_per_sqm")
       .eq("property_id", propertyId)
-      .select()
-      .single<PropertyLot>();
+      .single<{ area_size: number; price_per_sqm: number }>();
 
-    if (clearErr || !clearedLot) {
-      throw new Error(`Failed to unassign property lot: ${clearErr?.message ?? "Unknown error"}`);
+    if (lotErr || !lot) {
+      return actionError(`Property lot not found: ${lotErr?.message ?? "Unknown error"}`);
     }
 
-    return {
-      ...clearedLot,
-      client: null,
-      client_id: null,
-      active_account: null,
-    };
-  }
+    const tcp = options?.total_contract_price ?? Number(lot.area_size) * Number(lot.price_per_sqm);
 
-  const { data: lot, error: lotErr } = await supabase
-    .from("property_lot")
-    .select("area_size, price_per_sqm")
-    .eq("property_id", propertyId)
-    .single<{ area_size: number; price_per_sqm: number }>();
-
-  if (lotErr || !lot) {
-    throw new Error(`Property lot not found: ${lotErr?.message ?? "Unknown error"}`);
-  }
-
-  const tcp = options?.total_contract_price ?? Number(lot.area_size) * Number(lot.price_per_sqm);
-
-  // Retrieve or create the single active ledger account for this lot
-  const { data: existingAccount } = await supabase
-    .from("ledger_account")
-    .select("account_id")
-    .eq("property_id", propertyId)
-    .eq("status", "Active")
-    .maybeSingle<{ account_id: string }>();
-
-  let activeAccountId = existingAccount?.account_id;
-
-  if (!activeAccountId) {
-    const { data: newAccount, error: accErr } = await supabase
+    // Retrieve or create the single active ledger account for this lot
+    const { data: existingAccount } = await supabase
       .from("ledger_account")
-      .insert({
-        property_id: propertyId,
-        status: "Active",
-        total_contract_price: tcp,
-        remaining_balance: tcp,
-      })
       .select("account_id")
-      .single<{ account_id: string }>();
+      .eq("property_id", propertyId)
+      .eq("status", "Active")
+      .maybeSingle<{ account_id: string }>();
 
-    if (accErr || !newAccount) {
-      throw new Error(`Failed to create ledger account: ${accErr?.message ?? "Unknown error"}`);
+    let activeAccountId = existingAccount?.account_id;
+
+    if (!activeAccountId) {
+      const { data: newAccount, error: accErr } = await supabase
+        .from("ledger_account")
+        .insert({
+          property_id: propertyId,
+          status: "Active",
+          total_contract_price: tcp,
+          remaining_balance: tcp,
+        })
+        .select("account_id")
+        .single<{ account_id: string }>();
+
+      if (accErr || !newAccount) {
+        return actionError(`Failed to create ledger account: ${accErr?.message ?? "Unknown error"}`);
+      }
+      activeAccountId = newAccount.account_id;
     }
-    activeAccountId = newAccount.account_id;
+
+    // Set this client as primary account party
+    const { error: partyErr } = await supabase
+      .from("account_party")
+      .upsert(
+        {
+          account_id: activeAccountId,
+          client_id: clientId,
+          role: "Principal Buyer",
+          ownership_percentage: 100.0,
+          is_primary: true,
+        },
+        { onConflict: "account_id,client_id" }
+      );
+
+    if (partyErr) {
+      return actionError(`Failed to assign client to ledger party: ${partyErr.message}`);
+    }
+
+    const nextStatus = status ?? "Reserved";
+    const { error: lotUpdateErr } = await supabase
+      .from("property_lot")
+      .update({ status: nextStatus })
+      .eq("property_id", propertyId);
+
+    if (lotUpdateErr) {
+      return actionError(`Failed to update lot status: ${lotUpdateErr.message}`);
+    }
+
+    const updatedLot = await getPropertyLotById(propertyId);
+    return actionSuccess(updatedLot);
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to assign property client");
   }
-
-  // Set this client as primary account party
-  const { error: partyErr } = await supabase
-    .from("account_party")
-    .upsert(
-      {
-        account_id: activeAccountId,
-        client_id: clientId,
-        role: "Principal Buyer",
-        ownership_percentage: 100.00,
-        is_primary: true,
-      },
-      { onConflict: "account_id,client_id" }
-    );
-
-  if (partyErr) {
-    throw new Error(`Failed to assign client to ledger party: ${partyErr.message}`);
-  }
-
-  const nextStatus = status ?? "Reserved";
-  const { error: lotUpdateErr } = await supabase
-    .from("property_lot")
-    .update({ status: nextStatus })
-    .eq("property_id", propertyId);
-
-  if (lotUpdateErr) {
-    throw new Error(`Failed to update lot status: ${lotUpdateErr.message}`);
-  }
-
-  return getPropertyLotById(propertyId);
 }
 
 export async function assignPropertyParties(

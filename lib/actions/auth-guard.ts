@@ -51,3 +51,22 @@ export async function requireAnyPermission(permissionNames: string[]): Promise<s
   throw new Error(`Forbidden: You do not have any of the required permissions: ${permissionNames.join(", ")}`);
 }
 
+import { redirect } from "next/navigation";
+
+export async function verifyPageAccess(
+  permissionName: string,
+  redirectTo: string = "/dashboard"
+): Promise<{ userId: string }> {
+  const user = await getUserInfo();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const allowed = await hasPermission(permissionName, user.id);
+  if (!allowed) {
+    redirect(redirectTo);
+  }
+
+  return { userId: user.id };
+}
+

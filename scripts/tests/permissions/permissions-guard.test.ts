@@ -106,19 +106,23 @@ describe("Permissions & Authorization Guard Actions", () => {
     await loginAs(unprivilegedUser.email, unprivilegedUser.password);
 
     // Attempting to create client without clients.create
-    await expect(
-      createClient({ full_name: faker.person.fullName() })
-    ).rejects.toThrow("Forbidden: You do not have permission 'clients.create'.");
+    const clientRes = await createClient({ full_name: faker.person.fullName() });
+    expect(clientRes.success).toBe(false);
+    if (!clientRes.success) {
+      expect(clientRes.error).toContain("Forbidden: You do not have permission 'clients.create'.");
+    }
 
     // Attempting to create property lot without properties.create
-    await expect(
-      createPropertyLot({
-        location: "Forbidden Location",
-        block_number: 1,
-        lot_number: 1,
-        area_size: 100,
-        price_per_sqm: 1000,
-      })
-    ).rejects.toThrow("Forbidden: You do not have permission 'properties.create'.");
+    const lotRes = await createPropertyLot({
+      location: "Forbidden Location",
+      block_number: 1,
+      lot_number: 1,
+      area_size: 100,
+      price_per_sqm: 1000,
+    });
+    expect(lotRes.success).toBe(false);
+    if (!lotRes.success) {
+      expect(lotRes.error).toContain("Forbidden: You do not have permission 'properties.create'.");
+    }
   });
 });

@@ -26,26 +26,7 @@ import { usePropertyLots } from '@/lib/hooks/use-property-lots';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import type { Site } from '@/lib/types/property';
-
-const createPropertyLotSchema = z.object({
-  site_id: z.string().min(1, 'Please select a site'),
-  block_number: z
-    .number({ error: 'Block number is required' })
-    .int('Must be a whole number')
-    .positive('Must be greater than 0'),
-  lot_number: z
-    .number({ error: 'Lot number is required' })
-    .int('Must be a whole number')
-    .positive('Must be greater than 0'),
-  area_size: z
-    .number({ error: 'Area is required' })
-    .positive('Must be greater than 0'),
-  price_per_sqm: z
-    .number({ error: 'Price is required' })
-    .positive('Must be greater than 0'),
-});
-
-type CreatePropertyLotFormData = z.infer<typeof createPropertyLotSchema>;
+import { createPropertyLotSchema, type CreatePropertyLotFormData } from '@/lib/validations/property';
 
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',

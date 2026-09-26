@@ -30,18 +30,7 @@ import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import type { PropertyLotWithClient } from '@/lib/types/property';
 import { STATUSES, STATUS_PILL } from '@/lib/status-colors';
-
-const updateLotSchema = z.object({
-  status: z.enum(['Open', 'Reserved', 'Sold', 'Forfeited'] as const),
-  price_per_sqm: z
-    .number({ error: 'Price is required' })
-    .positive('Must be greater than 0'),
-  area_size: z
-    .number({ error: 'Area is required' })
-    .positive('Must be greater than 0'),
-});
-
-type UpdateLotFormData = z.infer<typeof updateLotSchema>;
+import { updateLotSchema, type UpdateLotFormData } from '@/lib/validations/property';
 
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',

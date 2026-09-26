@@ -1,10 +1,17 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAuthorizedCaller } from "@/lib/actions/auth-guard";
+import { requirePermission } from "@/lib/actions/auth-guard";
 import { AuthError } from "@supabase/supabase-js";
 import type { RbacRole } from "@/lib/actions/admin-roles";
 import { checkSelfDeactivate, checkSelfDelete } from "@/lib/self-protection";
+import {
+  type ActionResult,
+  actionSuccess,
+  actionError,
+  actionZodError,
+} from "@/lib/actions/action-result";
+import { createUserSchema, updateUserProfileSchema } from "@/lib/validations/user";
 
 export interface RegisterUserParams {
   email: string;
@@ -16,7 +23,6 @@ export interface RegisterUserParams {
 }
 
 export type RegisterUserResult = {
-  success: true;
   userId: string;
 };
 
@@ -60,78 +66,86 @@ function describeCreateUserError(error: AuthError): string {
 }
 
 export async function registerUser(
-  params: RegisterUserParams
-): Promise<RegisterUserResult> {
-  const { email, password, firstName, lastName, roleIds = [] } = params;
+  params: unknown
+): Promise<ActionResult<RegisterUserResult>> {
+  try {
+    const parsed = createUserSchema.safeParse(params);
+    if (!parsed.success) {
+      return actionZodError(parsed.error);
+    }
+    const validated = parsed.data;
 
-  const caller = await getAuthorizedCaller();
-  if ("error" in caller) throw new Error(caller.error);
+    await requirePermission("system.create");
+    const adminClient = createAdminClient();
 
-  const adminClient = createAdminClient();
-
-  const { data: createData, error: createError } =
-    await adminClient.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        first_name: firstName,
-        last_name: lastName,
-      },
-    });
-
-  if (createError) {
-    throw new Error(describeCreateUserError(createError));
-  }
-
-  const newUserId = createData.user.id;
-
-  if (roleIds.length > 0) {
-    const uniqueRoleIds = Array.from(new Set(roleIds));
-    const { error: roleError } = await adminClient
-      .schema("rbac")
-      .rpc("set_user_roles", {
-        p_user_id: newUserId,
-        p_role_ids: uniqueRoleIds,
+    const { data: createData, error: createError } =
+      await adminClient.auth.admin.createUser({
+        email: validated.email,
+        password: validated.password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: validated.firstName,
+          last_name: validated.lastName,
+        },
       });
 
-    if (roleError) {
-      // Revert created auth user to maintain atomicity and avoid orphaned accounts
-      await adminClient.auth.admin.deleteUser(newUserId);
-      throw new Error(`Role assignment failed: ${roleError.message}`);
+    if (createError) {
+      return actionError(describeCreateUserError(createError));
     }
-  }
 
-  return { success: true, userId: newUserId };
+    const newUserId = createData.user.id;
+
+    if (validated.roleIds.length > 0) {
+      const uniqueRoleIds = Array.from(new Set(validated.roleIds));
+      const { error: roleError } = await adminClient
+        .schema("rbac")
+        .rpc("set_user_roles", {
+          p_user_id: newUserId,
+          p_role_ids: uniqueRoleIds,
+        });
+
+      if (roleError) {
+        // Revert created auth user to maintain atomicity and avoid orphaned accounts
+        await adminClient.auth.admin.deleteUser(newUserId);
+        return actionError(`Role assignment failed: ${roleError.message}`);
+      }
+    }
+
+    return actionSuccess({ userId: newUserId });
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to register user");
+  }
 }
 
-export async function toggleUser(userId: string, enable: boolean): Promise<{ success: true }> {
-  const caller = await getAuthorizedCaller();
-  if ("error" in caller) throw new Error(caller.error);
+export async function toggleUser(userId: string, enable: boolean): Promise<ActionResult<{ success: true }>> {
+  try {
+    const callerId = await requirePermission("system.create");
 
-  // Guard against an admin locking themselves out. Enforced here rather than
-  // only in the UI so it still holds if the action is called directly.
-  const deactivateError = checkSelfDeactivate(caller.id, userId, enable);
-  if (deactivateError) {
-    throw new Error(deactivateError);
+    // Guard against an admin locking themselves out. Enforced here rather than
+    // only in the UI so it still holds if the action is called directly.
+    const deactivateError = checkSelfDeactivate(callerId, userId, enable);
+    if (deactivateError) {
+      return actionError(deactivateError);
+    }
+
+    const adminClient = createAdminClient();
+    const ban_duration = enable ? "0h" : "876000h";
+    const { error } = await adminClient.auth.admin.updateUserById(userId, {
+      ban_duration,
+    });
+
+    if (error) {
+      return actionError(error.message);
+    }
+
+    return actionSuccess({ success: true });
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to toggle user status");
   }
-
-  const adminClient = createAdminClient();
-  const ban_duration = enable ? "0h" : "876000h";
-  const { error } = await adminClient.auth.admin.updateUserById(userId, {
-    ban_duration,
-  });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return { success: true };
 }
 
 export async function listUsers(): Promise<ListUsersResult> {
-  const caller = await getAuthorizedCaller();
-  if ("error" in caller) throw new Error(caller.error);
+  await requirePermission("system.create");
 
   const adminClient = createAdminClient();
 
@@ -203,35 +217,38 @@ export async function listUsers(): Promise<ListUsersResult> {
 
 export type DeleteUserResult = { success: true };
 
-export async function deleteUser(userId: string): Promise<DeleteUserResult> {
-  const caller = await getAuthorizedCaller();
-  if ("error" in caller) throw new Error(caller.error);
+export async function deleteUser(userId: string): Promise<ActionResult<DeleteUserResult>> {
+  try {
+    const callerId = await requirePermission("system.create");
 
-  const selfDeleteError = checkSelfDelete(caller.id, userId);
-  if (selfDeleteError) {
-    throw new Error(selfDeleteError);
+    const selfDeleteError = checkSelfDelete(callerId, userId);
+    if (selfDeleteError) {
+      return actionError(selfDeleteError);
+    }
+
+    const adminClient = createAdminClient();
+
+    // Remove associated RBAC role mappings first (in case there is no ON DELETE CASCADE)
+    const { error: rolesError } = await adminClient
+      .schema("rbac")
+      .from("user_role")
+      .delete()
+      .eq("user_id", userId);
+
+    if (rolesError) {
+      return actionError(`Role cleanup error: ${rolesError.message}`);
+    }
+
+    const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
+
+    if (deleteError) {
+      return actionError(deleteError.message);
+    }
+
+    return actionSuccess({ success: true });
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to delete user");
   }
-
-  const adminClient = createAdminClient();
-
-  // Remove associated RBAC role mappings first (in case there is no ON DELETE CASCADE)
-  const { error: rolesError } = await adminClient
-    .schema("rbac")
-    .from("user_role")
-    .delete()
-    .eq("user_id", userId);
-
-  if (rolesError) {
-    throw new Error(`Role cleanup error: ${rolesError.message}`);
-  }
-
-  const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
-
-  if (deleteError) {
-    throw new Error(deleteError.message);
-  }
-
-  return { success: true };
 }
 
 export type UpdateUserProfileResult = { success: true };
@@ -240,21 +257,28 @@ export async function updateUserProfile(
   userId: string,
   firstName: string,
   lastName: string
-): Promise<UpdateUserProfileResult> {
-  const caller = await getAuthorizedCaller();
-  if ("error" in caller) throw new Error(caller.error);
+): Promise<ActionResult<UpdateUserProfileResult>> {
+  try {
+    const parsed = updateUserProfileSchema.safeParse({ firstName, lastName });
+    if (!parsed.success) {
+      return actionZodError(parsed.error);
+    }
 
-  const adminClient = createAdminClient();
-  const { error } = await adminClient.auth.admin.updateUserById(userId, {
-    user_metadata: {
-      first_name: firstName,
-      last_name: lastName,
-    },
-  });
+    await requirePermission("system.create");
+    const adminClient = createAdminClient();
+    const { error } = await adminClient.auth.admin.updateUserById(userId, {
+      user_metadata: {
+        first_name: parsed.data.firstName,
+        last_name: parsed.data.lastName,
+      },
+    });
 
-  if (error) {
-    throw new Error(error.message);
+    if (error) {
+      return actionError(error.message);
+    }
+
+    return actionSuccess({ success: true });
+  } catch (error) {
+    return actionError(error instanceof Error ? error.message : "Failed to update user profile");
   }
-
-  return { success: true };
 }

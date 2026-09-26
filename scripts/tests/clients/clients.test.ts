@@ -20,6 +20,12 @@ import {
   getTestAdminClient,
   runTrackedCleanups,
 } from "../framework/session";
+import { unwrap } from "../framework/action-helper";
+
+function fakeTin(): string {
+  const d = faker.string.numeric(9);
+  return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6, 9)}`;
+}
 
 describe("Client Management Actions", () => {
   const testClientIds: string[] = [];
@@ -52,9 +58,9 @@ describe("Client Management Actions", () => {
     const email = faker.internet.email();
     const phone = faker.phone.number();
     const address = `${faker.location.streetAddress()}, ${faker.location.city()}`;
-    const tinNumber = `TIN-${faker.string.numeric(9)}`;
+    const tinNumber = fakeTin();
 
-    const newClient = await createClient({
+    const newClient = unwrap(await createClient({
       full_name: fullName,
       address,
       tin_number: tinNumber,
@@ -63,7 +69,7 @@ describe("Client Management Actions", () => {
         { type: "Email", value: email, is_primary: true },
         { type: "Phone", value: phone, is_primary: false },
       ],
-    });
+    }));
 
     expect(newClient.client_id).toBeDefined();
     expect(newClient.full_name).toBe(fullName);
@@ -77,10 +83,10 @@ describe("Client Management Actions", () => {
   });
 
   it("getClientById returns a consolidated profile including property lots", async () => {
-    const client = await createClient({
+    const client = unwrap(await createClient({
       full_name: faker.person.fullName(),
       status: "Active",
-    });
+    }));
     testClientIds.push(client.client_id);
 
     // Regression guard: `property_lot.client_id` was dropped in 20260914223800,
@@ -97,13 +103,13 @@ describe("Client Management Actions", () => {
   it("getClients filters by search term across name and TIN", async () => {
     const uniqueTag = `FakerTag-${Date.now()}`;
     const fullName = `${faker.person.fullName()} ${uniqueTag}`;
-    const tinNumber = `TIN-${uniqueTag}`;
+    const tinNumber = fakeTin();
 
-    const client = await createClient({
+    const client = unwrap(await createClient({
       full_name: fullName,
       tin_number: tinNumber,
       status: "Active",
-    });
+    }));
     testClientIds.push(client.client_id);
 
     // Search by partial name
@@ -117,14 +123,14 @@ describe("Client Management Actions", () => {
 
   it("getClients filters by status and supports pagination", async () => {
     const uniqueSuffix = Date.now();
-    const activeClient = await createClient({
+    const activeClient = unwrap(await createClient({
       full_name: `${faker.person.fullName()} Active ${uniqueSuffix}`,
       status: "Active",
-    });
-    const inactiveClient = await createClient({
+    }));
+    const inactiveClient = unwrap(await createClient({
       full_name: `${faker.person.fullName()} Inactive ${uniqueSuffix}`,
       status: "Inactive",
-    });
+    }));
     testClientIds.push(activeClient.client_id, inactiveClient.client_id);
 
     const activeList = await getClients({ search: `${uniqueSuffix}`, status: "Active" });
@@ -138,22 +144,22 @@ describe("Client Management Actions", () => {
   });
 
   it("updateClient modifies client fields", async () => {
-    const client = await createClient({
+    const client = unwrap(await createClient({
       full_name: faker.person.fullName(),
       address: faker.location.streetAddress(),
-      tin_number: `TIN-${faker.string.numeric(9)}`,
+      tin_number: fakeTin(),
       status: "Active",
-    });
+    }));
     testClientIds.push(client.client_id);
 
     const updatedName = faker.person.fullName();
     const updatedAddress = faker.location.streetAddress();
 
-    const updated = await updateClient(client.client_id, {
+    const updated = unwrap(await updateClient(client.client_id, {
       full_name: updatedName,
       status: "Inactive",
       address: updatedAddress,
-    });
+    }));
 
     expect(updated.full_name).toBe(updatedName);
     expect(updated.status).toBe("Inactive");
@@ -161,19 +167,19 @@ describe("Client Management Actions", () => {
   });
 
   it("addContactInfo enforces single primary contact exclusivity", async () => {
-    const client = await createClient({
+    const client = unwrap(await createClient({
       full_name: faker.person.fullName(),
       contacts: [{ type: "Phone", value: faker.phone.number(), is_primary: true }],
-    });
+    }));
     testClientIds.push(client.client_id);
 
     // Add a new primary contact
     const newEmail = faker.internet.email();
-    const newContact = await addContactInfo(client.client_id, {
+    const newContact = unwrap(await addContactInfo(client.client_id, {
       type: "Email",
       value: newEmail,
       is_primary: true,
-    });
+    }));
 
     const clientDetails = await getClientById(client.client_id);
     const primaryContacts = clientDetails.contact_info.filter((c) => c.is_primary);
@@ -184,10 +190,10 @@ describe("Client Management Actions", () => {
   });
 
   it("updateContactInfo and deleteContactInfo manage contact records", async () => {
-    const client = await createClient({
+    const client = unwrap(await createClient({
       full_name: faker.person.fullName(),
       contacts: [{ type: "Phone", value: faker.phone.number(), is_primary: false }],
-    });
+    }));
     testClientIds.push(client.client_id);
 
     const initialDetails = await getClientById(client.client_id);
@@ -195,17 +201,17 @@ describe("Client Management Actions", () => {
 
     // Update contact value
     const updatedPhone = faker.phone.number();
-    const updated = await updateContactInfo(contactId, { value: updatedPhone });
+    const updated = unwrap(await updateContactInfo(contactId, { value: updatedPhone }));
     expect(updated.value).toBe(updatedPhone);
 
     // Delete contact
-    await deleteContactInfo(contactId);
+    unwrap(await deleteContactInfo(contactId));
     const afterDelete = await getClientById(client.client_id);
     expect(afterDelete.contact_info.length).toBe(0);
   });
 
   it("createClientDocument and deleteClientDocument manage document metadata", async () => {
-    const client = await createClient({ full_name: faker.person.fullName() });
+    const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client.client_id);
 
     const docName = faker.system.commonFileName("pdf");
@@ -220,14 +226,14 @@ describe("Client Management Actions", () => {
     const withDoc = await getClientById(client.client_id);
     expect(withDoc.client_document.some((d) => d.document_id === doc.document_id)).toBe(true);
 
-    await deleteClientDocument(doc.document_id);
+    unwrap(await deleteClientDocument(doc.document_id));
 
     const afterDelete = await getClientById(client.client_id);
     expect(afterDelete.client_document.some((d) => d.document_id === doc.document_id)).toBe(false);
   });
 
   it("createClientLog and getClientLogs record and retrieve client audit entries", async () => {
-    const client = await createClient({ full_name: faker.person.fullName() });
+    const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client.client_id);
 
     const logEntry = await createClientLog(client.client_id, {
@@ -249,18 +255,19 @@ describe("Client Management Actions", () => {
   });
 
   it("deleteClient removes client and all associated relations", async () => {
-    const client = await createClient({
+    const client = unwrap(await createClient({
       full_name: faker.person.fullName(),
       contacts: [{ type: "Email", value: faker.internet.email(), is_primary: true }],
-    });
+    }));
 
     await createClientLog(client.client_id, {
       event_type: "PRE_DELETE_AUDIT",
       description: "Log before client deletion",
     });
 
-    await deleteClient(client.client_id);
+    unwrap(await deleteClient(client.client_id));
 
     await expect(getClientById(client.client_id)).rejects.toThrow("Client not found");
   });
 });
+

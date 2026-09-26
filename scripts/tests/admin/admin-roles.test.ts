@@ -53,7 +53,11 @@ describe("Admin Roles & User Role Inspection Actions", () => {
   });
 
   it("setUserRoles rejects unauthorized caller", async () => {
-    await expect(setUserRoles(tempUser.id, [])).rejects.toThrow(/You must be logged in|unauthorized/i);
+    const res = await setUserRoles(tempUser.id, []);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(/You must be logged in|unauthorized/i);
+    }
   });
 
   it("setUserRoles prevents admin from removing their own system_admin role", async () => {
@@ -63,7 +67,11 @@ describe("Admin Roles & User Role Inspection Actions", () => {
     const roles = await getActiveRoles();
     const billingRole = roles.find((r) => r.name === "billing_staff")!;
 
-    await expect(setUserRoles(adminId, [billingRole.id])).rejects.toThrow(SELF_DEMOTE_ERROR);
+    const res = await setUserRoles(adminId, [billingRole.id]);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(SELF_DEMOTE_ERROR);
+    }
   });
 
   it("setUserRoles assigns roles to a target user and updates their permissions", async () => {
