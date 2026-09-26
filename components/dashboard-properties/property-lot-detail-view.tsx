@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { ArrowLeft, X, LandPlot, User, DollarSign, CheckCircle2, FileDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
@@ -48,7 +47,6 @@ export interface PropertyLotDetailViewProps {
 
 export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetailViewProps) {
   const { updateLot } = usePropertyLots();
-  const { state, execute } = useMutation(updateLot);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
@@ -76,6 +74,14 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
 
   const { register, control, watch, reset, formState: { errors, isDirty } } = form;
 
+  const { state, execute } = useMutation(updateLot, {
+    setError: form.setError,
+    onSuccess: () => {
+      toast.success(`${lotLabel(lot)} details updated successfully`);
+      reset(form.getValues());
+    },
+  });
+
   // Sync form values when the selected lot changes
   useEffect(() => {
     reset({
@@ -85,27 +91,16 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
     });
   }, [lot, reset]);
 
-  // Display error toast if update fails
-  useEffect(() => {
-    if (state.status === 'error') {
-      toast.error(state.error);
-    }
-  }, [state]);
-
   const watchedPrice = watch('price_per_sqm') ?? 0;
   const watchedArea = watch('area_size') ?? 0;
   const calculatedTotal = watchedPrice * watchedArea;
 
   const onSubmit = form.handleSubmit(async (data) => {
-    const ok = await execute(lot.property_id, {
+    await execute(lot.property_id, {
       status: data.status,
       price_per_sqm: data.price_per_sqm,
       area_size: data.area_size,
     });
-    if (ok) {
-      toast.success(`${lotLabel(lot)} details updated successfully`);
-      reset(data);
-    }
   });
 
   const isPending = state.status === 'pending';

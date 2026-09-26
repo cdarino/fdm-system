@@ -244,14 +244,12 @@ function UserIdentity({ user }: { user: UserListItem }) {
 
 function ToggleUserDialog({ user, open }: { user: UserListItem; open: boolean }) {
   const { toggleUserStatus, closeDialog } = useAdminUsers();
-  const { state, execute } = useMutation(toggleUserStatus);
-
-  useEffect(() => {
-    if (state.status === 'success') {
+  const { state, execute } = useMutation(toggleUserStatus, {
+    onSuccess: () => {
       closeDialog();
       toast.success(user.isBanned ? 'User activated successfully' : 'User deactivated successfully');
-    }
-  }, [state.status, closeDialog, user.isBanned]);
+    },
+  });
 
   return (
     <AlertDialog open={open} onOpenChange={(v) => !v && closeDialog()}>
@@ -284,14 +282,12 @@ function ToggleUserDialog({ user, open }: { user: UserListItem; open: boolean })
 
 function DeleteUserDialog({ user, open }: { user: UserListItem; open: boolean }) {
   const { deleteUser, closeDialog } = useAdminUsers();
-  const { state, execute } = useMutation(deleteUser);
-
-  useEffect(() => {
-    if (state.status === 'success') {
+  const { state, execute } = useMutation(deleteUser, {
+    onSuccess: () => {
       closeDialog();
       toast.success('User deleted successfully');
-    }
-  }, [state.status, closeDialog]);
+    },
+  });
 
   return (
     <AlertDialog open={open} onOpenChange={(v) => !v && closeDialog()}>
@@ -320,7 +316,12 @@ function DeleteUserDialog({ user, open }: { user: UserListItem; open: boolean })
 
 function EditRolesDialog({ user, open }: { user: UserListItem; open: boolean }) {
   const { roles, updateUserRoles, closeDialog, currentUserId } = useAdminUsers();
-  const { state, execute } = useMutation(updateUserRoles);
+  const { state, execute } = useMutation(updateUserRoles, {
+    onSuccess: () => {
+      closeDialog();
+      toast.success('Roles updated successfully');
+    },
+  });
   const initialRoleIds = user.roles.map((r) => r.id);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>(initialRoleIds);
 
@@ -331,13 +332,6 @@ function EditRolesDialog({ user, open }: { user: UserListItem; open: boolean }) 
     ? roles.find((r) => r.name === SYSTEM_ADMIN_ROLE && initialRoleIds.includes(r.id))?.id
     : undefined;
   const lockedIds = ownSystemAdminRoleId ? [ownSystemAdminRoleId] : [];
-
-  useEffect(() => {
-    if (state.status === 'success') {
-      closeDialog();
-      toast.success('Roles updated successfully');
-    }
-  }, [state.status, closeDialog]);
 
   const isDirty =
     selectedRoleIds.length !== initialRoleIds.length ||
@@ -385,17 +379,15 @@ function EditRolesDialog({ user, open }: { user: UserListItem; open: boolean }) 
 
 function EditNameDialog({ user, open }: { user: UserListItem; open: boolean }) {
   const { updateUserName, closeDialog } = useAdminUsers();
-  const { state, execute } = useMutation(updateUserName);
+  const { state, execute } = useMutation(updateUserName, {
+    onSuccess: () => {
+      closeDialog();
+      toast.success('Name updated successfully');
+    },
+  });
   const [firstName, setFirstName] = useState(user.firstName || '');
   const [lastName, setLastName] = useState(user.lastName || '');
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (state.status === 'success') {
-      closeDialog();
-      toast.success('Name updated successfully');
-    }
-  }, [state.status, closeDialog]);
 
   const isDirty = firstName !== (user.firstName || '') || lastName !== (user.lastName || '');
 

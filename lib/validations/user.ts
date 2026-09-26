@@ -13,5 +13,5 @@ export const updateUserProfileSchema = z.object({
   lastName: z.string().trim().min(1, "Last name is required"),
 });
 
-export type CreateUserFormData = z.infer<typeof createUserSchema>;
+export type CreateUserFormData = z.input<typeof createUserSchema>;
 export type UpdateUserProfileFormData = z.infer<typeof updateUserProfileSchema>;

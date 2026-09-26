@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,14 +24,12 @@ export function DeleteClientDialog({
   open: boolean;
 }) {
   const { deleteClient, closeDialog } = useClients();
-  const { state, execute } = useMutation(deleteClient);
-
-  useEffect(() => {
-    if (state.status === 'success') {
+  const { state, execute } = useMutation(deleteClient, {
+    onSuccess: () => {
       closeDialog();
       toast.success('Client deleted successfully');
-    }
-  }, [state.status, closeDialog]);
+    },
+  });
 
   const isPending = state.status === 'pending';
 

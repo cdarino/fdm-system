@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,14 +29,12 @@ export function ArchiveClientDialog({
   open: boolean;
 }) {
   const { archiveClient, closeDialog } = useClients();
-  const { state, execute } = useMutation(archiveClient);
-
-  useEffect(() => {
-    if (state.status === 'success') {
+  const { state, execute } = useMutation(archiveClient, {
+    onSuccess: () => {
       closeDialog();
       toast.success('Client archived');
-    }
-  }, [state.status, closeDialog]);
+    },
+  });
 
   const isPending = state.status === 'pending';
 

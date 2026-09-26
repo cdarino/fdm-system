@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
@@ -48,7 +47,6 @@ export interface CreatePropertyLotModalProps {
 
 export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePropertyLotModalProps) {
   const { createLot, closeDialog } = usePropertyLots();
-  const { state, execute } = useMutation(createLot);
 
   const form = useForm<CreatePropertyLotFormData>({
     resolver: zodResolver(createPropertyLotSchema),
@@ -58,6 +56,14 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
       lot_number: initialValues?.lot_number ?? undefined,
       area_size: initialValues?.area_size ?? undefined,
       price_per_sqm: initialValues?.price_per_sqm ?? undefined,
+    },
+  });
+
+  const { state, execute } = useMutation(createLot, {
+    setError: form.setError,
+    onSuccess: () => {
+      closeDialog();
+      toast.success('Property lot created successfully');
     },
   });
 
@@ -75,13 +81,6 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
   }, [open, initialValues, form]);
 
   const { register, watch, formState: { errors } } = form;
-
-  useEffect(() => {
-    if (state.status === 'success') {
-      closeDialog();
-      toast.success('Property lot created successfully');
-    }
-  }, [state.status, closeDialog]);
 
   const onSubmit = form.handleSubmit((data) => {
     const site = sites.find((s) => s.site_id === data.site_id);

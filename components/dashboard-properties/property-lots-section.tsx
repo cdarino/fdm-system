@@ -91,12 +91,6 @@ function StatusMenu({ lot }: { lot: PropertyLotWithClient }) {
   const { state, execute } = useMutation(updateLotStatus);
   const isPending = state.status === 'pending';
 
-  useEffect(() => {
-    if (state.status === 'error') {
-      toast.error(state.error);
-    }
-  }, [state]);
-
   async function handleSelect(next: PropertyStatus) {
     if (next === lot.status) return;
     const ok = await execute(lot.property_id, next);
@@ -146,20 +140,15 @@ function StatusMenu({ lot }: { lot: PropertyLotWithClient }) {
 
 function LotActionsMenu({ lot }: { lot: PropertyLotWithClient }) {
   const { openDialog, unassignClient } = usePropertyLots();
-  const { state, execute } = useMutation(unassignClient);
+  const { state, execute } = useMutation(unassignClient, {
+    onSuccess: () => {
+      toast.success(`${lotLabel(lot)} unassigned`);
+    },
+  });
   const isPending = state.status === 'pending';
 
-  useEffect(() => {
-    if (state.status === 'error') {
-      toast.error(state.error);
-    }
-  }, [state]);
-
   async function handleUnassign() {
-    const ok = await execute(lot.property_id);
-    if (ok) {
-      toast.success(`${lotLabel(lot)} unassigned`);
-    }
+    await execute(lot.property_id);
   }
 
   return (

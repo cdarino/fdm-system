@@ -35,13 +35,19 @@ export function AssignLotClientDialog({
   open: boolean;
 }) {
   const { assignClient, closeDialog } = usePropertyLots();
-  const { state, execute } = useMutation(assignClient);
-
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(lot.client?.client_id ?? null);
+
+  const { state, execute } = useMutation(assignClient, {
+    onSuccess: () => {
+      const name = clients.find((c) => c.client_id === selectedId)?.full_name ?? 'Client';
+      toast.success(`${lotLabel(lot)} assigned to ${name}`);
+      closeDialog();
+    },
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -70,12 +76,7 @@ export function AssignLotClientDialog({
 
   async function handleAssign() {
     if (!selectedId) return;
-    const ok = await execute(lot.property_id, selectedId);
-    if (ok) {
-      const name = clients.find((c) => c.client_id === selectedId)?.full_name ?? 'Client';
-      toast.success(`${lotLabel(lot)} assigned to ${name}`);
-      closeDialog();
-    }
+    await execute(lot.property_id, selectedId);
   }
 
   return (

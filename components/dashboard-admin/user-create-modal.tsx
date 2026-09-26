@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
@@ -22,7 +21,6 @@ import { createUserSchema, type CreateUserFormData } from '@/lib/validations/use
 
 export function useCreateUserForm() {
   const { roles, createUser, closeDialog } = useAdminUsers();
-  const { state, execute } = useMutation(createUser);
 
   const form = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
@@ -35,12 +33,13 @@ export function useCreateUserForm() {
     },
   });
 
-  useEffect(() => {
-    if (state.status === 'success') {
+  const { state, execute } = useMutation(createUser, {
+    setError: form.setError,
+    onSuccess: () => {
       closeDialog();
       toast.success('User created successfully!');
-    }
-  }, [state.status, closeDialog]);
+    },
+  });
 
   const onSubmit = form.handleSubmit((data) => {
     execute(data);
@@ -132,9 +131,10 @@ export function CreateUserModal({ open }: { open: boolean }) {
                 render={({ field }) => (
                   <RoleCheckboxList
                     roles={roles}
-                    selectedIds={field.value}
+                    selectedIds={field.value ?? []}
                     onChange={(id, checked) => {
-                      const next = checked ? [...field.value, id] : field.value.filter((r) => r !== id);
+                      const current = field.value ?? [];
+                      const next = checked ? [...current, id] : current.filter((r) => r !== id);
                       field.onChange(next);
                     }}
                     disabled={isPending}

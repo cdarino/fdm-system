@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -257,19 +257,16 @@ function ClientRow({ client }: { client: ClientListItem }) {
   const missingDocs = missingDocumentAlerts.find(
     (alert) => alert.client_id === client.client_id
   );
-  const { state: restoreState, execute: runRestore } = useMutation(restoreClient);
+  const { state: restoreState, execute: runRestore } = useMutation(restoreClient, {
+    onSuccess: () => {
+      toast.success(`${client.full_name} restored`);
+    },
+  });
   const isArchived = client.status === ARCHIVED_STATUS;
   const isRestoring = restoreState.status === 'pending';
 
-  useEffect(() => {
-    if (restoreState.status === 'error') {
-      toast.error(restoreState.error);
-    }
-  }, [restoreState]);
-
   async function handleRestore() {
-    const ok = await runRestore(client.client_id);
-    if (ok) toast.success(`${client.full_name} restored`);
+    await runRestore(client.client_id);
   }
 
   return (
