@@ -24,6 +24,7 @@ export function DashboardShell({
   const hasLoadedSidebarPreference = React.useRef(false);
 
   React.useEffect(() => {
+    // NOTE: Could be fine for now, in the future we could use some kind of class/hook to manage local configs
     const savedPreference = window.localStorage.getItem('dashboard-sidebar-open');
     if (savedPreference !== null) {
       setIsSidebarOpen(savedPreference === 'true');

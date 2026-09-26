@@ -25,6 +25,9 @@ const ROLE_FOCUS: Record<string, { title: string; description: string }> = {
   legal_staff: { title: 'Keep client documentation in view', description: 'Open client profiles to review documents and verify their assigned properties.' },
 };
 
+// FIXME: who the FUCK reads code horizontally, ever heard of variables, or functions!?
+// FIXME: VARIANTS!!
+
 async function DashboardContent() {
   try {
     const user = await getUserInfo();
