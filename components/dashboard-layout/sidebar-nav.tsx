@@ -26,7 +26,13 @@ interface SidebarNavProps {
   }[];
 }
 
-const allNavigationItems = [
+const allNavigationItems: Array<{
+  title: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  comingSoon?: boolean;
+  systemAdminOnly?: boolean;
+}> = [
   {
     title: 'Dashboard',
     href: '/dashboard',
@@ -72,7 +78,7 @@ const ROLE_TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>
  */
 function navItemClasses(isActive: boolean): string {
   return cn(
-    'w-full flex items-start text-left space-x-3 px-4 py-2 rounded transition-colors text-sm font-medium',
+    'flex w-full items-start justify-start space-x-3 rounded px-4 py-2 text-left text-sm font-medium transition-colors',
     isActive
       ? 'bg-sidebar-accent text-accent-blue-foreground'
       : 'text-muted-foreground hover:bg-background hover:text-foreground',
@@ -109,20 +115,32 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
           const isActive = pathname === item.href;
 
           const content = (
-            <button className={navItemClasses(isActive)}>
-              <Icon className={cn('w-5 h-5 shrink-0', isActive && 'text-yellow-500')} />
+            <>
+              <Icon className="w-5 h-5 shrink-0" />
               <span>{item.title}</span>
-            </button>
+            </>
           );
 
           return (
             <div key={item.href}>
               {item.comingSoon ? (
-                <div onClick={() => handleComingSoon(item.title)} className="cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => handleComingSoon(item.title)}
+                  className={navItemClasses(isActive)}
+                  title={item.title}
+                >
                   {content}
-                </div>
+                </button>
               ) : (
-                <Link href={item.href}>{content}</Link>
+                <Link
+                  href={item.href}
+                  className={navItemClasses(isActive)}
+                  title={item.title}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {content}
+                </Link>
               )}
             </div>
           );
@@ -142,20 +160,32 @@ export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: Sidebar
                 (tab.href === '/dashboard/properties/map' && pathname.startsWith('/dashboard/properties'));
 
               const content = (
-                <button className={navItemClasses(isActive)}>
+                <>
                   <Icon className="w-5 h-5 shrink-0" />
                   <span>{tab.title}</span>
-                </button>
+                </>
               );
 
               return (
                 <div key={tab.href}>
                   {tab.comingSoon ? (
-                    <div onClick={() => handleComingSoon(tab.title)} className="cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => handleComingSoon(tab.title)}
+                      className={navItemClasses(isActive)}
+                      title={tab.title}
+                    >
                       {content}
-                    </div>
+                    </button>
                   ) : (
-                    <Link href={tab.href}>{content}</Link>
+                    <Link
+                      href={tab.href}
+                      className={navItemClasses(isActive)}
+                      title={tab.title}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      {content}
+                    </Link>
                   )}
                 </div>
               );

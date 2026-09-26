@@ -34,7 +34,7 @@ export function Hero() {
           <div className="space-y-8">
 
             <div className="space-y-4">
-              <h1 className="text-5xl font-bold leading-tight text-foreground sm:text-6xl">
+              <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-6xl">
                 First Davao Millennium Property Ventures Inc.
               </h1>
               <p className="text-xl leading-relaxed text-muted-foreground">

@@ -259,7 +259,7 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
       {/* Floating Collapsible Card on Left */}
       <div
         className={cn(
-          'absolute left-4 top-4 bottom-4 z-20 w-[420px] sm:w-[460px] max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ease-in-out',
+          'absolute bottom-2 left-2 top-2 z-20 w-[calc(100vw-1rem)] sm:bottom-4 sm:left-4 sm:top-4 sm:w-[460px] sm:max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ease-in-out',
           isSidebarOpen && !plotType
             ? 'translate-x-0 opacity-100 pointer-events-auto'
             : '-translate-x-[calc(100%+2rem)] opacity-0 pointer-events-none'

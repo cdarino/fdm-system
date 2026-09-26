@@ -15,8 +15,6 @@ import {
 
 export function generateClientPdfReport(data: ClientReportData): void {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-
   // Render header
   let yPos = drawReportHeader(doc, {
     title: data.client.full_name,

@@ -36,7 +36,7 @@ export function PageContainer({
       className={cn(
         'flex-1 min-h-0 h-full flex flex-col',
         scrollable ? 'overflow-y-auto' : 'overflow-hidden',
-        padding && 'p-8 min-h-full',
+        padding && 'min-h-full p-4 sm:p-8',
         className
       )}
       {...props}

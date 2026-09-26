@@ -81,7 +81,8 @@ function StatusTabs({
   counts: Record<ClientStatusFilter, number>;
 }) {
   const tabs: { value: ClientStatusFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
+    { value: 'all', label: 'Current' },
+    { value: 'all-records', label: 'All records' },
     { value: 'Active', label: 'Active' },
     { value: 'Inactive', label: 'Inactive' },
     { value: 'Archived', label: 'Archived' },
@@ -89,18 +90,17 @@ function StatusTabs({
 
   return (
     <div
-      role="tablist"
+      role="group"
       aria-label="Filter clients by status"
-      className="inline-flex items-center gap-1 rounded-lg bg-row-hover p-1"
+      className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1"
     >
       {tabs.map((tab) => {
         const isActive = value === tab.value;
         return (
           <button
             key={tab.value}
-            role="tab"
             type="button"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             onClick={() => onChange(tab.value)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
               isActive
@@ -430,19 +430,18 @@ function ClientsContent() {
 
   /**
    * Denominator for the footer: the set the current tab draws from, not every
-   * loaded row. On the Archived tab that is the archived clients; everywhere
-   * else it is the working list, which excludes them.
+   * loaded row. All records includes archives; Current excludes them.
    */
-  const tabTotal =
+  const tabTotal = statusFilter === 'all-records' ? clients.length :
     statusFilter === 'Archived'
       ? clients.filter((c) => c.status === ARCHIVED_STATUS).length
       : clients.filter((c) => c.status !== ARCHIVED_STATUS).length;
 
-  // Archived clients are excluded from every count except their own, so "All"
-  // keeps meaning the working list rather than every row ever created.
+  // Current clients exclude archives; All records matches the dashboard total.
   const active = clients.filter((c) => c.status !== ARCHIVED_STATUS);
   const counts: Record<ClientStatusFilter, number> = {
     all: active.length,
+    'all-records': clients.length,
     Active: active.filter((c) => c.status.toLowerCase() === 'active').length,
     Inactive: active.filter((c) => c.status.toLowerCase() === 'inactive').length,
     Archived: clients.length - active.length,
@@ -466,12 +465,12 @@ function ClientsContent() {
               Manage client records, contact information, and activity history.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
             {missingDocumentAlerts.length > 0 && (
               <Button
                 variant="outline"
                 onClick={() => setIsMissingDocsOpen(true)}
-                className="gap-2 border-destructive bg-card text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_8%,white)] hover:text-destructive"
+                className="min-h-10 w-full gap-2 border-destructive bg-card text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_8%,white)] hover:text-destructive sm:w-auto"
               >
                 <ShieldAlert className="h-4 w-4" />
                 {missingDocumentAlerts.length} incomplete
@@ -481,14 +480,14 @@ function ClientsContent() {
             <Button
               variant="outline"
               onClick={() => setIsDocumentSearchOpen(true)}
-              className="gap-2 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
+              className="min-h-10 w-full gap-2 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground sm:w-auto"
             >
               <FileSearch className="h-4 w-4" />
               Search documents
             </Button>
             <Button
               onClick={() => openDialog({ type: 'create' })}
-              className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+              className="min-h-10 w-full gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)] sm:w-auto"
             >
               <Plus className="h-4 w-4" />
               New Client
@@ -499,7 +498,7 @@ function ClientsContent() {
         {/* Filters and search */}
         <div className={`flex flex-col gap-3 pb-5 xl:flex-row xl:items-center xl:justify-between ${GUTTER}`}>
           <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 sm:flex-none">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -557,7 +556,7 @@ function ClientsContent() {
         {/* Table / rows */}
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {error ? (
-            <div className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
+            <div role="alert" className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
               <p className="text-sm font-medium text-destructive">Could not load clients</p>
               <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
             </div>

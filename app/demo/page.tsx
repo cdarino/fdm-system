@@ -24,7 +24,7 @@ export default function Page() {
 
     return (
         <div>
-            <Card className="min-w-2xl max-w-2xl w-full">
+            <Card className="w-full min-w-0 max-w-2xl">
                 <CardHeader>
                     <CardTitle size="lg">Shadcn Components</CardTitle>
                 </CardHeader>

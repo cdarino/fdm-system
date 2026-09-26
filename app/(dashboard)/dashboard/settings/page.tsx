@@ -120,10 +120,6 @@ async function SettingsContent() {
   );
 }
 
-function ProfileCard() {
-  
-}
-
 export default function SettingsPage() {
   return (
     <PageContainer>

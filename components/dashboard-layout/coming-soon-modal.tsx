@@ -26,7 +26,7 @@ interface ComingSoonModalProps {
  * radius, surface and built-in close button are all overridden so this looks
  * exactly as it did before, only without the stuck-overlay bug.
  */
-export function ComingSoonModal({ isOpen, onClose, title = 'Coming Soon!' }: ComingSoonModalProps) {
+export function ComingSoonModal({ isOpen, onClose, title = 'This feature' }: ComingSoonModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -40,11 +40,11 @@ export function ComingSoonModal({ isOpen, onClose, title = 'Coming Soon!' }: Com
           </div>
 
           {/* Title */}
-          <DialogTitle className="text-xl font-bold text-foreground mb-2">{title}</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-foreground mb-2">Under development</DialogTitle>
 
           {/* Message */}
           <DialogDescription className="text-muted-foreground text-sm mb-6">
-            This feature is currently under development and will be available soon.
+            {title} is currently under development and will be available soon.
           </DialogDescription>
 
           {/* Close Button */}

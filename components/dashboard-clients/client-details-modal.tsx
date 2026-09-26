@@ -162,7 +162,7 @@ export function ClientDetailsModal({
           <div className="py-12 text-center text-sm text-destructive">{error}</div>
         ) : sectionProps && details ? (
           <Tabs defaultValue="contacts" className="flex min-h-0 flex-1 flex-col">
-            <TabsList className="shrink-0">
+            <TabsList className="w-full shrink-0 sm:w-fit">
               <TabsTrigger value="contacts">
                 Contacts
                 <span className="text-xs tabular-nums text-muted-foreground">
@@ -209,14 +209,14 @@ export function ClientDetailsModal({
         ) : null}
 
         <DialogFooter className="pt-3 sm:justify-between items-center w-full">
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={isExportingPdf}
               onClick={handleExportPdf}
-              className="gap-1.5 text-xs text-foreground"
+              className="min-h-10 flex-1 gap-1.5 text-xs text-foreground sm:flex-none"
             >
               {isExportingPdf ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -230,13 +230,13 @@ export function ClientDetailsModal({
               variant="outline"
               size="sm"
               onClick={() => openDialog({ type: 'edit', client })}
-              className="gap-1.5 text-xs text-foreground"
+              className="min-h-10 flex-1 gap-1.5 text-xs text-foreground sm:flex-none"
             >
               <Edit3 className="h-3.5 w-3.5 text-muted-foreground" />
               <span>Edit Client</span>
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={closeDialog}>
+          <Button variant="outline" size="sm" onClick={closeDialog} className="min-h-10 w-full sm:w-auto">
             Close
           </Button>
         </DialogFooter>

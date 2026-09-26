@@ -1,8 +1,5 @@
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { redirect, unstable_rethrow } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Table2, LandPlot } from 'lucide-react';
 import { SiteMapUnifiedView } from '@/components/dashboard-properties/map-site-unified-view';
 import { PageError } from '@/components/dashboard-layout/page-status';
 import { SiteMapSkeleton } from '@/components/dashboard-layout/page-skeletons';

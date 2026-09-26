@@ -36,6 +36,7 @@ export async function requirePermission(permissionName: string): Promise<string>
   return user.id;
 }
 
+// TBD: we could also give ONLY read access to property and users, instead of having ANY
 export async function requireAnyPermission(permissionNames: string[]): Promise<string> {
   const user = await getUserInfo();
   if (!user) {

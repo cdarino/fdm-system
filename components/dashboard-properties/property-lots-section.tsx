@@ -224,6 +224,11 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">{lotLabel(lot)}</p>
             <p className="truncate text-xs text-muted-foreground">{lot.location}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground md:hidden">
+              {AREA.format(lot.area_size)} sqm
+              <span aria-hidden="true"> · </span>
+              {lot.client?.full_name ?? 'Unassigned'}
+            </p>
           </div>
         </div>
       </TableCell>
@@ -284,15 +289,14 @@ function StatusTabs({
 }) {
   const tabs: StatusFilter[] = ['all', ...STATUSES];
   return (
-    <div role="tablist" aria-label="Filter by status" className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
+    <div role="group" aria-label="Filter by status" className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
       {tabs.map((tab) => {
         const isActive = value === tab;
         return (
           <button
             key={tab}
-            role="tab"
             type="button"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             onClick={() => onChange(tab)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
               isActive ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -391,7 +395,7 @@ function PropertyLotsContent() {
               Record raw land inventory and keep lot availability accurate.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Button
               asChild
               variant="outline"
@@ -437,7 +441,7 @@ function PropertyLotsContent() {
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {error ? (
-            <div className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
+            <div role="alert" className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
               <p className="text-sm font-medium text-destructive">Could not load property lots</p>
               <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
             </div>

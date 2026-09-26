@@ -723,15 +723,14 @@ function StatusTabs({
   ];
 
   return (
-    <div role="tablist" aria-label="Filter by status" className="inline-flex items-center gap-1 rounded-lg bg-row-hover p-1">
+    <div role="group" aria-label="Filter by status" className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
       {tabs.map((tab) => {
         const isActive = value === tab.value;
         return (
           <button
             key={tab.value}
-            role="tab"
             type="button"
-            aria-selected={isActive}
+            aria-pressed={isActive}
             onClick={() => onChange(tab.value)}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
               isActive
@@ -900,7 +899,7 @@ function UserManagementContent() {
         {/* Toolbar */}
         <div className={`flex flex-col gap-3 pb-5 xl:flex-row xl:items-center xl:justify-between ${GUTTER}`}>
           <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 sm:flex-none">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -925,7 +924,7 @@ function UserManagementContent() {
         {/* List */}
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {error ? (
-            <div className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
+            <div role="alert" className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
               <p className="text-sm font-medium text-destructive">Could not load users</p>
               <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
             </div>

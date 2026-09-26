@@ -61,13 +61,15 @@ export function DashboardTopBar({ user }: DashboardTopBarProps) {
   return (
     <>
       <div className="bg-card border-b border-border sticky top-0 z-40">
-        <div className="h-16 px-8 flex items-center justify-end gap-6">
+        <div className="flex h-16 min-w-0 items-center justify-end gap-3 px-4 sm:gap-6 sm:px-8">
           {/* Notifications */}
           <Button
             variant="ghost"
             size="icon"
             className="text-muted-foreground hover:bg-background hover:text-foreground relative"
             onClick={() => handleComingSoon('Notifications')}
+            aria-label="Notifications"
+            title="Notifications"
           >
             <Bell className="w-5 h-5" />
           </Button>
@@ -77,10 +79,10 @@ export function DashboardTopBar({ user }: DashboardTopBarProps) {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="flex items-center space-x-2 text-foreground hover:bg-background hover:text-foreground"
+                className="flex min-w-0 items-center space-x-2 text-foreground hover:bg-background hover:text-foreground"
               >
-                <span className="text-sm font-medium">{displayName}</span>
-                <div className="w-8 h-8 bg-gradient-to-br from-yellow-300 to-yellow-400 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                <span className="hidden max-w-40 min-w-0 truncate text-sm font-medium sm:block">{displayName}</span>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-300 to-yellow-400 text-sm font-semibold text-white">
                   {avatarInitial}
                 </div>
               </Button>
@@ -93,14 +95,16 @@ export function DashboardTopBar({ user }: DashboardTopBarProps) {
               <DropdownMenuItem asChild className="focus:bg-background focus:text-foreground">
                 <Link href="/dashboard/settings">Account Settings</Link>
               </DropdownMenuItem>
-              <button
-                type="button"
-                className="relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-destructive outline-none transition-colors hover:bg-background focus:bg-background disabled:pointer-events-none disabled:opacity-50"
-                disabled={isLoggingOut}
-                onClick={() => void handleLogout()}
-              >
-                {isLoggingOut ? 'Logging out...' : 'Logout'}
-              </button>
+              <DropdownMenuItem asChild>
+                <button
+                  type="button"
+                  className="relative flex w-full cursor-pointer items-center gap-2 text-left text-sm text-destructive focus:text-destructive"
+                  disabled={isLoggingOut}
+                  onClick={() => void handleLogout()}
+                >
+                  {isLoggingOut ? 'Logging out...' : 'Logout'}
+                </button>
+              </DropdownMenuItem>
               {logoutError && (
                 <p className="max-w-56 px-2 py-1 text-xs text-destructive">{logoutError}</p>
               )}

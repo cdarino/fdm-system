@@ -23,7 +23,6 @@ import { calculatePolygonAreaSqm } from '@/lib/geometry';
 import type { Site, SiteWithLots } from '@/lib/types/property';
 import {
   PenTool,
-  Plus,
   Undo2,
   X,
   Check,
@@ -32,7 +31,6 @@ import {
   LandPlot,
   AlertTriangle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export interface SelectedPlotInfo {
   subdivisionId?: string;
@@ -144,7 +142,7 @@ export function MapSiteEditor({
   return (
     <>
       {/* Top Center Floating Editor Toolbar */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
+      <div className="absolute left-1/2 top-4 z-30 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2">
         {!isEditorActive ? (
           <Button
             variant="outline"
@@ -156,11 +154,11 @@ export function MapSiteEditor({
             <span className="text-xs font-semibold">Map Editor</span>
           </Button>
         ) : (
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-1.5 shadow-xl transition-all">
+          <div className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-1.5 shadow-xl transition-all">
             {plotType === null ? (
               <>
                 {/* Site Picker dropdown */}
-                <div className="min-w-[160px]">
+                <div className="min-w-0 flex-1 sm:min-w-[160px]">
                   <Select
                     value={activeSiteId ?? ''}
                     onValueChange={onSelectSite}
@@ -224,7 +222,7 @@ export function MapSiteEditor({
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                   </span>
-                  <span className="text-xs font-semibold text-foreground">
+                  <span className="min-w-0 max-w-full truncate text-xs font-semibold text-foreground">
                     {plotType === 'lot'
                       ? `Plotting Lot on ${activeSite?.name ?? 'Site'}`
                       : 'Plotting New Site'}
@@ -492,4 +490,3 @@ export function MapSiteEditor({
     </>
   );
 }
-

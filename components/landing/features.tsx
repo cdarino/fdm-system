@@ -29,6 +29,10 @@ export function FeaturesSection() {
   return (
     <section id="features" className="w-full bg-card py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 max-w-2xl">
+          <h2 className="text-3xl font-bold text-foreground">Built for property operations</h2>
+          <p className="mt-2 text-muted-foreground">One workspace for property records, client relationships, and operational reporting.</p>
+        </div>
         <div className="grid gap-8 md:grid-cols-3">
           {features.map((feature) => {
             const Icon = feature.icon;
@@ -59,4 +63,3 @@ export function FeaturesSection() {
     </section>
   );
 }
-

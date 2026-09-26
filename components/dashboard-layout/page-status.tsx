@@ -1,7 +1,7 @@
 export function PageError({ message }: { message: string }) {
   return (
-    <div className="text-center py-12">
-      <p className="text-red-600 font-medium">{message}</p>
+    <div role="alert" className="py-12 text-center">
+      <p className="font-medium text-destructive">{message}</p>
     </div>
   );
 }
