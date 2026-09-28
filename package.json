@@ -9,6 +9,7 @@
     "seed:admin": "npm run seed:baseline",
     "seed:sample-site": "tsx --env-file=.env.local scripts/seed-sample-site.ts",
     "seed:sample-site:clear": "tsx --env-file=.env.local scripts/seed-sample-site.ts --clear",
+    "test:playwright": "playwright test",
     "test:e2e": "vitest run",
     "test:e2e:watch": "vitest",
     "test:e2e:auth": "vitest run scripts/tests/auth/auth.test.ts",
@@ -35,6 +36,7 @@
     "@supabase/supabase-js": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dotenv": "^18.0.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.511.0",
@@ -51,12 +53,12 @@
     "tailwind-merge": "^3.3.0",
     "tesseract.js": "^7.0.0",
     "tsx": "^4.23.12",
-    "zod": "^4.6.4",
-    "dotenv": "^18.0.2"
+    "zod": "^4.6.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@faker-js/faker": "^10.6.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -68,7 +70,7 @@
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
-    "vitest": "^5.0.1",
-    "vercel": "^59.25.0"
+    "vercel": "^59.25.0",
+    "vitest": "^5.0.1"
   }
 }

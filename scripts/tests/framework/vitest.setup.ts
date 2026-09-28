@@ -15,23 +15,8 @@ export function deleteCookieFromJar(name: string) {
   cookieJar.delete(name);
 }
 
-const mockNextHeaders = {
-  cookies: async () => ({
-    getAll: () => Array.from(cookieJar.entries()).map(([name, value]) => ({ name, value })),
-    get: (name: string) =>
-      cookieJar.has(name) ? { name, value: cookieJar.get(name)! } : undefined,
-    set: (name: string, value: string) => {
-      cookieJar.set(name, value);
-    },
-    delete: (name: string) => {
-      cookieJar.delete(name);
-    },
-  }),
-  headers: async () => new Headers(),
-  draftMode: async () => ({ isEnabled: false, enable: () => {}, disable: () => {} }),
-};
-
-vi.mock("next/headers", () => mockNextHeaders);
+// Obsolete Next.js mock layer (mockNextHeaders / vi.mock('next/headers')) retired in Phase 3
+// Real user journeys and browser sessions are handled by the Playwright E2E suite.
 
 const virtualDoc = {
   get cookie() {
