@@ -43,6 +43,7 @@ export interface SiteMapProps {
 const SIDEBAR_WIDTH = 460;
 const REGIONAL_CENTER: [number, number] = [125.5844925, 7.0447193];
 const REGIONAL_ZOOM = 11.8;
+const DETAILS_ZOOM = 14;
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   Open: '#22C55E',
@@ -551,7 +552,7 @@ export function SiteMap({
     map.flyTo({
       center: [centerLng, centerLat],
       zoom: targetZoom,
-      duration: currentZoom < 14 ? 1200 : 600,
+      duration: currentZoom < DETAILS_ZOOM ? 1200 : 600,
       essential: true,
     });
   }, [map, isReady, selectedLotId, lotsGeoJson]);
@@ -571,7 +572,6 @@ export function SiteMap({
         id: 'sites-boundary-fill',
         type: 'fill',
         source: 'sites-data',
-        minzoom: 14,
         paint: {
           'fill-color': '#0284c7',
           'fill-opacity': 0.15,
@@ -582,7 +582,6 @@ export function SiteMap({
         id: 'sites-boundary-stroke',
         type: 'line',
         source: 'sites-data',
-        minzoom: 14,
         paint: {
           'line-color': '#38bdf8',
           'line-width': 2.5,
@@ -604,7 +603,7 @@ export function SiteMap({
         id: 'lots-fill',
         type: 'fill',
         source: 'lots-data',
-        minzoom: 13.5,
+        minzoom: DETAILS_ZOOM,
         paint: {
           'fill-color': [
             'match',
@@ -638,7 +637,7 @@ export function SiteMap({
         id: 'lots-stroke',
         type: 'line',
         source: 'lots-data',
-        minzoom: 13.5,
+        minzoom: DETAILS_ZOOM,
         paint: {
           'line-color': [
             'case',
@@ -667,7 +666,7 @@ export function SiteMap({
         id: 'lots-hover-stroke',
         type: 'line',
         source: 'lots-data',
-        minzoom: 13.5,
+        minzoom: DETAILS_ZOOM,
         filter: [
           'any',
           ['==', ['get', 'lotKey'], hoveredLotKeyRef.current ?? ''],
@@ -998,7 +997,7 @@ export function SiteMap({
   useEffect(() => {
     if (!map) return;
     const updatePinVisibility = () => {
-      const isVisible = map.getZoom() < 14;
+      const isVisible = map.getZoom() < DETAILS_ZOOM;
       document.querySelectorAll('.group.flex.flex-col.items-center.cursor-pointer').forEach((el) => {
         (el as HTMLElement).style.display = isVisible ? 'flex' : 'none';
       });
