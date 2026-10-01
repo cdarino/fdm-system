@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { getArcGISToken } from '@/lib/actions/arcgis';
@@ -9,6 +10,7 @@ import { parseRing, ringBounds, ringCentroid } from '@/lib/geometry';
 import type { PropertyLotWithClient, PropertyStatus, Site, SiteWithLots } from '@/lib/types/property';
 import type { ErrorEvent as MapLibreErrorEvent, GeoJSONSource } from 'maplibre-gl';
 import { cn } from '@/lib/utils';
+import { MapSitePopup, type LotPlotProperties } from '@/components/dashboard-properties/map-site-popup';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 export interface SiteMapProps {
@@ -43,15 +45,6 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   Forfeited: '#ef4444',
   Available: '#6C7E8E',
   Unregistered: '#6C7E8E',
-};
-
-const STATUS_PILL_MAP: Record<string, string> = {
-  Open: 'bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success',
-  Reserved: 'bg-sidebar-accent text-accent-blue-foreground',
-  Sold: 'bg-row-active text-accent-gold-foreground',
-  Forfeited: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive',
-  Available: 'bg-muted text-muted-foreground',
-  Unregistered: 'bg-muted text-muted-foreground',
 };
 
 
@@ -96,6 +89,13 @@ export function SiteMap({
   const [activeLotId, setActiveLotId] = useState<string | null>(selectedLotId ?? null);
   const activeLotIdRef = useRef<string | null>(activeLotId);
   activeLotIdRef.current = activeLotId;
+  const [selectedPlot, setSelectedPlot] = useState<LotPlotProperties | null>(null);
+  const popupRef = useRef<import('maplibre-gl').Popup | null>(null);
+  const popupContainerRef = useRef<HTMLDivElement | null>(null);
+
+  if (!popupContainerRef.current && typeof document !== 'undefined') {
+    popupContainerRef.current = document.createElement('div');
+  }
 
   const [isPending, startTransition] = useTransition();
 
@@ -109,6 +109,10 @@ export function SiteMap({
   useEffect(() => {
     if (selectedLotId !== undefined) {
       setActiveLotId(selectedLotId);
+      if (!selectedLotId) {
+        popupRef.current?.remove();
+        setSelectedPlot(null);
+      }
     }
   }, [selectedLotId]);
 
@@ -172,6 +176,70 @@ export function SiteMap({
   }, [allSites]);
   const registeredLotsMapRef = useRef(registeredLotsMap);
   registeredLotsMapRef.current = registeredLotsMap;
+
+  // Close the active plot popup and clear selection
+  const handleClosePopup = useCallback(() => {
+    popupRef.current?.remove();
+    setActiveLotId(null);
+    setSelectedPlot(null);
+    onSelectLot?.(null);
+  }, [onSelectLot]);
+
+  // Navigate to property details for registered lots
+  const handleViewDetails = useCallback(
+    (p: LotPlotProperties) => {
+      handleClosePopup();
+      const lotObj =
+        registeredLotsMapRef.current.get(p.propertyId) ??
+        registeredLotsMapRef.current.get(`${p.siteId}:${p.block}-${p.lot}`) ??
+        registeredLotsMapRef.current.get(`${p.block}-${p.lot}`) ??
+        ({
+          property_id: p.propertyId,
+          site_id: p.siteId,
+          block_number: p.block,
+          lot_number: p.lot,
+          location: p.siteName,
+          area_size: p.areaSize,
+          price_per_sqm: p.pricePerSqm,
+          status: p.status as PropertyStatus,
+          boundary: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          client: p.clientName ? { client_id: '', full_name: p.clientName, status: 'Active' } : null,
+        } as PropertyLotWithClient);
+      onSelectLotPropertyRef.current?.(lotObj);
+    },
+    [handleClosePopup]
+  );
+
+  // Trigger registration flow for unregistered lots
+  const handleRegisterLot = useCallback(
+    (p: LotPlotProperties) => {
+      handleClosePopup();
+      onSelectUnregisteredRef.current?.({
+        siteId: p.siteId,
+        block: p.block,
+        lot: p.lot,
+      });
+    },
+    [handleClosePopup]
+  );
+
+  // Delete plot from subdivision
+  const handleDeletePlot = useCallback(
+    (p: LotPlotProperties) => {
+      handleClosePopup();
+      onDeletePlotRef.current?.({
+        subdivisionId: p.id,
+        siteId: p.siteId,
+        siteName: p.siteName,
+        block: p.block,
+        lot: p.lot,
+        status: p.status,
+      });
+    },
+    [handleClosePopup]
+  );
 
   // Focus view on an individual site boundary
   const focusSite = useCallback(
@@ -620,20 +688,29 @@ export function SiteMap({
   useEffect(() => {
     if (!map || !isReady) return;
 
-    let popupInstance: import('maplibre-gl').Popup | null = null;
     let cleanupFn: (() => void) | null = null;
 
     async function setupLotInteractions() {
       if (!map) return;
       const { Popup } = await import('maplibre-gl');
 
-      popupInstance = new Popup({
+      const popupInstance = new Popup({
         closeButton: true,
         closeOnClick: false,
         anchor: 'bottom',
         offset: [0, -6],
         className: 'maplibre-property-popup',
         maxWidth: '280px',
+      });
+      popupRef.current = popupInstance;
+
+      let isSwitchingLot = false;
+
+      popupInstance.on('close', () => {
+        if (isSwitchingLot) return;
+        setActiveLotId(null);
+        setSelectedPlot(null);
+        onSelectLot?.(null);
       });
 
       const handleMouseEnter = () => {
@@ -655,34 +732,15 @@ export function SiteMap({
         const feature = e.features?.[0];
         if (!feature) return;
 
-        const p = feature.properties as {
-          id: string;
-          lotKey: string;
-          siteLotKey: string;
-          propertyId: string;
-          siteId: string;
-          siteName: string;
-          block: number;
-          lot: number;
-          name: string;
-          status: string;
-          isRegistered: boolean;
-          areaSize: number;
-          pricePerSqm: number;
-          totalPrice: number;
-          clientName: string;
-          centerLng: number;
-          centerLat: number;
-          topLat: number;
-        };
-
+        const p = feature.properties as LotPlotProperties;
         const lotId = p.id;
         const nextId = activeLotIdRef.current === lotId ? null : lotId;
         setActiveLotId(nextId);
         onSelectLot?.(nextId);
 
         if (!nextId) {
-          popupInstance?.remove();
+          popupInstance.remove();
+          setSelectedPlot(null);
           return;
         }
 
@@ -692,127 +750,22 @@ export function SiteMap({
           duration: 450,
         });
 
-        const isRegistered = p.isRegistered;
-        const pillClass = STATUS_PILL_MAP[p.status] ?? STATUS_PILL_MAP.Unregistered;
-        const deleteButtonHtml = isEditorModeRef.current
-          ? `<button type="button" class="btn-delete-plot mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-[color-mix(in_srgb,var(--destructive)_40%,white)] bg-[color-mix(in_srgb,var(--destructive)_10%,white)] px-3 py-1.5 text-xs font-semibold text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_18%,white)] cursor-pointer">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>
-              <span>Delete Plot</span>
-            </button>`
-          : '';
+        isSwitchingLot = true;
+        setSelectedPlot(p);
+        popupInstance.setLngLat([p.centerLng, p.topLat]);
 
-        const popupHtml = isRegistered
-          ? `<div class="p-3 font-sans min-w-[220px] cursor-pointer">
-              <div class="flex items-start justify-between gap-2 border-b border-border pb-2">
-                <div>
-                  <p class="font-bold text-sm text-foreground">${p.name}</p>
-                  <p class="text-xs text-muted-foreground">${p.siteName}</p>
-                </div>
-              </div>
-              <div class="mt-2 flex items-center gap-2">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${pillClass}">
-                  ${p.status}
-                </span>
-              </div>
-              <dl class="mt-2.5 space-y-1 text-xs border-t border-border pt-2">
-                <div class="flex justify-between"><dt class="text-muted-foreground">Area:</dt><dd class="font-medium text-foreground">${p.areaSize} sqm</dd></div>
-                <div class="flex justify-between"><dt class="text-muted-foreground">Price/sqm:</dt><dd class="font-medium text-foreground">₱${Number(p.pricePerSqm).toLocaleString()}</dd></div>
-                <div class="flex justify-between"><dt class="text-muted-foreground">Total Price:</dt><dd class="font-semibold text-primary">₱${Number(p.totalPrice).toLocaleString()}</dd></div>
-                <div class="flex justify-between"><dt class="text-muted-foreground">Client:</dt><dd class="font-medium text-foreground">${p.clientName || 'Unassigned'}</dd></div>
-              </dl>
-              <button type="button" class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 cursor-pointer">
-                <span>View Details</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </button>
-              ${deleteButtonHtml}
-            </div>`
-          : `<div class="p-3 font-sans min-w-[220px] cursor-pointer">
-              <div class="flex items-start justify-between gap-2 border-b border-border pb-2">
-                <div>
-                  <p class="font-bold text-sm text-foreground">${p.name}</p>
-                  <p class="text-xs text-muted-foreground">${p.siteName}</p>
-                </div>
-              </div>
-              <div class="mt-2 flex items-center gap-2">
-                <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold bg-muted text-muted-foreground">
-                  Available
-                </span>
-              </div>
-              <dl class="mt-2.5 space-y-1 text-xs border-t border-border pt-2">
-                <div class="flex justify-between"><dt class="text-muted-foreground">Area:</dt><dd class="font-medium text-foreground">${p.areaSize} sqm</dd></div>
-                <div class="flex justify-between"><dt class="text-muted-foreground">Est. Price/sqm:</dt><dd class="font-medium text-foreground">₱${Number(p.pricePerSqm).toLocaleString()}</dd></div>
-                <div class="flex justify-between"><dt class="text-muted-foreground">Status:</dt><dd class="font-medium text-foreground">Available</dd></div>
-              </dl>
-              <button type="button" class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 cursor-pointer">
-                <span>+ Register Lot</span>
-              </button>
-              ${deleteButtonHtml}
-            </div>`;
-
-        popupInstance
-          ?.setLngLat([p.centerLng, p.topLat])
-          .setHTML(popupHtml)
-          .addTo(map);
-
-        // Attach single navigation listener to popup container
-        const popupEl = popupInstance?.getElement();
-        if (popupEl) {
-          const contentEl = popupEl.querySelector('.maplibregl-popup-content') as HTMLElement | null;
-          if (contentEl) {
-            contentEl.onclick = (ev: MouseEvent) => {
-              const target = ev.target as HTMLElement | null;
-              if (target?.closest('.maplibregl-popup-close-button')) {
-                return;
-              }
-
-              if (target?.closest('.btn-delete-plot')) {
-                popupInstance?.remove();
-                setActiveLotId(null);
-                onDeletePlotRef.current?.({
-                  subdivisionId: p.id,
-                  siteId: p.siteId,
-                  siteName: p.siteName,
-                  block: p.block,
-                  lot: p.lot,
-                  status: p.status,
-                });
-                return;
-              }
-
-              // Close the popup after it is clicked
-              popupInstance?.remove();
-              setActiveLotId(null);
-
-              if (isRegistered) {
-                const lotObj =
-                  registeredLotsMapRef.current.get(p.propertyId) ??
-                  registeredLotsMapRef.current.get(`${p.siteId}:${p.block}-${p.lot}`) ??
-                  registeredLotsMapRef.current.get(`${p.block}-${p.lot}`) ??
-                  ({
-                    property_id: p.propertyId,
-                    site_id: p.siteId,
-                    block_number: p.block,
-                    lot_number: p.lot,
-                    location: p.siteName,
-                    area_size: p.areaSize,
-                    price_per_sqm: p.pricePerSqm,
-                    status: p.status as PropertyStatus,
-                    boundary: null,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    client: p.clientName ? { client_id: '', full_name: p.clientName, status: 'Active' } : null,
-                  } as PropertyLotWithClient);
-                onSelectLotPropertyRef.current?.(lotObj);
-              } else {
-                onSelectUnregisteredRef.current?.({
-                  siteId: p.siteId,
-                  block: p.block,
-                  lot: p.lot,
-                });
-              }
-            };
+        if (!popupInstance.isOpen()) {
+          if (popupContainerRef.current) {
+            popupInstance.setDOMContent(popupContainerRef.current);
           }
+          popupInstance.addTo(map);
+        } else if (
+          popupContainerRef.current &&
+          !popupInstance.getElement()?.contains(popupContainerRef.current)
+        ) {
+          popupInstance.setDOMContent(popupContainerRef.current);
         }
+        isSwitchingLot = false;
       };
 
       // Close popup when clicking anywhere on the map outside lots
@@ -824,7 +777,8 @@ export function SiteMap({
 
         const features = map.queryRenderedFeatures(e.point, { layers: ['lots-fill'] });
         if (features.length === 0) {
-          popupInstance?.remove();
+          popupInstance.remove();
+          setSelectedPlot(null);
           setActiveLotId(null);
         }
       };
@@ -835,7 +789,9 @@ export function SiteMap({
       map.on('click', handleMapClick);
 
       cleanupFn = () => {
-        popupInstance?.remove();
+        popupInstance.remove();
+        popupRef.current = null;
+        setSelectedPlot(null);
         map.off('mouseenter', 'lots-fill', handleMouseEnter);
         map.off('mouseleave', 'lots-fill', handleMouseLeave);
         map.off('click', 'lots-fill', handleClick);
@@ -847,9 +803,9 @@ export function SiteMap({
 
     return () => {
       cleanupFn?.();
-      popupInstance?.remove();
+      popupRef.current?.remove();
     };
-  }, [map, isReady, onSelectLot, onSelectLotProperty, onSelectUnregistered]);
+  }, [map, isReady, onSelectLot]);
 
   // Mount site pin icons and labels at low zoom levels
   useEffect(() => {
@@ -1068,6 +1024,18 @@ export function SiteMap({
           <Loader2 className="h-3 w-3 animate-spin text-primary" />
           <span>Connecting ArcGIS Satellite Imagery...</span>
         </div>
+      )}
+
+      {/* Interactive plot popup mounted inside MapLibre container */}
+      {selectedPlot && popupContainerRef.current && createPortal(
+        <MapSitePopup
+          plot={selectedPlot}
+          isEditorMode={isEditorMode}
+          onViewDetails={() => handleViewDetails(selectedPlot)}
+          onRegisterLot={() => handleRegisterLot(selectedPlot)}
+          onDeletePlot={() => handleDeletePlot(selectedPlot)}
+        />,
+        popupContainerRef.current
       )}
     </div>
   );

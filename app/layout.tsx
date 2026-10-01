@@ -26,7 +26,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // NOTE: geistSans is set here as the font FOR THE WHOLE DOCUMENT.
+    // Which hopefully does not break anything.
+    <html lang="en" className={geistSans.variable} suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
         {/* NOTE: We are currently not supporting dark mode. */}
         <ThemeProvider
