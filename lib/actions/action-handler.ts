@@ -3,7 +3,9 @@ import "server-only";
 import type { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requirePermission } from "@/lib/actions/auth-guard";
+import { getUserInfo } from "@/lib/user";
 import {
   type ActionResult,
   actionSuccess,
@@ -16,6 +18,10 @@ export interface ActionContext {
   userId: string;
 }
 
+export interface ScopeOptions {
+  admin?: boolean;
+}
+
 export interface RunActionOptions<TSchema extends z.ZodTypeAny, TResult> {
   permissions?: string[];
   schema?: TSchema;
@@ -26,21 +32,36 @@ export interface RunActionOptions<TSchema extends z.ZodTypeAny, TResult> {
   ) => Promise<TResult>;
 }
 
-export interface QueryOptions<TResult> {
+export interface QueryOptions<TSchema extends z.ZodTypeAny = z.ZodTypeAny, TResult = unknown> {
   permissions?: string[];
-  handler: (ctx: ActionContext) => Promise<TResult>;
+  schema?: TSchema;
+  input?: unknown;
+  handler: (
+    data: z.infer<TSchema>,
+    ctx: ActionContext
+  ) => Promise<TResult>;
 }
 
-export function createScope(basePermissions: string[] = []) {
+export function createScope(
+  basePermissions: string[] = [],
+  scopeOptions?: ScopeOptions
+) {
   const resolveContext = async (extraPermissions: string[] = []): Promise<ActionContext> => {
     const allPermissions = Array.from(new Set([...basePermissions, ...extraPermissions]));
     let callerId = "";
 
-    for (const permission of allPermissions) {
-      callerId = await requirePermission(permission);
+    if (allPermissions.length > 0) {
+      for (const permission of allPermissions) {
+        callerId = await requirePermission(permission);
+      }
+    } else {
+      const user = await getUserInfo();
+      callerId = user?.id ?? "";
     }
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = scopeOptions?.admin
+      ? createAdminClient()
+      : await createSupabaseServerClient();
     return { supabase, userId: callerId };
   };
 
@@ -65,21 +86,45 @@ export function createScope(basePermissions: string[] = []) {
     }
   };
 
-  const query = async <TResult>(
-    handlerOrOptions: ((ctx: ActionContext) => Promise<TResult>) | QueryOptions<TResult>
-  ): Promise<TResult> => {
-    const options =
-      typeof handlerOrOptions === "function"
-        ? { handler: handlerOrOptions, permissions: [] }
-        : handlerOrOptions;
-
-    const ctx = await resolveContext(options.permissions);
-    return options.handler(ctx);
-  };
+  async function query<TResult>(
+    handler: (ctx: ActionContext) => Promise<TResult>
+  ): Promise<TResult>;
+  async function query<TSchema extends z.ZodTypeAny, TResult>(
+    options: QueryOptions<TSchema, TResult>
+  ): Promise<TResult>;
+  async function query<TResult>(
+    options: Omit<QueryOptions<z.ZodTypeAny, TResult>, "schema" | "input"> & {
+      handler: (data: undefined, ctx: ActionContext) => Promise<TResult>;
+    }
+  ): Promise<TResult>;
+  async function query<TResult>(
+    handlerOrOptions:
+      | ((ctx: ActionContext) => Promise<TResult>)
+      | QueryOptions<z.ZodTypeAny, TResult>
+  ): Promise<TResult> {
+    if (typeof handlerOrOptions === "function") {
+      const ctx = await resolveContext();
+      return handlerOrOptions(ctx);
+    }
+    let validatedData: unknown = handlerOrOptions.input;
+    if (handlerOrOptions.schema) {
+      const parsed = handlerOrOptions.schema.safeParse(handlerOrOptions.input);
+      if (!parsed.success) {
+        const message = parsed.error.issues[0]?.message ?? "Validation failed";
+        throw new Error(`Validation error: ${message}`);
+      }
+      validatedData = parsed.data;
+    }
+    const ctx = await resolveContext(handlerOrOptions.permissions);
+    return handlerOrOptions.handler(validatedData, ctx);
+  }
 
   return {
-    extend: (additionalPermissions: string[]) => {
-      return createScope([...basePermissions, ...additionalPermissions]);
+    extend: (additionalPermissions: string[], extendOptions?: ScopeOptions) => {
+      return createScope(
+        [...basePermissions, ...additionalPermissions],
+        extendOptions ?? scopeOptions
+      );
     },
 
     query,

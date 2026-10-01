@@ -1,18 +1,41 @@
 "use server";
 
-import { requirePermission } from "@/lib/actions/auth-guard";
+import { createScope } from "@/lib/actions/action-handler";
 import {
   getArcGISApplicationToken,
   type ArcGISTokenResponse,
   type ArcGISTokenOptions,
 } from "@/lib/arcgis";
 
+const property = createScope(["properties.read"]);
+
 export async function getArcGISToken(
   options?: ArcGISTokenOptions
 ): Promise<ArcGISTokenResponse> {
-  // Ensure caller is authenticated and possesses properties.read permission
-  await requirePermission("properties.read");
-
-  return getArcGISApplicationToken(options);
+  return property.query(async () => {
+    return getArcGISApplicationToken(options);
+  });
 }
 
+export async function getArcGISHybridStyle(
+  options?: ArcGISTokenOptions
+): Promise<{ style: unknown; token: string }> {
+  return property.query(async () => {
+    const tokenData = await getArcGISApplicationToken(options);
+    const token = tokenData.accessToken;
+    const styleUrl = `https://basemapstyles-api.arcgis.com/arcgis/rest/services/styles/v2/styles/open/hybrid?token=${token}`;
+
+    const res = await fetch(styleUrl, {
+      headers: {
+        Referer: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000/",
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to load ArcGIS hybrid style: ${res.status}`);
+    }
+
+    const style = await res.json();
+    return { style, token };
+  });
+}

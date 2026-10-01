@@ -1,23 +1,11 @@
 "use server";
 
 import { cache } from "react";
+import { createScope } from "@/lib/actions/action-handler";
 import { hasPermission } from "@/lib/permissions";
-import { getUserInfo } from "@/lib/user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SYSTEM_ADMIN_ROLE } from "@/lib/self-protection";
-
-// TODO: refactor
-export async function checkIsSystemAdmin(userId: string): Promise<boolean> {
-  return hasPermission("system.create", userId);
-}
-
-export async function getIsCurrentUserSystemAdmin(): Promise<boolean> {
-  return hasPermission("system.create");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Role → Sidebar section mapping
-// ─────────────────────────────────────────────────────────────────────────────
+import { uuidSchema } from "@/lib/validations/client";
 
 export interface RoleTab {
   title: string;
@@ -28,6 +16,17 @@ export interface RoleTab {
 export interface RoleSection {
   category: string;
   tabs: RoleTab[];
+}
+
+const authScope = createScope([]);
+
+export async function checkIsSystemAdmin(userId: string): Promise<boolean> {
+  const validUserId = uuidSchema.parse(userId);
+  return hasPermission("system.create", validUserId);
+}
+
+export async function getIsCurrentUserSystemAdmin(): Promise<boolean> {
+  return hasPermission("system.create");
 }
 
 const ROLE_SECTIONS: { role: string; section: RoleSection }[] = [
@@ -65,10 +64,6 @@ const ROLE_SECTIONS: { role: string; section: RoleSection }[] = [
   },
 ];
 
-/**
- * Memoized per request. Only exported members of a "use server" module have to
- * be async functions, so the cached helper stays module-private.
- */
 const fetchRoleNames = cache(async (userId: string): Promise<string[]> => {
   const adminClient = createAdminClient();
   const { data: userRoles, error } = await adminClient
@@ -89,19 +84,13 @@ const fetchRoleNames = cache(async (userId: string): Promise<string[]> => {
   ];
 });
 
-/** Raw rbac role slugs assigned to the current user. */
 export async function getCurrentUserRoleNames(): Promise<string[]> {
-  const user = await getUserInfo();
-  if (!user) return [];
-  return fetchRoleNames(user.id);
+  return authScope.query(async ({ userId }) => {
+    if (!userId) return [];
+    return fetchRoleNames(userId);
+  });
 }
 
-/**
- * Sidebar sections the current user should see.
- *
- * A system administrator oversees every department, so they get all sections
- * rather than only those matching a role they happen to also hold.
- */
 export async function getCurrentUserRoleSections(): Promise<RoleSection[]> {
   const roleNames = await getCurrentUserRoleNames();
   if (roleNames.length === 0) return [];

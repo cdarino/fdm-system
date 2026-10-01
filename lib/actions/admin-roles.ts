@@ -1,13 +1,9 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { requirePermission } from "@/lib/actions/auth-guard";
+import { createScope } from "@/lib/actions/action-handler";
+import type { ActionResult } from "@/lib/actions/action-result";
 import { checkSelfDemote, SYSTEM_ADMIN_ROLE } from "@/lib/self-protection";
-import {
-  type ActionResult,
-  actionSuccess,
-  actionError,
-} from "@/lib/actions/action-result";
+import { setUserRolesActionSchema } from "@/lib/validations/user";
 
 export interface RbacRole {
   id: string;
@@ -17,72 +13,71 @@ export interface RbacRole {
 
 export type SetUserRolesResult = { success: true };
 
+const admin = createScope(["system.create"], { admin: true });
+
 export async function getActiveRoles(): Promise<RbacRole[]> {
-  await requirePermission("system.create");
+  return admin.query(async ({ supabase: adminClient }) => {
+    const { data, error } = await adminClient
+      .schema("rbac")
+      .from("role")
+      .select("id, name, description")
+      .eq("active", true)
+      .order("name");
 
-  const adminClient = createAdminClient();
+    if (error) {
+      throw new Error(`Failed to fetch active roles: ${error.message}`);
+    }
 
-  const { data, error } = await adminClient
-    .schema("rbac")
-    .from("role")
-    .select("id, name, description")
-    .eq("active", true)
-    .order("name");
-
-  if (error) {
-    throw new Error(`Failed to fetch active roles: ${error.message}`);
-  }
-
-  return (data ?? []) as RbacRole[];
+    return (data ?? []) as RbacRole[];
+  });
 }
 
 export async function setUserRoles(
   userId: string,
   roleIds: string[]
 ): Promise<ActionResult<SetUserRolesResult>> {
-  try {
-    const callerId = await requirePermission("system.create");
+  return admin.run({
+    schema: setUserRolesActionSchema,
+    input: { userId, roleIds },
+    handler: async ({ userId: targetUserId, roleIds: ids }, { supabase: adminClient, userId: callerId }) => {
+      const uniqueRoleIds = Array.from(new Set(ids));
 
-    const adminClient = createAdminClient();
-    const uniqueRoleIds = Array.from(new Set(roleIds));
+      // Stop an admin from stripping their own system_admin role
+      if (targetUserId.toLowerCase() === callerId.toLowerCase()) {
+        const { data: adminRole, error: roleLookupError } = await adminClient
+          .schema("rbac")
+          .from("role")
+          .select("id")
+          .eq("name", SYSTEM_ADMIN_ROLE)
+          .maybeSingle<{ id: string }>();
 
-    // Stop an admin from stripping their own system_admin role
-    if (userId.toLowerCase() === callerId.toLowerCase()) {
-      const { data: adminRole, error: roleLookupError } = await adminClient
+        if (roleLookupError) {
+          throw new Error(`Role lookup failed: ${roleLookupError.message}`);
+        }
+
+        const demoteError = checkSelfDemote(
+          callerId,
+          targetUserId,
+          adminRole?.id ?? null,
+          uniqueRoleIds
+        );
+        if (demoteError) {
+          throw new Error(demoteError);
+        }
+      }
+
+      const { error: rpcError } = await adminClient
         .schema("rbac")
-        .from("role")
-        .select("id")
-        .eq("name", SYSTEM_ADMIN_ROLE)
-        .maybeSingle<{ id: string }>();
+        .rpc("set_user_roles", {
+          p_user_id: targetUserId,
+          p_role_ids: uniqueRoleIds,
+        });
 
-      if (roleLookupError) {
-        return actionError(`Role lookup failed: ${roleLookupError.message}`);
+      if (rpcError) {
+        throw new Error(`Failed to set user roles: ${rpcError.message}`);
       }
 
-      const demoteError = checkSelfDemote(
-        callerId,
-        userId,
-        adminRole?.id ?? null,
-        uniqueRoleIds,
-      );
-      if (demoteError) {
-        return actionError(demoteError);
-      }
-    }
-
-    const { error: rpcError } = await adminClient
-      .schema("rbac")
-      .rpc("set_user_roles", {
-        p_user_id: userId,
-        p_role_ids: uniqueRoleIds,
-      });
-
-    if (rpcError) {
-      return actionError(`Failed to set user roles: ${rpcError.message}`);
-    }
-
-    return actionSuccess({ success: true });
-  } catch (error) {
-    return actionError(error instanceof Error ? error.message : "Failed to set user roles");
-  }
+      return { success: true };
+    },
+  });
 }
