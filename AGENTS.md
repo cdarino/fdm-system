@@ -40,13 +40,13 @@ fdm-system/
 │   ├── shared/                 # Global cross-cutting shared brand & utility components
 │   └── ui/                     # shadcn/ui primitives and custom base components
 ├── lib/
-│   ├── actions/                # Server actions (auth guards, admin user/role, clients, properties, titles, reports)
-│   ├── actions/                # Server actions (auth guards, admin user/role, clients, properties, titles, reports, arcgis)
+│   ├── actions/                # Server actions & action scopes (action-handler, auth guards, clients, properties, admin, reports)
 │   ├── arcgis/                 # ArcGIS REST integration & token service
 │   ├── hooks/                  # Client-side React hooks
 │   ├── storage/                # Cloud storage integration helpers (Backblaze B2)
 │   ├── supabase/               # Supabase client factories (browser, server, admin, proxy)
 │   ├── types/                  # Domain TypeScript types (client, property, title, report)
+│   ├── validations/            # Zod validation schemas and transform utilities
 │   └── pagination.ts           # Shared offset & pagination calculation
 ├── scripts/                    # Standalone scripts & test suite
 │   ├── seed-baseline.ts        # Baseline superadmin & system_admin role seeding
@@ -73,6 +73,45 @@ fdm-system/
 
 Permissions live in the `rbac` Postgres schema (not `public`). Roles are `system_admin`, `admin_staff`, `billing_staff`, `legal_staff`, and `accounting_staff`. Permissions follow the pattern `<resource>.<action>` (e.g. `billing.read`, `system.create`). Use `hasPermission()` and `getUserPermissions()` from `lib/permissions.ts` — don't query `rbac.*` tables directly.
 
+## Server Actions & Action Scopes (`createScope`)
+
+Server actions in `lib/actions/` use `createScope` from `lib/actions/action-handler.ts` to manage authorization, request-bound Supabase client creation, input validation, and standardized responses.
+
+- **Scope Definition & Inheritance**:
+  Define a base scope per domain resource and extend it for mutations:
+  ```ts
+  const client = createScope(["clients.read"]);
+  const clientWrite = client.extend(["clients.update"]);
+  ```
+- **Queries (`scope.query`)**:
+  Used for data fetching (Server Components or client hooks). Verifies scope permissions, injects `{ supabase, userId }`, and returns data directly or throws on error:
+  ```ts
+  export async function getClientById(id: string) {
+    return client.query(async ({ supabase }) => {
+      // query logic
+    });
+  }
+  ```
+- **Mutations (`scope.run`)**:
+  Used for mutations returning `ActionResult<T>`. Parses Zod schemas (returns `actionZodError` on failure), injects `{ supabase, userId }`, and automatically wraps returns in `actionSuccess` or `actionError`:
+  ```ts
+  export async function updateClient(clientId: string, input: unknown) {
+    return clientWrite.run({
+      schema: updateClientSchema,
+      input,
+      handler: async (data, { supabase }) => {
+        // update logic
+      },
+    });
+  }
+  ```
+- **Action-Specific Permissions**:
+  Pass `permissions` to `scope.run(...)` or `scope.query(...)` for additive permissions (e.g. `permissions: ["clients.delete"]`).
+- **Partial Updates & Undefined Stripping**:
+  Use `stripUndefined` from `lib/validations/client.ts` in Zod schemas (e.g. `schema.partial().transform(stripUndefined)`) to drop undefined properties before database updates.
+- **Server-Only Files**:
+  Action helper/builder libraries must use `import "server-only";`, NOT `"use server";`. Reserve `"use server";` exclusively for files that export actual `async` server actions.
+
 ## Supabase Clients
 
 Three clients exist — use the right one for the context:
@@ -83,7 +122,7 @@ Three clients exist — use the right one for the context:
 | Admin client | `lib/supabase/admin.ts` | Server Actions only — **bypasses RLS**, never import in client components |
 | Proxy client | `lib/supabase/proxy.ts` | Middleware only — refreshes session cookies |
 
-Always instantiate a new client per request/function call; never store in a global variable.
+Always instantiate a new client per request/function call; never store in a global variable (handled automatically when using `createScope`).
 
 ## Environment Variables
 
