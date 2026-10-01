@@ -3,8 +3,14 @@
 import { useEffect, useRef, useState, useTransition, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
-import { getArcGISToken } from '@/lib/actions/arcgis';
+import { ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw, Globe, Layers } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { getArcGISToken, getArcGISHybridStyle } from '@/lib/actions/arcgis';
 import { useMapLibreMap } from '@/lib/hooks/use-maplibre-map';
 import { parseRing, ringBounds, ringCentroid } from '@/lib/geometry';
 import type { PropertyLotWithClient, PropertyStatus, Site, SiteWithLots } from '@/lib/types/property';
@@ -47,6 +53,92 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   Unregistered: '#6C7E8E',
 };
 
+// Scale numeric and interpolated text-size expressions for basemap labels
+function scaleTextSize(expr: unknown, factor: number = 1.28): unknown {
+  if (typeof expr === 'number') {
+    return expr > 0 ? Math.round(expr * factor * 10) / 10 : expr;
+  }
+  if (Array.isArray(expr)) {
+    if (expr[0] === 'interpolate') {
+      const res = [...expr];
+      for (let i = 4; i < res.length; i += 2) {
+        if (typeof res[i] === 'number' && res[i] > 0) {
+          res[i] = Math.round(res[i] * factor * 10) / 10;
+        }
+      }
+      return res;
+    }
+    if (expr[0] === 'step') {
+      const res = [...expr];
+      if (typeof res[2] === 'number' && res[2] > 0) {
+        res[2] = Math.round(res[2] * factor * 10) / 10;
+      }
+      for (let i = 4; i < res.length; i += 2) {
+        if (typeof res[i] === 'number' && res[i] > 0) {
+          res[i] = Math.round(res[i] * factor * 10) / 10;
+        }
+      }
+      return res;
+    }
+  }
+  if (expr && typeof expr === 'object' && 'stops' in (expr as Record<string, unknown>)) {
+    const stopsObj = expr as { stops: [number, number][] };
+    return {
+      ...stopsObj,
+      stops: stopsObj.stops.map(([z, s]) => [z, Math.round(s * factor * 10) / 10]),
+    };
+  }
+  return expr;
+}
+
+// Transform basemap style layers to enlarge street and place labels
+function scaleBasemapSymbolText(style: any, factor: number = 1.28): any {
+  if (!style || !Array.isArray(style.layers)) return style;
+  const layers = style.layers.map((layer: any) => {
+    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
+      const currentSize = layer.layout['text-size'] ?? 12;
+      return {
+        ...layer,
+        layout: {
+          ...layer.layout,
+          'text-size': scaleTextSize(currentSize, factor),
+        },
+      };
+    }
+    return layer;
+  });
+  return { ...style, layers };
+}
+
+const SATELLITE_FALLBACK_STYLE = {
+  version: 8,
+  glyphs: 'https://tiles.versatiles.org/assets/glyphs/{fontstack}/{range}.pbf',
+  sources: {
+    'versatiles-satellite': {
+      type: 'raster',
+      tiles: ['https://tiles.versatiles.org/tiles/satellite/{z}/{x}/{y}'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '&copy; VersaTiles &copy; MapTiler &copy; OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    {
+      id: 'background',
+      type: 'background',
+      paint: { 'background-color': '#0b1120' },
+    },
+    {
+      id: 'versatiles-satellite-layer',
+      type: 'raster',
+      source: 'versatiles-satellite',
+    },
+  ],
+};
+
+let cachedScaledNormalStyle: any = null;
+let cachedScaledArcgisStyle: any = null;
+let cachedArcgisToken: string | null = null;
 
 export function SiteMap({
   site,
@@ -84,7 +176,16 @@ export function SiteMap({
   const isEditorModeRef = useRef(isEditorMode);
   isEditorModeRef.current = isEditorMode;
   const [token, setToken] = useState<string | null>(null);
-  const [useOsmFallback, setUseOsmFallback] = useState(false);
+  const [mapMode, setMapMode] = useState<'satellite' | 'normal'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('fdm_map_mode');
+      if (saved === 'satellite' || saved === 'normal') return saved;
+    }
+    return 'satellite';
+  });
+  const [isFallbackActive, setIsFallbackActive] = useState(false);
+  const [isCheckingArcGIS, setIsCheckingArcGIS] = useState(false);
+  const [styleRevision, setStyleRevision] = useState(0);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
   const [activeLotId, setActiveLotId] = useState<string | null>(selectedLotId ?? null);
   const activeLotIdRef = useRef<string | null>(activeLotId);
@@ -92,6 +193,9 @@ export function SiteMap({
   const [selectedPlot, setSelectedPlot] = useState<LotPlotProperties | null>(null);
   const popupRef = useRef<import('maplibre-gl').Popup | null>(null);
   const popupContainerRef = useRef<HTMLDivElement | null>(null);
+  const currentAppliedStyleKeyRef = useRef<string | null>(null);
+  const isSettingStyleRef = useRef<boolean>(false);
+  const pendingTargetStyleKeyRef = useRef<string | null>(null);
 
   if (!popupContainerRef.current && typeof document !== 'undefined') {
     popupContainerRef.current = document.createElement('div');
@@ -105,6 +209,30 @@ export function SiteMap({
     padding: { top: 0, bottom: 0, left: isSidebarOpen ? SIDEBAR_WIDTH : 0, right: 0 },
   });
 
+  // Track style reload events to mount custom property layers on top
+  useEffect(() => {
+    if (!map) return;
+    const handleStyleLoad = () => {
+      isSettingStyleRef.current = false;
+      setStyleRevision((prev) => prev + 1);
+    };
+    map.on('style.load', handleStyleLoad);
+    return () => {
+      map.off('style.load', handleStyleLoad);
+    };
+  }, [map]);
+
+  // Toggle basemap view mode and persist preference
+  const toggleMapMode = useCallback(() => {
+    setMapMode((prev) => {
+      const next = prev === 'satellite' ? 'normal' : 'satellite';
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('fdm_map_mode', next);
+      }
+      return next;
+    });
+  }, []);
+
   // Sync selected lot state from props
   useEffect(() => {
     if (selectedLotId !== undefined) {
@@ -116,15 +244,20 @@ export function SiteMap({
     }
   }, [selectedLotId]);
 
-  // Request ArcGIS token with fallback on error
+  // Request token and hybrid style from ArcGIS with fallback
   const fetchToken = useCallback(() => {
     startTransition(async () => {
+      setIsCheckingArcGIS(true);
       try {
-        const result = await getArcGISToken();
-        setToken(result.accessToken);
-        setUseOsmFallback(false);
+        const { style, token: receivedToken } = await getArcGISHybridStyle();
+        setToken(receivedToken);
+        cachedScaledArcgisStyle = scaleBasemapSymbolText(style, 1.28);
+        cachedArcgisToken = receivedToken;
+        setIsFallbackActive(false);
       } catch {
-        setUseOsmFallback(true);
+        setIsFallbackActive(true);
+      } finally {
+        setIsCheckingArcGIS(false);
       }
     });
   }, []);
@@ -560,7 +693,9 @@ export function SiteMap({
           'text-size': 11,
           'text-line-height': 1.15,
           'text-justify': 'center',
-          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-font': map.getStyle()?.glyphs?.includes('arcgis')
+            ? (((map.getStyle()?.layers as any[])?.find((l) => (l.layout as any)?.['text-font'])?.layout as any)?.['text-font'] ?? ['Arial Bold'])
+            : ['noto_sans_bold'],
           'text-allow-overlap': false,
         },
         paint: {
@@ -618,7 +753,7 @@ export function SiteMap({
     } else {
       (map.getSource('draft-plot-data') as GeoJSONSource).setData(draftGeoJson);
     }
-  }, [map, isReady, sitesGeoJson, lotsGeoJson, draftGeoJson]);
+  }, [map, isReady, styleRevision, sitesGeoJson, lotsGeoJson, draftGeoJson]);
 
   // Update dynamic lot styles on selection change
   useEffect(() => {
@@ -672,7 +807,7 @@ export function SiteMap({
       3.5,
       1.5,
     ]);
-  }, [map, activeLotId]);
+  }, [map, styleRevision, activeLotId]);
 
   // Update hover outline filter
   useEffect(() => {
@@ -682,7 +817,7 @@ export function SiteMap({
       ['==', ['get', 'lotKey'], hoveredLotKey ?? ''],
       ['==', ['get', 'siteLotKey'], hoveredLotKey ?? ''],
     ]);
-  }, [map, hoveredLotKey]);
+  }, [map, styleRevision, hoveredLotKey]);
 
   // Click & hover interactions for house lots
   useEffect(() => {
@@ -789,9 +924,6 @@ export function SiteMap({
       map.on('click', handleMapClick);
 
       cleanupFn = () => {
-        popupInstance.remove();
-        popupRef.current = null;
-        setSelectedPlot(null);
         map.off('mouseenter', 'lots-fill', handleMouseEnter);
         map.off('mouseleave', 'lots-fill', handleMouseLeave);
         map.off('click', 'lots-fill', handleClick);
@@ -805,7 +937,7 @@ export function SiteMap({
       cleanupFn?.();
       popupRef.current?.remove();
     };
-  }, [map, isReady, onSelectLot]);
+  }, [map, isReady, styleRevision, onSelectLot]);
 
   // Mount site pin icons and labels at low zoom levels
   useEffect(() => {
@@ -880,90 +1012,106 @@ export function SiteMap({
     };
   }, [map]);
 
-  // Base imagery layers
+  // Synchronize basemap style based on mode, credentials and fallback status
   useEffect(() => {
     if (!map || !isReady) return;
 
-    // Use OpenStreetMap tiles if fallback active or token missing
-    if (useOsmFallback || !token) {
-      if (!map.getSource('osm-tiles')) {
-        map.addSource('osm-tiles', {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '&copy; OpenStreetMap Contributors',
-        });
+    const targetStyleKey =
+      mapMode === 'normal'
+        ? 'normal'
+        : isFallbackActive || !token
+          ? 'satellite-fallback'
+          : `satellite-arcgis-${token}`;
 
-        map.addLayer(
-          {
-            id: 'osm-layer',
-            type: 'raster',
-            source: 'osm-tiles',
-          },
-          'sites-boundary-fill'
-        );
-      }
+    if (currentAppliedStyleKeyRef.current === targetStyleKey) {
       return;
     }
 
-    // Mount official ArcGIS World Imagery and hybrid labels
-    if (token && !useOsmFallback) {
-      const beforeId = map.getLayer('sites-boundary-fill') ? 'sites-boundary-fill' : undefined;
-
-      if (!map.getSource('arcgis-imagery')) {
-        map.addSource('arcgis-imagery', {
-          type: 'raster',
-          tiles: [
-            `https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${token}`,
-          ],
-          tileSize: 256,
-          maxzoom: 19,
-        });
-
-        map.addLayer(
-          {
-            id: 'arcgis-imagery-layer',
-            type: 'raster',
-            source: 'arcgis-imagery',
-          },
-          beforeId
-        );
-      }
-
-      if (!map.getSource('arcgis-labels')) {
-        map.addSource('arcgis-labels', {
-          type: 'raster',
-          tiles: [
-            `https://static-map-tiles-api.arcgis.com/arcgis/rest/services/static-basemap-tiles-service/v1/open/hybrid/detail/static/tile/{z}/{y}/{x}?token=${token}`,
-          ],
-          tileSize: 256,
-          maxzoom: 19,
-        });
-
-        map.addLayer(
-          {
-            id: 'arcgis-labels-layer',
-            type: 'raster',
-            source: 'arcgis-labels',
-          },
-          beforeId
-        );
-      }
-
-      // Handle raster tile loading errors and trigger fallback
-      const handleTileError = (ev: MapLibreErrorEvent) => {
-        const payload = ev as unknown as { sourceId?: string };
-        if (payload.sourceId === 'arcgis-imagery' || payload.sourceId === 'arcgis-labels') {
-          setUseOsmFallback(true);
-        }
-      };
-
-      map.on('error', handleTileError);
-      return () => {
-        map.off('error', handleTileError);
-      };
+    if (isSettingStyleRef.current) {
+      pendingTargetStyleKeyRef.current = targetStyleKey;
+      return;
     }
-  }, [map, isReady, token, useOsmFallback]);
+
+    let isCancelled = false;
+
+    async function applyStyle() {
+      if (!map) return;
+      isSettingStyleRef.current = true;
+      pendingTargetStyleKeyRef.current = null;
+
+      try {
+        if (targetStyleKey === 'normal') {
+          if (!cachedScaledNormalStyle) {
+            const res = await fetch('https://tiles.versatiles.org/assets/styles/colorful/style.json');
+            if (!res.ok) throw new Error(`Failed to load normal style: ${res.status}`);
+            const styleJson = await res.json();
+            cachedScaledNormalStyle = scaleBasemapSymbolText(styleJson, 1.28);
+          }
+          if (isCancelled) return;
+          currentAppliedStyleKeyRef.current = targetStyleKey;
+          map.setStyle(cachedScaledNormalStyle, { diff: false });
+        } else if (targetStyleKey.startsWith('satellite-arcgis-') && token) {
+          if (!cachedScaledArcgisStyle || cachedArcgisToken !== token) {
+            const { style, token: freshToken } = await getArcGISHybridStyle();
+            cachedScaledArcgisStyle = scaleBasemapSymbolText(style, 1.28);
+            cachedArcgisToken = freshToken;
+          }
+          if (isCancelled) return;
+          currentAppliedStyleKeyRef.current = targetStyleKey;
+          map.setStyle(cachedScaledArcgisStyle, { diff: false });
+        } else {
+          if (isCancelled) return;
+          currentAppliedStyleKeyRef.current = 'satellite-fallback';
+          map.setStyle(SATELLITE_FALLBACK_STYLE as any, { diff: false });
+        }
+      } catch {
+        if (isCancelled) return;
+        setIsFallbackActive(true);
+        currentAppliedStyleKeyRef.current = 'satellite-fallback';
+        map.setStyle(SATELLITE_FALLBACK_STYLE as any, { diff: false });
+      }
+    }
+
+    applyStyle();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [map, isReady, styleRevision, mapMode, isFallbackActive, token]);
+
+  // Handle tile loading errors by falling back to free alternative
+  useEffect(() => {
+    if (!map) return;
+    const handleMapError = (ev: MapLibreErrorEvent) => {
+      const err = ev as unknown as {
+        sourceId?: string;
+        error?: { status?: number; message?: string };
+        status?: number;
+      };
+      const status = err.status ?? err.error?.status;
+      const msg = err.error?.message?.toLowerCase() ?? '';
+      const sourceId = err.sourceId?.toLowerCase() ?? '';
+
+      if (
+        mapMode === 'satellite' &&
+        !isFallbackActive &&
+        (status === 401 ||
+          status === 403 ||
+          status === 429 ||
+          sourceId.includes('arcgis') ||
+          sourceId.includes('esri') ||
+          msg.includes('arcgis') ||
+          msg.includes('esri'))
+      ) {
+        setIsFallbackActive(true);
+      }
+    };
+
+    map.on('error', handleMapError);
+    return () => {
+      map.off('error', handleMapError);
+    };
+  }, [map, mapMode, isFallbackActive]);
 
   return (
     <div
@@ -974,49 +1122,105 @@ export function SiteMap({
       <div ref={containerRef} className="h-full w-full z-0" />
 
       {/* Floating map controls (top-right) */}
-      {!preview && <div className="absolute top-4 right-4 z-10 flex flex-col gap-1.5 shadow-md">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={zoomIn}
-          className="h-8 w-8 bg-card text-foreground shadow-sm hover:bg-row-hover"
-          title="Zoom in"
-          aria-label="Zoom in"
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={zoomOut}
-          className="h-8 w-8 bg-card text-foreground shadow-sm hover:bg-row-hover"
-          title="Zoom out"
-          aria-label="Zoom out"
-        >
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-      </div>}
+      {!preview && (
+        <div className="absolute top-4 right-4 z-10 flex flex-col gap-1.5 shadow-md">
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={toggleMapMode}
+                    className={cn(
+                      'h-8 w-8 bg-card text-foreground shadow-sm hover:bg-row-hover',
+                      mapMode === 'normal' && 'border-primary text-primary'
+                    )}
+                    title={mapMode === 'satellite' ? 'Switch to Normal view' : 'Switch to Satellite view'}
+                    aria-label={mapMode === 'satellite' ? 'Switch to Normal view' : 'Switch to Satellite view'}
+                  >
+                    {mapMode === 'satellite' ? (
+                      <Globe className="h-4 w-4" />
+                    ) : (
+                      <Layers className="h-4 w-4" />
+                    )}
+                  </Button>
+                  {isFallbackActive && mapMode === 'satellite' && (
+                    <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-warning text-warning-foreground ring-1 ring-background shadow-xs pointer-events-none">
+                      <AlertTriangle className="h-2 w-2" />
+                    </span>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="flex flex-col gap-1 max-w-xs text-xs">
+                {isFallbackActive && mapMode === 'satellite' ? (
+                  <>
+                    <p className="font-semibold text-warning flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Fallback Satellite Active
+                    </p>
+                    <p className="text-muted-foreground text-[11px] leading-snug">
+                      Using fallback satellite (lower quality &amp; outdated imagery).
+                    </p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fetchToken();
+                      }}
+                      disabled={isCheckingArcGIS}
+                      className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                    >
+                      <RefreshCw className={cn('h-3 w-3', isCheckingArcGIS && 'animate-spin')} />
+                      Retry ArcGIS Connection
+                    </button>
+                  </>
+                ) : (
+                  <p>
+                    {mapMode === 'satellite'
+                      ? 'Current: Satellite imagery. Click to switch to Normal view.'
+                      : 'Current: Normal (OSM Vector). Click to switch to Satellite view.'}
+                  </p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={zoomIn}
+            className="h-8 w-8 bg-card text-foreground shadow-sm hover:bg-row-hover"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={zoomOut}
+            className="h-8 w-8 bg-card text-foreground shadow-sm hover:bg-row-hover"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Map status indicators (bottom-right) */}
-      {!preview && <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
-        {useOsmFallback && (
-          <div className="flex items-center gap-1.5 rounded-full border border-warning bg-card px-2.5 py-1 text-xs text-warning shadow-md">
-            <AlertTriangle className="h-3 w-3" />
-            <span>OSM Raster Fallback</span>
-            <button
-              onClick={fetchToken}
-              className="ml-1 text-[11px] underline hover:opacity-80 flex items-center gap-0.5"
-            >
-              <RefreshCw className="h-2.5 w-2.5" />
-              Retry ArcGIS
-            </button>
+      {!preview && (
+        <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
+          <div className="rounded-full border border-border bg-card px-2.5 py-1 text-xs font-mono text-muted-foreground shadow-md">
+            {mapMode === 'satellite'
+              ? isFallbackActive
+                ? 'Satellite (Fallback)'
+                : 'Satellite (ArcGIS)'
+              : 'Normal (Vector)'}{' '}
+            • Zoom: {currentZoom.toFixed(1)}x
           </div>
-        )}
-
-        <div className="rounded-full border border-border bg-card px-2.5 py-1 text-xs font-mono text-muted-foreground shadow-md">
-          Zoom: {currentZoom.toFixed(1)}x
         </div>
-      </div>}
+      )}
 
       {/* Loading overlay while requesting ArcGIS token */}
       {isPending && !preview && (

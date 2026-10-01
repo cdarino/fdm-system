@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "FDM - Project Management Platform",
   description: "A warm, minimalist platform for project and resource management. Built for teams who value simplicity and clarity.",
+  referrer: "origin-when-cross-origin",
 };
 
 const geistSans = Geist({

@@ -35,6 +35,8 @@
     --radius: 0.5rem;
     --success: #22C55E;
     --success-foreground: #1A1D20;
+    --warning: #F59E0B;
+    --warning-foreground: #FFFFFF;
     --sidebar: #FFFFFF;
     --sidebar-foreground: #1A1D20;
     --sidebar-primary: #5BC4E7;
@@ -129,6 +131,8 @@
     --chart-5: #C0DCF1;
     --success: #16A34A;
     --success-foreground: #FFFFFF;
+    --warning: #F59E0B;
+    --warning-foreground: #FFFFFF;
     --sidebar: #2A2D30;
     --sidebar-foreground: #F5F3EC;
     --sidebar-primary: #5BC4E7;

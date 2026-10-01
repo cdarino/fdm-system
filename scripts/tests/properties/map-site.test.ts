@@ -4,7 +4,7 @@ import { useMapLibreMap } from "@/lib/hooks/use-maplibre-map";
 import { getArcGISApplicationToken } from "@/lib/arcgis";
 import { getAllSitesWithLots } from "@/lib/actions/sites";
 import { seedAllSampleSites } from "@/scripts/seed-sample-site";
-import { getTestAdminClient, loginAsAdmin, logoutUser } from "../framework/session";
+import { getTestAdminClient, withTemporaryUser } from "../framework/session";
 
 describe("SiteMap Component & MapLibre Integration", () => {
   beforeAll(async () => {
@@ -24,44 +24,34 @@ describe("SiteMap Component & MapLibre Integration", () => {
     expect(typeof useMapLibreMap).toBe("function");
   });
 
-  it("formats satellite imagery and label overlay tile URLs with active token", async () => {
+  it("formats single basemap ArcGIS hybrid style URL with active token", async () => {
     const tokenData = await getArcGISApplicationToken();
     const token = tokenData.accessToken;
     expect(token).toBeDefined();
 
-    const satelliteUrlTemplate = `https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=${token}`;
-    const labelsUrlTemplate = `https://static-map-tiles-api.arcgis.com/arcgis/rest/services/static-basemap-tiles-service/v1/open/hybrid/detail/static/tile/{z}/{y}/{x}?token=${token}`;
-
-    const z = 12;
-    const y = 1967;
-    const x = 3477;
-
-    const satelliteTile = satelliteUrlTemplate
-      .replace("{z}", String(z))
-      .replace("{y}", String(y))
-      .replace("{x}", String(x));
-
-    const labelsTile = labelsUrlTemplate
-      .replace("{z}", String(z))
-      .replace("{y}", String(y))
-      .replace("{x}", String(x));
-
-    expect(satelliteTile).toContain(`/tile/12/1967/3477?token=${token}`);
-    expect(labelsTile).toContain(`/tile/12/1967/3477?token=${token}`);
+    const hybridStyleUrl = `https://basemapstyles-api.arcgis.com/arcgis/rest/services/styles/v2/styles/open/hybrid?token=${token}`;
+    expect(hybridStyleUrl).toContain(`open/hybrid?token=${token}`);
   });
 
-  it("formats OpenStreetMap fallback raster tile URLs", () => {
-    const osmUrlTemplate = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  it("formats VersaTiles satellite fallback and osm vector tile URLs", () => {
+    const satelliteUrlTemplate = "https://tiles.versatiles.org/tiles/satellite/{z}/{x}/{y}";
+    const osmUrlTemplate = "https://tiles.versatiles.org/tiles/osm/{z}/{x}/{y}";
     const z = 14;
     const x = 13908;
     const y = 7868;
+
+    const satelliteTile = satelliteUrlTemplate
+      .replace("{z}", String(z))
+      .replace("{x}", String(x))
+      .replace("{y}", String(y));
 
     const osmTile = osmUrlTemplate
       .replace("{z}", String(z))
       .replace("{x}", String(x))
       .replace("{y}", String(y));
 
-    expect(osmTile).toBe("https://tile.openstreetmap.org/14/13908/7868.png");
+    expect(satelliteTile).toBe("https://tiles.versatiles.org/tiles/satellite/14/13908/7868");
+    expect(osmTile).toBe("https://tiles.versatiles.org/tiles/osm/14/13908/7868");
   });
 
   it("verifies the 4 real-world Samal Island sites exist in database with WGS84 coordinates", async () => {
@@ -143,8 +133,7 @@ describe("SiteMap Component & MapLibre Integration", () => {
   });
 
   it("verifies getAllSitesWithLots returns all sites with populated subdivisions and lots", async () => {
-    await loginAsAdmin();
-    try {
+    await withTemporaryUser({ roleNames: ["system_admin"] }, async () => {
       const allSites = await getAllSitesWithLots();
       expect(allSites.length).toBeGreaterThanOrEqual(4);
 
@@ -158,8 +147,6 @@ describe("SiteMap Component & MapLibre Integration", () => {
         expect(site.lots.length).toBeGreaterThanOrEqual(3);
         expect(site.lots.length).toBeLessThanOrEqual(5);
       }
-    } finally {
-      await logoutUser();
-    }
+    });
   });
 });

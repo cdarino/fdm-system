@@ -32,6 +32,15 @@ function resolveCredentials() {
 export async function getArcGISApplicationToken(
   options: ArcGISTokenOptions = {}
 ): Promise<ArcGISTokenResponse> {
+  const directApiKey = process.env.ARCGIS_API_KEY || process.env.NEXT_PUBLIC_ARCGIS_API_KEY;
+  if (directApiKey) {
+    return {
+      accessToken: directApiKey,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      expiresIn: 86400,
+    };
+  }
+
   const { forceRefresh = false, durationInMinutes = 120 } = options;
   const { clientId, clientSecret } = resolveCredentials();
 
