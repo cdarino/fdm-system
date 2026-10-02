@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardToolbar, CardTableFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import {
@@ -51,7 +51,9 @@ import {
   type StatusFilter,
 } from '@/lib/hooks/use-property-lots';
 import type { PropertyLotWithClient, PropertyStatus, Site } from '@/lib/types/property';
-import { STATUSES, STATUS_PILL } from '@/lib/status-colors';
+import { STATUSES, STATUS_PILL, PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
+import { Badge } from '@/components/ui/badge';
+import { IconBox } from '@/components/ui/icon-box';
 
 /** Matches the `duration-200` exit transition on DialogContent. */
 const DIALOG_EXIT_MS = 200;
@@ -70,12 +72,10 @@ const PESO = new Intl.NumberFormat('en-PH', {
 const AREA = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 });
 
 function StatusPill({ status }: { status: PropertyStatus }) {
-  const { pill, dot } = STATUS_PILL[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${pill}`}>
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+    <Badge variant={PROPERTY_STATUS_VARIANT[status]} shape="pill" dot>
       {status}
-    </span>
+    </Badge>
   );
 }
 
@@ -207,9 +207,9 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
     <TableRow className="transition-colors duration-150 hover:bg-row-hover">
       <TableCell className={`py-4 pr-3 ${GUTTER_L}`}>
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-row-hover ring-1 ring-inset ring-border">
+          <IconBox size="md" shape="square">
             <LandPlot className="h-4 w-4 text-muted-foreground" />
-          </div>
+          </IconBox>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">{lotLabel(lot)}</p>
             <p className="truncate text-xs text-muted-foreground">{lot.location}</p>
@@ -318,12 +318,12 @@ function EmptyState({ isFiltered, onClear, onCreate }: { isFiltered: boolean; on
         </p>
       </div>
       {isFiltered ? (
-        <Button variant="outline" onClick={onClear} className="gap-1.5 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground">
+        <Button variant="quiet" onClick={onClear} className="gap-1.5">
           <X className="h-3.5 w-3.5" />
           Clear filters
         </Button>
       ) : (
-        <Button onClick={onCreate} className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]">
+        <Button onClick={onCreate} className="gap-2">
           <Plus className="h-4 w-4" />
           New Lot
         </Button>
@@ -387,8 +387,8 @@ function PropertyLotsContent() {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Button
               asChild
-              variant="outline"
-              className="gap-2 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
+              variant="quiet"
+              className="gap-2"
             >
               <Link href="/dashboard/properties/map">
                 <Map className="h-4 w-4" />
@@ -397,7 +397,7 @@ function PropertyLotsContent() {
             </Button>
             <Button
               onClick={() => openDialog({ type: 'create' })}
-              className="gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]"
+              className="gap-2"
             >
               <Plus className="h-4 w-4" />
               New Lot
@@ -405,7 +405,7 @@ function PropertyLotsContent() {
           </div>
         </div>
 
-        <div className={`flex flex-col gap-3 pb-5 xl:flex-row xl:items-center xl:justify-between ${GUTTER}`}>
+        <CardToolbar>
           <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 sm:flex-none">
@@ -426,7 +426,7 @@ function PropertyLotsContent() {
               </Button>
             )}
           </div>
-        </div>
+        </CardToolbar>
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {error ? (
@@ -474,7 +474,7 @@ function PropertyLotsContent() {
         </div>
 
         {!error && (
-          <div className={`flex shrink-0 items-center justify-between gap-3 border-t border-border py-3 ${GUTTER}`}>
+          <CardTableFooter>
             <p className="text-xs text-muted-foreground" aria-live="polite">
               {isLoading
                 ? 'Loading property lots…'
@@ -482,7 +482,7 @@ function PropertyLotsContent() {
                   ? `Showing ${visibleLots.length} of ${lots.length} lot${lots.length === 1 ? '' : 's'}`
                   : `${lots.length} lot${lots.length === 1 ? '' : 's'}`}
             </p>
-          </div>
+          </CardTableFooter>
         )}
       </Card>
 

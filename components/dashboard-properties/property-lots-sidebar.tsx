@@ -35,7 +35,9 @@ import {
   type StatusFilter,
 } from '@/lib/hooks/use-property-lots';
 import type { PropertyLotWithClient, PropertyStatus, Site } from '@/lib/types/property';
-import { STATUSES, STATUS_PILL } from '@/lib/status-colors';
+import { STATUSES, PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
+import { Badge } from '@/components/ui/badge';
+import { IconBox } from '@/components/ui/icon-box';
 import { cn } from '@/lib/utils';
 
 const DIALOG_EXIT_MS = 200;
@@ -86,12 +88,10 @@ function getInitials(name: string): string {
 }
 
 function StatusPill({ status }: { status: PropertyStatus }) {
-  const { pill, dot } = STATUS_PILL[status];
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${pill}`}>
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+    <Badge variant={PROPERTY_STATUS_VARIANT[status]} shape="pill" dot>
       {status}
-    </span>
+    </Badge>
   );
 }
 
@@ -138,9 +138,9 @@ function LotRowItem({
       <div className="flex items-center justify-between gap-3">
         {/* Left: Plot Icon + Lot & Location */}
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-row-hover ring-1 ring-inset ring-border">
-            <LandPlot className="h-3.5 w-3.5 text-muted-foreground" />
-          </div>
+          <IconBox size="sm" shape="square">
+            <LandPlot className="h-3.5 w-3.5" />
+          </IconBox>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight text-foreground">{lotLabel(lot)}</p>
             <p className="truncate text-xs text-muted-foreground">{lot.location}</p>

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/lib/auth';
 
 export function useLoginForm() {
@@ -69,9 +70,9 @@ export function LoginForm() {
     <>
       {/* Error Alert */}
       {error && (
-        <div role="alert" className="mb-4 rounded-lg border border-destructive bg-[color-mix(in_srgb,var(--destructive)_10%,white)] p-4">
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Login Card */}

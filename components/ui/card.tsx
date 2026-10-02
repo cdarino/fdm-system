@@ -120,6 +120,36 @@ const CardFooter = React.forwardRef<
 ));
 CardFooter.displayName = "CardFooter";
 
+const CardToolbar = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "flex flex-col gap-3 px-4 pb-5 sm:px-6 xl:flex-row xl:items-center xl:justify-between",
+      className,
+    )}
+    {...props}
+  />
+));
+CardToolbar.displayName = "CardToolbar";
+
+const CardTableFooter = React.forwardRef<
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "flex shrink-0 items-center justify-between gap-3 border-t border-border px-4 py-3 sm:px-6",
+      className,
+    )}
+    {...props}
+  />
+));
+CardTableFooter.displayName = "CardTableFooter";
+
 export {
   Card,
   CardHeader,
@@ -127,6 +157,8 @@ export {
   CardTitle,
   CardDescription,
   CardContent,
+  CardToolbar,
+  CardTableFooter,
   cardVariants,
   cardTitleVariants,
 };

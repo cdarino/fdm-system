@@ -13,6 +13,21 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **UI components**: This project uses [shadcn/ui](https://ui.shadcn.com). New UI components should follow shadcn conventions — prefer composing from existing primitives in `components/ui/` before creating new ones, and use the shadcn CLI (`npx shadcn@latest add <component>`) to add any missing ones.
 - **Card Component & Variants**: `components/ui/card.tsx` already encapsulates base border (`border-border`), surface (`bg-card`), text color (`text-card-foreground`), and shadow defaults. Do not redundantly apply `bg-card`, `border-border`, or `rounded-xl` to `<Card>`. Use its built-in `variant` (`section`, `interactive`, `prominent`, `dashed`) and `padding` (`none`, `default`, `lg`) props instead of writing custom Tailwind utility chains.
 
+## UI Composition & Variant Rules of Thumb
+
+- **The "Rule of 2" for Long Utility Chains**:
+  Never write long inline Tailwind utility chains (e.g. `flex items-center gap-2 rounded-... bg-[color-mix...]`) for common visual archetypes. If a visual pattern appears in 2+ places or represents a recognized UI role (status pill, callout banner, icon container, filter toolbar), promote it to a primitive prop or variant in `components/ui/`.
+- **Three-Tier Separation**:
+  1. *Primitives (`components/ui/`)*: Strictly domain-agnostic props (`color`, `variant`, `shape`, `size`, `dot`). No domain concepts (no "lot status" or "client badge").
+  2. *Domain Mapping (`lib/`)*: Dictionaries and helpers translating models to primitive props (e.g. `PROPERTY_STATUS_COLOR`).
+  3. *Domain Views (`components/dashboard-*/`)*: Compose primitives. Never hand-roll custom container `div`s when a primitive exists.
+- **When to Extend vs. Create**:
+  - *Extend with variant/prop*: If it is an alternative visual style or state of an existing element (e.g. adding `quiet` to `Button`, `shape="pill"` to `Badge`).
+  - *Add a subcomponent*: If it represents a recurring structural slot in a compound component (e.g. `CardToolbar`, `CardTableFooter` in `Card`).
+  - *Add a new primitive*: Only if it represents a distinct semantic HTML role or standalone composite not covered by shadcn primitives (e.g. `Alert`, `IconBox`).
+- **No Redundant Overrides**:
+  Do not pass inline classes that duplicate or contradict a component's built-in variants (e.g. do not pass `className="bg-primary hover:..."` to `<Button variant="default">`).
+
 ## Folder Structure
 
 > **Keep this section up to date.** If the folder structure changes significantly — new top-level directories, major reorganization — rewrite this section to reflect the current layout.

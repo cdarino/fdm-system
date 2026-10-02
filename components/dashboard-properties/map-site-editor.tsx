@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -453,12 +454,12 @@ export function MapSiteEditor({
             </p>
 
             {selectedPlotToDelete?.status && selectedPlotToDelete.status !== 'Open' && (
-              <div className="flex items-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--destructive)_30%,white)] bg-[color-mix(in_srgb,var(--destructive)_10%,white)] p-2.5 text-xs text-destructive">
+              <Alert variant="warning" className="p-2.5 text-xs">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>
+                <AlertDescription className="text-xs">
                   Warning: Lot is currently marked as {selectedPlotToDelete.status}. Deletion may fail if client agreements exist.
-                </span>
-              </div>
+                </AlertDescription>
+              </Alert>
             )}
 
             <DialogFooter className="pt-2">

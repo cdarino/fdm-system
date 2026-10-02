@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardToolbar, CardTableFooter } from '@/components/ui/card';
+import { IconBox } from '@/components/ui/icon-box';
 import { Input } from '@/components/ui/input';
 import {
   Plus,
@@ -277,9 +278,9 @@ function ClientRow({ client }: { client: ClientListItem }) {
       {/* Client identification */}
       <TableCell className={`py-4 pr-3 ${GUTTER_L}`}>
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-row-hover ring-1 ring-inset ring-border text-muted-foreground">
+          <IconBox size="md" shape="circle">
             <UserRound className="h-4 w-4" />
-          </div>
+          </IconBox>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
@@ -465,9 +466,10 @@ function ClientsContent() {
           <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
             {missingDocumentAlerts.length > 0 && (
               <Button
-                variant="outline"
+                variant="danger"
+                responsive
                 onClick={() => setIsMissingDocsOpen(true)}
-                className="min-h-10 w-full gap-2 border-destructive bg-card text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_8%,white)] hover:text-destructive sm:w-auto"
+                className="min-h-10 gap-2"
               >
                 <ShieldAlert className="h-4 w-4" />
                 {missingDocumentAlerts.length} incomplete
@@ -475,16 +477,18 @@ function ClientsContent() {
               </Button>
             )}
             <Button
-              variant="outline"
+              variant="quiet"
+              responsive
               onClick={() => setIsDocumentSearchOpen(true)}
-              className="min-h-10 w-full gap-2 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground sm:w-auto"
+              className="min-h-10 gap-2"
             >
               <FileSearch className="h-4 w-4" />
               Search documents
             </Button>
             <Button
+              responsive
               onClick={() => openDialog({ type: 'create' })}
-              className="min-h-10 w-full gap-2 bg-primary text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)] sm:w-auto"
+              className="min-h-10 gap-2"
             >
               <Plus className="h-4 w-4" />
               New Client
@@ -493,7 +497,7 @@ function ClientsContent() {
         </div>
 
         {/* Filters and search */}
-        <div className={`flex flex-col gap-3 pb-5 xl:flex-row xl:items-center xl:justify-between ${GUTTER}`}>
+        <CardToolbar>
           <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 sm:flex-none">
@@ -548,7 +552,7 @@ function ClientsContent() {
               </button>
             </div>
           </div>
-        </div>
+        </CardToolbar>
 
         {/* Table / rows */}
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
@@ -626,7 +630,7 @@ function ClientsContent() {
 
         {/* Summary footer */}
         {!error && (
-          <div className={`flex shrink-0 items-center justify-between gap-3 border-t border-border py-3 ${GUTTER}`}>
+          <CardTableFooter>
             <p className="text-xs text-muted-foreground" aria-live="polite">
               {isLoading
                 ? 'Loading clients…'
@@ -634,7 +638,7 @@ function ClientsContent() {
                   ? `Showing ${visibleClients.length} of ${tabTotal} client${tabTotal === 1 ? '' : 's'}`
                   : `${tabTotal} client${tabTotal === 1 ? '' : 's'}`}
             </p>
-          </div>
+          </CardTableFooter>
         )}
       </Card>
 

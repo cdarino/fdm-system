@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { ZoomIn, ZoomOut, Loader2, AlertTriangle, RefreshCw, Globe, Layers } from 'lucide-react';
 import {
   Tooltip,
@@ -1210,14 +1211,14 @@ export function SiteMap({
       {/* Map status indicators (bottom-right) */}
       {!preview && (
         <div className="absolute bottom-4 right-4 z-10 flex items-center gap-2">
-          <div className="rounded-full border border-border bg-card px-2.5 py-1 text-xs font-mono text-muted-foreground shadow-md">
+          <Badge variant="outline" shape="pill" className="bg-card font-mono shadow-md">
             {mapMode === 'satellite'
               ? isFallbackActive
                 ? 'Satellite (Fallback)'
                 : 'Satellite (ArcGIS)'
               : 'Normal (Vector)'}{' '}
             • Zoom: {currentZoom.toFixed(1)}x
-          </div>
+          </Badge>
         </div>
       )}
 

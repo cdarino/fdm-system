@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { IconBox } from '@/components/ui/icon-box';
 import {
   Loader2,
   ShieldAlert,
@@ -113,9 +114,9 @@ export function ClientDetailsModal({
         {/* Identity stays put while the tabs change beneath it. */}
         <DialogHeader className="space-y-0">
           <div className="flex items-start gap-3 pr-6">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-row-hover text-sm font-semibold text-muted-foreground ring-1 ring-inset ring-border">
+            <IconBox size="lg" shape="rounded-xl" className="font-semibold">
               {initials(client.full_name) || <UserRound className="h-5 w-5" />}
-            </div>
+            </IconBox>
 
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-center gap-2">

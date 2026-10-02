@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { IconBox } from '@/components/ui/icon-box';
 import { Search, Loader2, UserRound, Check } from 'lucide-react';
 import { getClients } from '@/lib/actions/clients';
 import { usePropertyLots, lotLabel } from '@/lib/hooks/use-property-lots';
@@ -128,9 +129,9 @@ export function AssignLotClientDialog({
                         isSelected ? 'bg-row-active' : 'hover:bg-row-hover'
                       )}
                     >
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-row-hover ring-1 ring-inset ring-border">
+                      <IconBox size="default" shape="square">
                         <UserRound className="h-4 w-4 text-muted-foreground" />
-                      </div>
+                      </IconBox>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-foreground">
                           {client.full_name}

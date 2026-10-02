@@ -17,23 +17,20 @@ import { UserRound, MoreHorizontal, Activity, Edit3, Trash2, Check, FileDown } f
 import { getClientReportData } from '@/lib/actions/reports';
 import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import { toast } from 'sonner';
+import { Badge } from '@/components/ui/badge';
+import { IconBox } from '@/components/ui/icon-box';
 import { cn } from '@/lib/utils';
 import type { ClientListItem } from '@/lib/types/client';
 
 export function ClientStatusPill({ status }: { status: string }) {
   const isActive = status.toLowerCase() === 'active';
-  const pillClass = isActive
-    ? 'bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success'
-    : 'bg-muted text-muted-foreground';
-  const dotClass = isActive ? 'bg-success' : 'bg-muted-foreground';
-
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${pillClass}`}>
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+    <Badge variant={isActive ? 'success' : 'muted'} shape="pill" dot>
       {status}
-    </span>
+    </Badge>
   );
 }
+
 
 export interface ClientCompactRowProps {
   client: ClientListItem;
@@ -83,9 +80,9 @@ export function ClientCompactRow({
 
         <TableCell className="py-2.5 pr-3">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-row-hover ring-1 ring-inset ring-border text-muted-foreground">
+            <IconBox size="sm" shape="circle">
               <UserRound className="h-3.5 w-3.5" />
-            </div>
+            </IconBox>
             <p className="truncate text-xs font-medium text-foreground">{client.full_name}</p>
           </div>
         </TableCell>
@@ -121,9 +118,9 @@ export function ClientCompactRow({
     >
       <TableCell className={`py-2.5 pr-3 ${gutterL}`}>
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-row-hover ring-1 ring-inset ring-border text-muted-foreground">
+          <IconBox size="sm" shape="circle">
             <UserRound className="h-3.5 w-3.5" />
-          </div>
+          </IconBox>
           <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
         </div>
       </TableCell>

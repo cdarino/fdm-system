@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { IconBox } from '@/components/ui/icon-box';
 import { ShieldCheck, Phone, Mail, HelpCircle, UserRound } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
 import type { ClientListItem, ClientDocumentNotification } from '@/lib/types/client';
@@ -89,9 +90,9 @@ export function MissingDocumentsDialog({
             <ul className="divide-y divide-border">
               {missingDocumentAlerts.map((alert) => (
                 <li key={alert.client_id} className="flex items-start gap-3 p-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-row-hover ring-1 ring-inset ring-border">
+                  <IconBox size="default" shape="square">
                     <UserRound className="h-4 w-4 text-muted-foreground" />
-                  </div>
+                  </IconBox>
 
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <p className="truncate text-sm font-medium text-foreground">

@@ -38,3 +38,17 @@ export const STATUS_PILL: Record<PropertyStatus, { pill: string; dot: string }> 
     dot: 'bg-destructive',
   },
 };
+
+export const PROPERTY_STATUS_VARIANT: Record<
+  PropertyStatus,
+  'success' | 'info' | 'warning' | 'destructive'
+> = {
+  Open: 'success',
+  Reserved: 'info',
+  Sold: 'warning',
+  Forfeited: 'destructive',
+};
+
+export const PROPERTY_STATUS_COLOR = PROPERTY_STATUS_VARIANT;
+
+

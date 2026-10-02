@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { IconBox } from '@/components/ui/icon-box';
 import {
   Select,
   SelectContent,
@@ -347,9 +348,9 @@ export function ClientProfileDocuments({
               key={doc.document_id}
               className="flex items-center gap-3 p-2.5 transition-colors hover:bg-row-hover"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-row-hover ring-1 ring-inset ring-border">
+              <IconBox size="default" shape="rounded-md">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-              </div>
+              </IconBox>
 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-foreground">

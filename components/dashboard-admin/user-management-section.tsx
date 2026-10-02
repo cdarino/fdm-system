@@ -3,7 +3,7 @@
 import { Fragment, useState, useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import { Card, CardToolbar, CardTableFooter } from '@/components/ui/card';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
@@ -82,25 +82,9 @@ import { toast } from 'sonner';
  * scanner to find them.
  */
 const TINTS = {
-  activePill: 'bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success',
-  inactivePill: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive',
-  primaryBtnHover: 'hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]',
-  destructiveBtnHover: 'hover:bg-[color-mix(in_srgb,var(--destructive)_85%,black)]',
-  successBtn: 'border-transparent bg-success text-success-foreground hover:bg-[color-mix(in_srgb,var(--success)_85%,black)] hover:text-success-foreground',
-  // The shared outline/ghost variants hover to `bg-accent`, which is the bright
-  // primary cyan — far too loud for a secondary control. These keep them quiet.
-  quietBtn: 'border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground',
-  dangerBtn: 'border-border bg-card text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_10%,white)] hover:text-destructive',
   dangerMenuItem: 'text-destructive focus:text-destructive focus:bg-[color-mix(in_srgb,var(--destructive)_12%,white)]',
-  // Hover is the warm page cream; an open row takes the gold tint and acts as
-  // the header of its block. The panel below keeps the card colour and is set
-  // apart by structure instead — tinting it as well made the whole block read
-  // as one flat slab. All theme-aware tokens (see globals.css), not the cool
-  // --muted grey, which clashes with this palette's warm background.
   rowIdle: 'hover:bg-row-hover',
   rowOpen: 'bg-row-active hover:bg-row-active',
-  // The menu button lifts to the card colour so it reads as a chip against the
-  // tinted row rather than vanishing into it.
   rowMenuBtn: 'hover:bg-card hover:text-foreground hover:shadow-sm data-[state=open]:bg-card data-[state=open]:text-foreground data-[state=open]:shadow-sm',
 };
 
@@ -190,17 +174,9 @@ function DisplayName({ user, className }: { user: UserListItem; className?: stri
 
 function StatusPill({ isBanned }: { isBanned: boolean }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-        isBanned ? TINTS.inactivePill : TINTS.activePill
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`h-1.5 w-1.5 rounded-full ${isBanned ? 'bg-destructive' : 'bg-success'}`}
-      />
+    <Badge variant={isBanned ? 'destructive' : 'success'} shape="pill" dot>
       {isBanned ? 'Inactive' : 'Active'}
-    </span>
+    </Badge>
   );
 }
 
@@ -270,7 +246,7 @@ function ToggleUserDialog({ user, open }: { user: UserListItem; open: boolean })
           <AlertDialogAction
             disabled={state.status === 'pending'}
             onClick={() => execute(user.id, user.isBanned)}
-            className={user.isBanned ? `bg-primary text-primary-foreground ${TINTS.primaryBtnHover}` : `bg-destructive text-white ${TINTS.destructiveBtnHover}`}
+            variant={user.isBanned ? 'default' : 'destructive'}
           >
             {state.status === 'pending' ? 'Saving...' : user.isBanned ? 'Activate' : 'Deactivate'}
           </AlertDialogAction>
@@ -304,7 +280,7 @@ function DeleteUserDialog({ user, open }: { user: UserListItem; open: boolean })
           <AlertDialogAction
             disabled={state.status === 'pending'}
             onClick={() => execute(user.id)}
-            className={`bg-destructive text-white ${TINTS.destructiveBtnHover}`}
+            variant="destructive"
           >
             {state.status === 'pending' ? 'Deleting...' : 'Delete User'}
           </AlertDialogAction>
@@ -360,14 +336,13 @@ function EditRolesDialog({ user, open }: { user: UserListItem; open: boolean }) 
         </div>
         {state.status === 'error' && <p className="text-xs text-destructive">{state.error}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={closeDialog} disabled={state.status === 'pending'} className={TINTS.quietBtn}>
+          <Button variant="quiet" onClick={closeDialog} disabled={state.status === 'pending'}>
             Cancel
           </Button>
           <LoadingButton
             isLoading={state.status === 'pending'}
             disabled={!isDirty}
             onClick={() => execute(user.id, selectedRoleIds)}
-            className={`bg-primary text-primary-foreground ${TINTS.primaryBtnHover}`}
           >
             Save
           </LoadingButton>
@@ -429,14 +404,13 @@ function EditNameDialog({ user, open }: { user: UserListItem; open: boolean }) {
         </div>
         {displayError && <p className="text-xs text-destructive">{displayError}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={closeDialog} disabled={state.status === 'pending'} className={TINTS.quietBtn}>
+          <Button variant="quiet" onClick={closeDialog} disabled={state.status === 'pending'}>
             Cancel
           </Button>
           <LoadingButton
             isLoading={state.status === 'pending'}
             disabled={!isDirty || !firstName.trim() || !lastName.trim()}
             onClick={handleSave}
-            className={`bg-primary text-primary-foreground ${TINTS.primaryBtnHover}`}
           >
             Save
           </LoadingButton>
@@ -641,18 +615,16 @@ function UserDetailRow({ user }: { user: UserListItem }) {
           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-border pt-4">
             <Button
               size="sm"
-              variant="outline"
+              variant="quiet"
               onClick={() => openDialog({ type: 'edit-name', user })}
-              className={TINTS.quietBtn}
             >
               <Settings2 className="h-3.5 w-3.5" />
               Edit name
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant="quiet"
               onClick={() => openDialog({ type: 'edit-roles', user })}
-              className={TINTS.quietBtn}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
               Edit roles
@@ -662,10 +634,9 @@ function UserDetailRow({ user }: { user: UserListItem }) {
 
             <Button
               size="sm"
-              variant="outline"
+              variant={user.isBanned ? 'success' : 'quiet'}
               disabled={!canToggle}
               onClick={() => openDialog({ type: 'toggle', user })}
-              className={user.isBanned ? TINTS.successBtn : TINTS.quietBtn}
             >
               {user.isBanned
                 ? <><UserRoundCheck className="h-3.5 w-3.5" />Activate</>
@@ -673,10 +644,9 @@ function UserDetailRow({ user }: { user: UserListItem }) {
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant="danger"
               disabled={!canDelete}
               onClick={() => openDialog({ type: 'delete', user })}
-              className={TINTS.dangerBtn}
             >
               <Trash2 className="h-3.5 w-3.5" />
               Delete
@@ -754,7 +724,7 @@ function RoleFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className={`gap-2 ${TINTS.quietBtn}`}>
+        <Button variant="quiet" className="gap-2">
           <ListFilter className="h-4 w-4 text-muted-foreground" />
           {active ? roleLabel(active.name) : 'All roles'}
         </Button>
@@ -816,12 +786,12 @@ function EmptyState({
         </p>
       </div>
       {isFiltered ? (
-        <Button variant="outline" onClick={onClearFilters} className={`gap-1.5 ${TINTS.quietBtn}`}>
+        <Button variant="quiet" onClick={onClearFilters} className="gap-1.5">
           <X className="h-3.5 w-3.5" />
           Clear filters
         </Button>
       ) : (
-        <Button onClick={onCreateUser} className={`gap-2 bg-primary text-primary-foreground ${TINTS.primaryBtnHover}`}>
+        <Button onClick={onCreateUser} className="gap-2">
           <Plus className="h-4 w-4" />
           Create User
         </Button>
@@ -881,7 +851,7 @@ function UserManagementContent() {
           </div>
           <Button
             onClick={() => openDialog({ type: 'create' })}
-            className={`gap-2 bg-primary text-primary-foreground ${TINTS.primaryBtnHover}`}
+            className="gap-2"
           >
             <Plus className="h-4 w-4" />
             Create User
@@ -889,7 +859,7 @@ function UserManagementContent() {
         </div>
 
         {/* Toolbar */}
-        <div className={`flex flex-col gap-3 pb-5 xl:flex-row xl:items-center xl:justify-between ${GUTTER}`}>
+        <CardToolbar>
           <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <div className="relative min-w-0 flex-1 sm:flex-none">
@@ -911,7 +881,7 @@ function UserManagementContent() {
               </Button>
             )}
           </div>
-        </div>
+        </CardToolbar>
 
         {/* List */}
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
@@ -963,7 +933,7 @@ function UserManagementContent() {
 
         {/* Footer */}
         {!error && (
-          <div className={`flex shrink-0 items-center justify-between gap-3 border-t border-border py-3 ${GUTTER}`}>
+          <CardTableFooter>
             <p className="text-xs text-muted-foreground" aria-live="polite">
               {isLoading
                 ? 'Loading users…'
@@ -974,7 +944,7 @@ function UserManagementContent() {
             <p className="hidden text-xs text-muted-foreground sm:block">
               Select a row to see full details
             </p>
-          </div>
+          </CardTableFooter>
         )}
       </Card>
 

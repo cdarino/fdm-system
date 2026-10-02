@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -111,9 +112,9 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
 
         <form onSubmit={onSubmit} className="space-y-4">
           {serverError && (
-            <div className="rounded-lg border border-[color-mix(in_srgb,var(--destructive)_30%,white)] bg-[color-mix(in_srgb,var(--destructive)_10%,white)] p-3">
-              <p className="text-sm text-destructive">{serverError}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{serverError}</AlertDescription>
+            </Alert>
           )}
 
           {/* Site picker */}

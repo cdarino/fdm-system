@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RoleCheckboxList } from './role-checkbox-list';
 import { Label } from '@/components/ui/label';
 import {
@@ -75,9 +75,9 @@ export function CreateUserModal({ open }: { open: boolean }) {
 
         <form onSubmit={onSubmit} className="p-6 space-y-5">
           {displayError && (
-            <div className="p-4 bg-[color-mix(in_srgb,var(--destructive)_10%,white)] border border-[color-mix(in_srgb,var(--destructive)_30%,white)] rounded-lg">
-              <p className="text-sm text-destructive">{displayError}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertDescription>{displayError}</AlertDescription>
+            </Alert>
           )}
 
           <div className="grid grid-cols-2 gap-3">
