@@ -178,25 +178,38 @@ export async function getClients(
   });
 }
 
-// Resolves lots via active ledger account party
+// Resolves lots via active ledger account party or land_title
 async function resolveClientProperties(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   clientId: string
 ): Promise<PropertyLot[]> {
-  const { data: partyRows, error: partyError } = await supabase
-    .from("account_party")
-    .select("ledger_account!inner(property_id, status)")
-    .eq("client_id", clientId)
-    .eq("ledger_account.status", "Active");
+  const [partyResult, titleResult] = await Promise.all([
+    supabase
+      .from("account_party")
+      .select("ledger_account!inner(property_id, status)")
+      .eq("client_id", clientId)
+      .eq("ledger_account.status", "Active"),
+    supabase
+      .from("land_title")
+      .select("property_id")
+      .eq("client_id", clientId),
+  ]);
 
-  if (partyError) {
-    console.error(`Failed to resolve properties for client ${clientId}:`, partyError.message);
-    return [];
+  if (partyResult.error) {
+    console.error(`Failed to resolve properties for client ${clientId}:`, partyResult.error.message);
+  }
+  if (titleResult.error) {
+    console.error(`Failed to resolve titles for client ${clientId}:`, titleResult.error.message);
   }
 
-  const propertyIds = (partyRows ?? [])
+  const partyPropertyIds = (partyResult.data ?? [])
     .map((row) => (row.ledger_account as { property_id?: string } | null)?.property_id)
     .filter((id): id is string => Boolean(id));
+  const titlePropertyIds = (titleResult.data ?? [])
+    .map((row) => row.property_id)
+    .filter((id): id is string => Boolean(id));
+
+  const propertyIds = Array.from(new Set([...partyPropertyIds, ...titlePropertyIds]));
 
   if (propertyIds.length === 0) return [];
 

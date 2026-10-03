@@ -149,6 +149,41 @@ While `supabase/migrations/` remains the authoritative source of truth for appli
   npx supabase gen types typescript --linked --schema public,rbac > lib/types/database.ts
   ```
 
+### Retrieving Postgres Functions & RPCs
+
+To inspect or extract all Postgres functions (stored procedures and RPCs) from a Supabase project:
+
+1. **System Catalog SQL Query (Complete Definitions & Signatures)**:
+   Run in the Supabase SQL Editor or via a query client to list all functions with arguments, return types, and complete source code:
+   ```sql
+   select
+     n.nspname as schema_name,
+     p.proname as function_name,
+     pg_get_function_arguments(p.oid) as arguments,
+     pg_get_function_result(p.oid) as return_type,
+     l.lanname as language,
+     pg_get_functiondef(p.oid) as definition
+   from pg_proc p
+   join pg_namespace n on n.oid = p.pronamespace
+   join pg_language l on l.oid = p.prolang
+   where n.nspname in ('public', 'rbac')
+   order by schema_name, function_name;
+   ```
+
+2. **Supabase CLI Declarative Extraction**:
+   Extracts all functions into individual `.sql` files organized under `supabase/schemas/<schema>/functions/`:
+   ```bash
+   npx supabase db schema declarative generate --linked --output-dir ./supabase/schemas
+   ```
+
+3. **PostgREST OpenAPI Introspection**:
+   Fetch all callable RPC endpoints exposed over the REST API by requesting the root OpenAPI schema:
+   ```bash
+   curl -s "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/" \
+     -H "apikey: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" \
+     -H "Authorization: Bearer ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}"
+   ```
+
 ---
 
 ## 5. Route Handlers & External Service Integrations

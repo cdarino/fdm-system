@@ -240,16 +240,16 @@ export function ClientProfileContacts({
                     <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem
                         disabled={contact.is_primary}
+                        icon={<Star className="h-4 w-4" />}
                         onSelect={() => handleSetPrimary(contact.contact_id)}
                       >
-                        <Star className="mr-2 h-4 w-4" />
                         {contact.is_primary ? 'Primary contact' : 'Set as primary'}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
+                        variant="destructive"
+                        icon={<Trash2 className="h-4 w-4" />}
                         onSelect={() => handleDelete(contact.contact_id)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
                         Delete contact
                       </DropdownMenuItem>
                     </DropdownMenuContent>

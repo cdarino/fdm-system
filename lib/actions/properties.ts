@@ -11,6 +11,9 @@ import {
   assignPropertyPartiesActionSchema,
   addAccountPartyActionSchema,
   removeAccountPartyActionSchema,
+  openSubdivisionForSaleSchema,
+  assignPropertyFullyPaidActionSchema,
+  createAndAssignPropertyFromSubdivisionSchema,
 } from "@/lib/validations/property";
 import type { PaginatedResult } from "@/lib/types/client";
 import type {
@@ -20,6 +23,8 @@ import type {
   AssignPartyInput,
   AssignPropertyOptions,
   GetPropertyLotsParams,
+  OpenSubdivisionForSaleInput,
+  CreateAndAssignPropertyFromSubdivisionInput,
 } from "@/lib/types/property";
 import {
   LOT_WITH_CLIENT_SELECT,
@@ -56,17 +61,27 @@ export async function getPropertyLots(
         query = query.eq("status", validatedParams.status);
       }
 
-      // Filter lots through active ledger account party
+      // Filter lots through active ledger account party or land title
       if (validatedParams?.client_id) {
-        const { data: partyRows } = await supabase
-          .from("account_party")
-          .select("ledger_account!inner(property_id, status)")
-          .eq("client_id", validatedParams.client_id)
-          .eq("ledger_account.status", "Active");
+        const [partyResult, titleResult] = await Promise.all([
+          supabase
+            .from("account_party")
+            .select("ledger_account!inner(property_id, status)")
+            .eq("client_id", validatedParams.client_id)
+            .eq("ledger_account.status", "Active"),
+          supabase
+            .from("land_title")
+            .select("property_id")
+            .eq("client_id", validatedParams.client_id),
+        ]);
 
-        const matchedPropertyIds = (partyRows ?? [])
+        const partyPropertyIds = (partyResult.data ?? [])
           .map((row) => (row.ledger_account as { property_id?: string } | null)?.property_id)
           .filter((id): id is string => Boolean(id));
+        const titlePropertyIds = (titleResult.data ?? [])
+          .map((row) => row.property_id)
+          .filter((id): id is string => Boolean(id));
+        const matchedPropertyIds = Array.from(new Set([...partyPropertyIds, ...titlePropertyIds]));
 
         query = query.in(
           "property_id",
@@ -280,13 +295,18 @@ export async function assignPropertyClient(
     handler: async (validatedData, { supabase }) => {
       const { propertyId: targetLotId, clientId: targetClientId } = validatedData;
 
-      // Cancel active ledger account and reset to Open if clearing client
+      // Cancel active ledger account, remove any land title, and reset to Open if clearing client
       if (!targetClientId) {
         await supabase
           .from("ledger_account")
           .update({ status: "Cancelled" })
           .eq("property_id", targetLotId)
           .eq("status", "Active");
+
+        await supabase
+          .from("land_title")
+          .delete()
+          .eq("property_id", targetLotId);
 
         const { data: clearedLot, error: clearErr } = await supabase
           .from("property_lot")
@@ -304,6 +324,7 @@ export async function assignPropertyClient(
           client: null,
           client_id: null,
           active_account: null,
+          title: null,
         };
       }
 
@@ -514,6 +535,186 @@ export async function removeAccountParty(
       if (error) {
         throw new Error(`Failed to remove account party: ${error.message}`);
       }
+    },
+  });
+}
+
+export async function openSubdivisionForSale(
+  input: unknown
+): Promise<ActionResult<PropertyLot>> {
+  return propertyCreate.run({
+    schema: openSubdivisionForSaleSchema,
+    input,
+    handler: async (validatedInput, { supabase }) => {
+      const { data: site } = await supabase
+        .from("site")
+        .select("name")
+        .eq("site_id", validatedInput.site_id)
+        .single<{ name: string }>();
+
+      const location = site?.name ?? "Unknown Location";
+
+      const { data, error } = await supabase
+        .from("property_lot")
+        .insert({
+          site_id: validatedInput.site_id,
+          location,
+          block_number: validatedInput.block_number,
+          lot_number: validatedInput.lot_number,
+          area_size: validatedInput.area_size,
+          price_per_sqm: validatedInput.price_per_sqm,
+          status: "Open",
+        })
+        .select()
+        .single<PropertyLot>();
+
+      if (error || !data) {
+        throw new Error(`Failed to open subdivision for sale: ${error?.message ?? "Unknown error"}`);
+      }
+
+      return data;
+    },
+  });
+}
+
+export async function assignPropertyFullyPaid(
+  propertyId: string,
+  clientId: string,
+  titleNumber?: string | null
+): Promise<ActionResult<PropertyLotWithClient>> {
+  return propertyWrite.run({
+    permissions: ["legal.create"],
+    schema: assignPropertyFullyPaidActionSchema,
+    input: { propertyId, clientId, title_number: titleNumber },
+    handler: async (validatedData, { supabase }) => {
+      const { propertyId: targetLotId, clientId: targetClientId, title_number } = validatedData;
+
+      // Cancel any active ledger account
+      await supabase
+        .from("ledger_account")
+        .update({ status: "Cancelled" })
+        .eq("property_id", targetLotId)
+        .eq("status", "Active");
+
+      // Upsert land_title for this property and client
+      const { error: titleErr } = await supabase
+        .from("land_title")
+        .upsert(
+          {
+            property_id: targetLotId,
+            client_id: targetClientId,
+            title_number: title_number ?? null,
+            status: "Processing",
+          },
+          { onConflict: "property_id" }
+        );
+
+      if (titleErr) {
+        throw new Error(`Failed to create land title record: ${titleErr.message}`);
+      }
+
+      // Mark property status as Sold
+      const { error: lotErr } = await supabase
+        .from("property_lot")
+        .update({ status: "Sold" })
+        .eq("property_id", targetLotId);
+
+      if (lotErr) {
+        throw new Error(`Failed to update lot status: ${lotErr.message}`);
+      }
+
+      return getPropertyLotById(targetLotId);
+    },
+  });
+}
+
+export async function createAndAssignPropertyFromSubdivision(
+  input: unknown
+): Promise<ActionResult<PropertyLotWithClient>> {
+  return propertyCreate.run({
+    schema: createAndAssignPropertyFromSubdivisionSchema,
+    input,
+    handler: async (validatedInput, { supabase }) => {
+      if (validatedInput.ownership_type === "fully_paid") {
+        const { requirePermission } = await import("@/lib/actions/auth-guard");
+        await requirePermission("legal.create");
+      }
+
+      const { data: site } = await supabase
+        .from("site")
+        .select("name")
+        .eq("site_id", validatedInput.site_id)
+        .single<{ name: string }>();
+
+      const location = site?.name ?? "Unknown Location";
+      const targetStatus: PropertyStatus = validatedInput.ownership_type === "fully_paid" ? "Sold" : "Reserved";
+
+      const { data: createdLot, error: lotErr } = await supabase
+        .from("property_lot")
+        .insert({
+          site_id: validatedInput.site_id,
+          location,
+          block_number: validatedInput.block_number,
+          lot_number: validatedInput.lot_number,
+          area_size: validatedInput.area_size,
+          price_per_sqm: validatedInput.price_per_sqm,
+          status: targetStatus,
+        })
+        .select()
+        .single<PropertyLot>();
+
+      if (lotErr || !createdLot) {
+        throw new Error(`Failed to create property lot: ${lotErr?.message ?? "Unknown error"}`);
+      }
+
+      if (validatedInput.ownership_type === "fully_paid") {
+        const { error: titleErr } = await supabase
+          .from("land_title")
+          .insert({
+            property_id: createdLot.property_id,
+            client_id: validatedInput.client_id,
+            title_number: validatedInput.title_number ?? null,
+            status: "Processing",
+          });
+
+        if (titleErr) {
+          throw new Error(`Failed to create land title: ${titleErr.message}`);
+        }
+      } else {
+        const tcp = validatedInput.total_contract_price ?? Number(validatedInput.area_size) * Number(validatedInput.price_per_sqm);
+        const balance = validatedInput.remaining_balance ?? tcp;
+
+        const { data: newAccount, error: accErr } = await supabase
+          .from("ledger_account")
+          .insert({
+            property_id: createdLot.property_id,
+            status: "Active",
+            total_contract_price: tcp,
+            remaining_balance: balance,
+          })
+          .select("account_id")
+          .single<{ account_id: string }>();
+
+        if (accErr || !newAccount) {
+          throw new Error(`Failed to create ledger account: ${accErr?.message ?? "Unknown error"}`);
+        }
+
+        const { error: partyErr } = await supabase
+          .from("account_party")
+          .insert({
+            account_id: newAccount.account_id,
+            client_id: validatedInput.client_id,
+            role: "Principal Buyer",
+            ownership_percentage: 100.0,
+            is_primary: true,
+          });
+
+        if (partyErr) {
+          throw new Error(`Failed to assign account party: ${partyErr.message}`);
+        }
+      }
+
+      return getPropertyLotById(createdLot.property_id);
     },
   });
 }

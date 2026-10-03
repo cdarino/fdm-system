@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { PanelLeftOpen } from 'lucide-react';
 import { SiteMap } from './map-site';
 import { PropertyLotsSidebar } from './property-lots-sidebar';
@@ -293,7 +294,8 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
   );
 
   return (
-    <div className="relative flex flex-1 h-full min-h-0 w-full flex-col overflow-hidden">
+    <TooltipProvider delayDuration={200}>
+      <div className="relative flex flex-1 h-full min-h-0 w-full flex-col overflow-hidden">
       {/* Background: Edge-to-edge interactive canvas */}
       <div className="absolute inset-0 h-full w-full flex flex-col">
         <SiteMap
@@ -376,6 +378,7 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
           </span>
         </Button>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

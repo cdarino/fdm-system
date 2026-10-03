@@ -12,13 +12,8 @@ import {
   LandPlot,
   SearchX,
   Map,
-  ChevronDown,
-  Check,
-  Loader2,
   MoreHorizontal,
   FileDown,
-  UserPlus,
-  UserMinus,
 } from 'lucide-react';
 import { getPropertyReportData } from '@/lib/actions/reports';
 import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
@@ -51,7 +46,7 @@ import {
   type StatusFilter,
 } from '@/lib/hooks/use-property-lots';
 import type { PropertyLotWithClient, PropertyStatus, Site } from '@/lib/types/property';
-import { STATUSES, STATUS_PILL, PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
+import { STATUSES, PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 
@@ -76,119 +71,6 @@ function StatusPill({ status }: { status: PropertyStatus }) {
     <Badge variant={PROPERTY_STATUS_VARIANT[status]} shape="pill" dot>
       {status}
     </Badge>
-  );
-}
-
-/**
- * The status pill doubles as the control that changes it.
- *
- * Status is reversible and low-stakes, so there is no confirmation step — the
- * toast is the feedback. A pending change disables the trigger so a second
- * click cannot race the first.
- */
-function StatusMenu({ lot }: { lot: PropertyLotWithClient }) {
-  const { updateLotStatus } = usePropertyLots();
-  const { state, execute } = useMutation(updateLotStatus);
-  const isPending = state.status === 'pending';
-
-  async function handleSelect(next: PropertyStatus) {
-    if (next === lot.status) return;
-    const ok = await execute(lot.property_id, next);
-    if (ok) {
-      toast.success(`${lotLabel(lot)} marked ${next}`);
-    }
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={isPending}>
-        <button
-          aria-label={`Change status of ${lotLabel(lot)}, currently ${lot.status}`}
-          className="group/status inline-flex items-center gap-1 rounded-full focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <StatusPill status={lot.status} />
-          {isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover/status:text-foreground" />
-          )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[180px]" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Set status
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {STATUSES.map((status) => (
-          <DropdownMenuItem
-            key={status}
-            className="justify-between"
-            onSelect={(e) => { e.preventDefault(); void handleSelect(status); }}
-          >
-            <span className="inline-flex items-center gap-2">
-              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${STATUS_PILL[status].dot}`} />
-              {status}
-            </span>
-            {status === lot.status && <Check className="h-4 w-4" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-function LotActionsMenu({ lot }: { lot: PropertyLotWithClient }) {
-  const { openDialog, unassignClient } = usePropertyLots();
-  const { state, execute } = useMutation(unassignClient, {
-    onSuccess: () => {
-      toast.success(`${lotLabel(lot)} unassigned`);
-    },
-  });
-  const isPending = state.status === 'pending';
-
-  async function handleUnassign() {
-    await execute(lot.property_id);
-  }
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={isPending}>
-        <Button
-          aria-label={`Actions for ${lotLabel(lot)}`}
-          size="icon"
-          variant="ghost"
-          className="opacity-70 hover:opacity-100"
-        >
-          {isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <MoreHorizontal className="h-4 w-4" />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Client
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => openDialog({ type: 'assign', lot })}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          {lot.client ? 'Reassign client' : 'Assign client'}
-        </DropdownMenuItem>
-        {lot.client && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault();
-              void handleUnassign();
-            }}
-          >
-            <UserMinus className="h-4 w-4 mr-2" />
-            Unassign client
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -233,11 +115,8 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
           ? <span className="text-foreground">{lot.client.full_name}</span>
           : <span className="text-muted-foreground">Unassigned</span>}
       </TableCell>
-      <TableCell className={`py-4 px-3 ${GUTTER_R}`}>
-        <div className="flex items-center justify-end gap-1">
-          <StatusMenu lot={lot} />
-          <LotActionsMenu lot={lot} />
-        </div>
+      <TableCell className="py-4 px-3">
+        <StatusPill status={lot.status} />
       </TableCell>
       <TableCell className={`py-4 pl-3 ${GUTTER_R} text-right`} onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
@@ -256,8 +135,10 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
               Actions
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => handleExportLotPdf(lot)}>
-              <FileDown className="h-4 w-4 mr-2" />
+            <DropdownMenuItem
+              icon={<FileDown className="h-4 w-4" />}
+              onSelect={() => handleExportLotPdf(lot)}
+            >
               Export PDF
             </DropdownMenuItem>
           </DropdownMenuContent>

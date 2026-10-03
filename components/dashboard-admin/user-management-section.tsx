@@ -447,29 +447,32 @@ function UserActionsMenu({ user }: { user: UserListItem }) {
           {user.email}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); openDialog({ type: 'edit-name', user }); }}>
-          <Settings2 className="h-4 w-4" />
+        <DropdownMenuItem
+          icon={<Settings2 className="h-4 w-4" />}
+          onSelect={(e) => { e.preventDefault(); openDialog({ type: 'edit-name', user }); }}
+        >
           Edit name
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); openDialog({ type: 'edit-roles', user }); }}>
-          <ShieldCheck className="h-4 w-4" />
+        <DropdownMenuItem
+          icon={<ShieldCheck className="h-4 w-4" />}
+          onSelect={(e) => { e.preventDefault(); openDialog({ type: 'edit-roles', user }); }}
+        >
           Edit roles
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={!canToggle}
+          icon={user.isBanned ? <UserRoundCheck className="h-4 w-4" /> : <UserRoundX className="h-4 w-4" />}
           onSelect={(e) => { e.preventDefault(); openDialog({ type: 'toggle', user }); }}
         >
-          {user.isBanned
-            ? <><UserRoundCheck className="h-4 w-4" />Activate user</>
-            : <><UserRoundX className="h-4 w-4" />Deactivate user</>}
+          {user.isBanned ? 'Activate user' : 'Deactivate user'}
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={!canDelete}
-          className={canDelete ? TINTS.dangerMenuItem : undefined}
+          variant="destructive"
+          icon={<Trash2 className="h-4 w-4" />}
           onSelect={(e) => { e.preventDefault(); openDialog({ type: 'delete', user }); }}
         >
-          <Trash2 className="h-4 w-4" />
           Delete user
         </DropdownMenuItem>
         {isSelf && (

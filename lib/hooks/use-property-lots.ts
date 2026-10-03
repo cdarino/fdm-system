@@ -49,7 +49,6 @@ interface PropertyLotsContextValue {
   openDialog: (dialog: PropertyDialog) => void;
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<ActionResult<PropertyLot>>;
-  updateLotStatus: (propertyId: string, status: PropertyStatus) => Promise<ActionResult<PropertyLot>>;
   updateLot: (propertyId: string, input: UpdatePropertyLotInput) => Promise<ActionResult<PropertyLot>>;
   assignClient: (propertyId: string, clientId: string | null, status?: PropertyStatus) => Promise<ActionResult<PropertyLotWithClient>>;
   unassignClient: (propertyId: string) => Promise<ActionResult<PropertyLotWithClient>>;
@@ -138,19 +137,6 @@ export function PropertyLotsProvider({
     [router],
   );
 
-  const updateLotStatus = useCallback(
-    async (propertyId: string, status: PropertyStatus): Promise<ActionResult<PropertyLot>> => {
-      const result = await updatePropertyLot(propertyId, { status });
-      if (!result.success) return result;
-      const updated = result.data;
-      setLots((prev) =>
-        prev.map((lot) => (lot.property_id === propertyId ? { ...lot, ...updated } : lot)),
-      );
-      router.refresh();
-      return result;
-    },
-    [router],
-  );
 
   const updateLot = useCallback(
     async (propertyId: string, input: UpdatePropertyLotInput): Promise<ActionResult<PropertyLot>> => {
@@ -255,7 +241,6 @@ export function PropertyLotsProvider({
     openDialog,
     closeDialog,
     createLot,
-    updateLotStatus,
     updateLot,
     assignClient,
     unassignClient,

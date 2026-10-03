@@ -161,4 +161,16 @@ describe("DropdownMenuItem Primitive", () => {
     expect(preventDefault).toHaveBeenCalled();
     expect(handleSelect).not.toHaveBeenCalled();
   });
+
+  it("supports asChild without slotting failure", () => {
+    const html = renderInMenu(
+      <DropdownMenuItem asChild>
+        <a href="/dashboard/settings">Settings Link</a>
+      </DropdownMenuItem>
+    );
+
+    expect(html).toContain("href=\"/dashboard/settings\"");
+    expect(html).toContain("Settings Link");
+  });
 });
+

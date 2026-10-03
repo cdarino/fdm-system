@@ -36,6 +36,7 @@ export async function runTrackedCleanups() {
 export async function hardDeleteTestClient(clientId: string) {
   const admin = getTestAdminClient();
   // Clean dependent rows safely in reverse dependency order
+  await admin.from("land_title").delete().eq("client_id", clientId);
   await admin.from("account_party").delete().eq("client_id", clientId);
   await admin.from("client_document").delete().eq("client_id", clientId);
   await admin.from("client_log").delete().eq("client_id", clientId);
@@ -46,7 +47,8 @@ export async function hardDeleteTestClient(clientId: string) {
 
 export async function hardDeleteTestProperty(propertyId: string) {
   const admin = getTestAdminClient();
-  // Clean associated ledger accounts and parties before lot deletion
+  // Clean associated ledger accounts, titles, and parties before lot deletion
+  await admin.from("land_title").delete().eq("property_id", propertyId);
   const { data: accounts } = await admin.from("ledger_account").select("account_id").eq("property_id", propertyId);
   if (accounts && accounts.length > 0) {
     const accountIds = accounts.map((a) => a.account_id);

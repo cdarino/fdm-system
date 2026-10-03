@@ -97,15 +97,12 @@ export function DashboardTopBar({ user }: DashboardTopBarProps) {
               <DropdownMenuItem asChild className="focus:bg-background focus:text-foreground">
                 <Link href="/dashboard/settings">Account Settings</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <button
-                  type="button"
-                  className="relative flex w-full cursor-pointer items-center gap-2 text-left text-sm text-destructive focus:text-destructive"
-                  disabled={isLoggingOut}
-                  onClick={() => void handleLogout()}
-                >
-                  {isLoggingOut ? 'Logging out...' : 'Logout'}
-                </button>
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={isLoggingOut}
+                onSelect={() => void handleLogout()}
+              >
+                {isLoggingOut ? 'Logging out...' : 'Logout'}
               </DropdownMenuItem>
               {logoutError && (
                 <p className="max-w-56 px-2 py-1 text-xs text-destructive">{logoutError}</p>

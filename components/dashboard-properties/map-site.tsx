@@ -51,6 +51,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   Reserved: '#5BC4E7',
   Sold: '#F5CE42',
   Forfeited: '#ef4444',
+  Closed: '#6C7E8E',
   Available: '#6C7E8E',
   Unregistered: '#6C7E8E',
 };
@@ -491,7 +492,7 @@ export function SiteMap({
           const siteLotKey = `${s.site_id}:${sub.block_number}-${sub.lot_number}`;
           const lot = lotMap.get(lotKey);
           const isRegistered = Boolean(lot);
-          const status = lot?.status ?? 'Available';
+          const status = lot?.status ?? 'Closed';
           const areaSize = lot?.area_size ?? 252;
           const pricePerSqm = lot?.price_per_sqm ?? 6500;
 
@@ -627,7 +628,7 @@ export function SiteMap({
               ['==', ['get', 'propertyId'], activeLotIdRef.current || '__NONE__'],
             ],
             0.85,
-            ['any', ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
+            ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
             0.35,
             0.75,
           ],
@@ -781,7 +782,7 @@ export function SiteMap({
         ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
       ],
       0.85,
-      ['any', ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
+      ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
       0.35,
       0.75,
     ]);

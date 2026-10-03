@@ -143,8 +143,14 @@ const DropdownMenuItem = React.forwardRef<
         }}
         {...props}
       >
-        {icon && <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">{icon}</span>}
-        {children}
+        {props.asChild ? (
+          children
+        ) : (
+          <>
+            {icon && <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">{icon}</span>}
+            {children}
+          </>
+        )}
       </DropdownMenuPrimitive.Item>
     );
 

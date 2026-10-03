@@ -37,6 +37,7 @@ export const STATUS_PILL_MAP: Record<string, string> = {
   Reserved: 'bg-sidebar-accent text-accent-blue-foreground',
   Sold: 'bg-row-active text-accent-gold-foreground',
   Forfeited: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive',
+  Closed: 'bg-muted text-muted-foreground',
   Available: 'bg-muted text-muted-foreground',
   Unregistered: 'bg-muted text-muted-foreground',
 };
@@ -49,7 +50,7 @@ export function MapSitePopup({
   onDeletePlot,
 }: MapSitePopupProps) {
   const { isSystemAdmin } = useSession();
-  const pillClass = STATUS_PILL_MAP[plot.status] ?? STATUS_PILL_MAP.Unregistered;
+  const pillClass = STATUS_PILL_MAP[plot.status] ?? STATUS_PILL_MAP.Closed ?? STATUS_PILL_MAP.Unregistered;
 
   return (
     <div className="min-w-[220px] p-3 font-sans" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }}>
@@ -62,7 +63,7 @@ export function MapSitePopup({
 
       <div className="mt-2 flex items-center gap-2">
         <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold', pillClass)}>
-          {plot.isRegistered ? plot.status : 'Available'}
+          {plot.isRegistered ? plot.status : 'Closed'}
         </span>
       </div>
 
@@ -89,7 +90,7 @@ export function MapSitePopup({
         ) : (
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Status:</dt>
-            <dd className="font-medium text-foreground">Available</dd>
+            <dd className="font-medium text-foreground">Closed</dd>
           </div>
         )}
       </dl>
@@ -102,7 +103,7 @@ export function MapSitePopup({
       ) : (
         <Button size="sm" className="mt-3 w-full cursor-pointer gap-1.5" onClick={onRegisterLot}>
           <Plus className="h-3.5 w-3.5" />
-          <span>+ Register Lot</span>
+          <span>Open for Sale</span>
         </Button>
       )}
 

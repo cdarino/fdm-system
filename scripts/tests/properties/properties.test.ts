@@ -10,6 +10,7 @@ import {
   deletePropertyLot,
   assignPropertyClient,
   assignPropertyParties,
+  assignPropertyFullyPaid,
 } from "@/lib/actions/properties";
 import {
   createSite,
@@ -138,9 +139,13 @@ describe("Property Lot Management Actions", () => {
       lot_number: 2,
       area_size: 140,
       price_per_sqm: 8000,
-      status: "Sold",
     }));
     testPropertyIds.push(lot1.property_id, lot2.property_id);
+
+    // Assign lot2 to fully-paid client so its status derives to Sold
+    const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
+    testClientIds.push(client.client_id);
+    unwrap(await assignPropertyFullyPaid(lot2.property_id, client.client_id));
 
     // Filter by search/location
     const searchRes = await getPropertyLots({ search: uniqueLoc });
@@ -150,6 +155,11 @@ describe("Property Lot Management Actions", () => {
     const statusRes = await getPropertyLots({ search: uniqueLoc, status: "Open" });
     expect(statusRes.data.length).toBe(1);
     expect(statusRes.data[0].property_id).toBe(lot1.property_id);
+
+    // Filter by status Sold
+    const soldStatusRes = await getPropertyLots({ search: uniqueLoc, status: "Sold" });
+    expect(soldStatusRes.data.length).toBe(1);
+    expect(soldStatusRes.data[0].property_id).toBe(lot2.property_id);
 
     // Filter by block and lot number
     const blockLotRes = await getPropertyLots({
@@ -161,7 +171,7 @@ describe("Property Lot Management Actions", () => {
     expect(blockLotRes.data[0].property_id).toBe(lot2.property_id);
   });
 
-  it("updatePropertyLot modifies property dimensions and price", async () => {
+  it("updatePropertyLot modifies property dimensions and price while status remains derived", async () => {
     const blockNum = faker.number.int({ min: 100, max: 999 });
     const lot = unwrap(await createPropertyLot({
       location: "Update Estate",
@@ -175,12 +185,11 @@ describe("Property Lot Management Actions", () => {
     const updated = unwrap(await updatePropertyLot(lot.property_id, {
       area_size: 175.25,
       price_per_sqm: 11200,
-      status: "Reserved",
     }));
 
     expect(Number(updated.area_size)).toBe(175.25);
     expect(Number(updated.price_per_sqm)).toBe(11200);
-    expect(updated.status).toBe("Reserved");
+    expect(updated.status).toBe("Open");
   });
 
   it("assignPropertyClient assigns lot to client with default Reserved status", async () => {
@@ -209,7 +218,7 @@ describe("Property Lot Management Actions", () => {
     expect(detail.client?.full_name).toBe(clientName);
   });
 
-  it("assignPropertyClient updates status to Sold when explicitly specified", async () => {
+  it("assignPropertyFullyPaid assigns fully-paid client and derives Sold status via land title", async () => {
     const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client.client_id);
 
@@ -223,9 +232,10 @@ describe("Property Lot Management Actions", () => {
     }));
     testPropertyIds.push(lot.property_id);
 
-    const soldLot = unwrap(await assignPropertyClient(lot.property_id, client.client_id, "Sold"));
-    expect(soldLot.client_id).toBe(client.client_id);
+    const soldLot = unwrap(await assignPropertyFullyPaid(lot.property_id, client.client_id, "T-998877"));
+    expect(soldLot.client?.client_id).toBe(client.client_id);
     expect(soldLot.status).toBe("Sold");
+    expect(soldLot.title?.title_number).toBe("T-998877");
   });
 
   it("assignPropertyClient clears client and resets status to Open", async () => {
@@ -300,7 +310,7 @@ describe("Property Lot Management Actions", () => {
     }));
     testPropertyIds.push(lot.property_id);
 
-    unwrap(await assignPropertyClient(lot.property_id, client1.client_id, "Sold"));
+    unwrap(await assignPropertyClient(lot.property_id, client1.client_id));
 
     // Direct database attempt to insert a second active ledger for the same lot
     const adminClient = getTestAdminClient();

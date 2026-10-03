@@ -29,7 +29,6 @@ export const createPropertyLotSchema = z.object({
 });
 
 export const updateLotSchema = z.object({
-  status: propertyStatusEnum.optional(),
   price_per_sqm: z
     .number({ error: "Price is required" })
     .positive("Must be greater than 0")
@@ -74,7 +73,6 @@ export const updatePropertyLotActionSchema = z
     lot_number: z.number().int().positive().optional(),
     area_size: z.number().positive().optional(),
     price_per_sqm: z.number().positive().optional(),
-    status: propertyStatusEnum.optional(),
   })
   .transform(stripUndefined);
 
@@ -135,5 +133,34 @@ export const deleteSubdivisionLotSchema = z.object({
   subdivision_id: uuidSchema.optional(),
 });
 
+export const openSubdivisionForSaleSchema = z.object({
+  site_id: uuidSchema,
+  block_number: z.number().int().positive(),
+  lot_number: z.number().int().positive(),
+  area_size: z.number().positive("Area is required"),
+  price_per_sqm: z.number().positive("Price per sqm is required"),
+});
+
+export const assignPropertyFullyPaidActionSchema = z.object({
+  propertyId: uuidSchema,
+  clientId: uuidSchema,
+  title_number: z.string().trim().max(100).optional().nullable(),
+});
+
+export const createAndAssignPropertyFromSubdivisionSchema = z.object({
+  site_id: uuidSchema,
+  block_number: z.number().int().positive(),
+  lot_number: z.number().int().positive(),
+  area_size: z.number().positive("Area is required"),
+  price_per_sqm: z.number().positive("Price per sqm is required"),
+  client_id: uuidSchema,
+  ownership_type: z.enum(["installment", "fully_paid"]),
+  total_contract_price: z.number().positive().optional(),
+  remaining_balance: z.number().min(0).optional(),
+  title_number: z.string().trim().max(100).optional().nullable(),
+});
+
 export type CreatePropertyLotFormData = z.infer<typeof createPropertyLotSchema>;
 export type UpdateLotFormData = z.infer<typeof updateLotSchema>;
+export type OpenSubdivisionForSaleFormData = z.infer<typeof openSubdivisionForSaleSchema>;
+export type CreateAndAssignPropertyFromSubdivisionFormData = z.infer<typeof createAndAssignPropertyFromSubdivisionSchema>;

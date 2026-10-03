@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, X, LandPlot, User, DollarSign, CheckCircle2, FileDown, Loader2, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,13 +11,6 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { Label } from '@/components/ui/label';
 import { getPropertyReportData } from '@/lib/actions/reports';
 import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Tooltip,
   TooltipTrigger,
@@ -32,7 +25,7 @@ import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import { getArchiveEligibility } from '@/lib/utils/archive-rules';
 import type { PropertyLotWithClient } from '@/lib/types/property';
-import { STATUSES, STATUS_PILL } from '@/lib/status-colors';
+import { PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
 import { updateLotSchema, type UpdateLotFormData } from '@/lib/validations/property';
 
 const PESO = new Intl.NumberFormat('en-PH', {
@@ -87,13 +80,12 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
   const form = useForm<UpdateLotFormData>({
     resolver: zodResolver(updateLotSchema),
     defaultValues: {
-      status: lot.status,
       price_per_sqm: lot.price_per_sqm,
       area_size: lot.area_size,
     },
   });
 
-  const { register, control, watch, reset, formState: { errors, isDirty } } = form;
+  const { register, watch, reset, formState: { errors, isDirty } } = form;
 
   const { state, execute } = useMutation(updateLot, {
     setError: form.setError,
@@ -106,7 +98,6 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
   // Sync form values when the selected lot changes
   useEffect(() => {
     reset({
-      status: lot.status,
       price_per_sqm: lot.price_per_sqm,
       area_size: lot.area_size,
     });
@@ -118,7 +109,6 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
 
   const onSubmit = form.handleSubmit(async (data) => {
     await execute(lot.property_id, {
-      status: data.status,
       price_per_sqm: data.price_per_sqm,
       area_size: data.area_size,
     });
@@ -234,38 +224,23 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
             </div>
           </div>
 
-          {/* Editable Status */}
+          {/* Read-only Property Status */}
           <div className="space-y-1.5">
-            <Label htmlFor="status-select" className="text-sm font-medium text-foreground">
+            <Label className="text-sm font-medium text-foreground">
               Property Status
             </Label>
-            <Controller
-              name="status"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="status-select" className="w-full bg-background border-border text-foreground">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((st) => (
-                      <SelectItem key={st} value={st}>
-                        <div className="flex items-center gap-2">
-                          <span
-                            aria-hidden="true"
-                            className={`h-2 w-2 rounded-full ${STATUS_PILL[st].dot}`}
-                          />
-                          <span>{st}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.status && (
-              <p className="text-xs text-destructive">{errors.status.message}</p>
-            )}
+            <div className="flex items-center gap-2 pt-0.5">
+              <Badge variant={PROPERTY_STATUS_VARIANT[lot.status]} shape="pill" dot>
+                {lot.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                {lot.status === 'Sold'
+                  ? 'Fully paid & titled'
+                  : lot.status === 'Reserved'
+                    ? 'Active installment ledger'
+                    : 'Available for acquisition'}
+              </span>
+            </div>
           </div>
 
           {/* Editable Pricing & Dimensions */}

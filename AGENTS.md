@@ -113,9 +113,10 @@ All required vars must be set in `.env.local`. See `.env.example` for the full l
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Anon/publishable key (safe for client) |
 | `SUPABASE_SECRET_KEY` | Service role key — server only, never expose to client |
 
-## Database Migrations
+## Database Migrations & Pre-Flight Introspection
 
-Migration files live in `supabase/migrations/` and must follow the naming convention `YYYYMMDDHHMMSS_description.sql`. Apply with `supabase db push` (remote) or `supabase migration up` (local). Never edit an already-applied migration — create a new one instead. See `.agents/skills/backend-architecture/SKILL.md` for RLS policy standards.
+- **Pre-Flight Introspection**: Before creating new database migrations, modifying schemas, or implementing backend Server Actions/RPCs, inspect existing live schema, triggers, and functions (via `npx supabase db diff --linked --schema public,rbac` or the catalog inspection queries in `.agents/skills/backend-architecture/SKILL.md`) to prevent drift, duplicate procedures, or conflicting trigger logic.
+- **Migration Standards**: Migration files live in `supabase/migrations/` and must follow the naming convention `YYYYMMDDHHMMSS_description.sql`. Apply with `supabase db push` (remote) or `supabase migration up` (local). Never edit an already-applied migration — create a new one instead. See `.agents/skills/backend-architecture/SKILL.md` for RLS policy standards and function retrieval instructions.
 
 ## Middleware Route Guard
 
