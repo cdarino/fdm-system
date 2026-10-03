@@ -10,14 +10,12 @@ import { Button } from '@/components/ui/button';
 interface DashboardShellProps {
   children: React.ReactNode;
   user: Parameters<typeof DashboardTopBar>[0]['user'];
-  isSystemAdmin: boolean;
   roleSections: Parameters<typeof SidebarNav>[0]['roleSections'];
 }
 
 export function DashboardShell({
   children,
   user,
-  isSystemAdmin,
   roleSections,
 }: DashboardShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
@@ -66,7 +64,7 @@ export function DashboardShell({
             </span>
           </div>
         </div>
-        <SidebarNav isSystemAdmin={isSystemAdmin} roleSections={roleSections} />
+        <SidebarNav roleSections={roleSections} />
       </aside>
 
       <div

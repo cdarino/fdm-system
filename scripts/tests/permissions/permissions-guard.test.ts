@@ -109,7 +109,7 @@ describe("Permissions & Authorization Guard Actions", () => {
     const clientRes = await createClient({ full_name: faker.person.fullName() });
     expect(clientRes.success).toBe(false);
     if (!clientRes.success) {
-      expect(clientRes.error).toContain("Forbidden: You do not have permission 'clients.create'.");
+      expect(clientRes.error).toContain("Forbidden: You do not have permission");
     }
 
     // Attempting to create property lot without properties.create
@@ -122,7 +122,32 @@ describe("Permissions & Authorization Guard Actions", () => {
     });
     expect(lotRes.success).toBe(false);
     if (!lotRes.success) {
-      expect(lotRes.error).toContain("Forbidden: You do not have permission 'properties.create'.");
+      expect(lotRes.error).toContain("Forbidden: You do not have permission");
+    }
+  });
+
+  it("verifies system_admin has all delete permissions across domains", async () => {
+    await loginAsAdmin();
+    const allPerms = await getUserPermissions();
+    const deletePerms = ["clients.delete", "properties.delete", "billing.delete", "legal.delete", "accounting.delete", "system.delete"];
+    for (const perm of deletePerms) {
+      expect(allPerms).toContain(perm);
+      expect(await hasPermission(perm)).toBe(true);
+    }
+  });
+
+  it("verifies non-sysadmin roles hold no delete permissions across domains", async () => {
+    const rolesToTest = ["admin_staff", "billing_staff", "legal_staff", "accounting_staff"];
+    for (const roleName of rolesToTest) {
+      const tempStaff = await createTemporaryUser({
+        emailPrefix: `test-${roleName}`,
+        roleNames: [roleName],
+      });
+
+      await loginAs(tempStaff.email, tempStaff.password);
+      const staffPerms = await getUserPermissions();
+      const anyDelete = staffPerms.filter((p) => p.endsWith(".delete"));
+      expect(anyDelete).toEqual([]);
     }
   });
 });

@@ -26,6 +26,7 @@ import type {
 
 const property = createScope(["properties.read"]);
 const propertyCreate = property.extend(["properties.create"]);
+const propertyWrite = property.extend(["properties.update"]);
 const propertyDelete = property.extend(["properties.delete"]);
 
 export async function getSites(): Promise<Site[]> {
@@ -357,6 +358,48 @@ export async function deleteSubdivisionLot(input: DeleteSubdivisionLotInput): Pr
       if (subDelError) {
         throw new Error(`Failed to delete subdivision: ${subDelError.message}`);
       }
+    },
+  });
+}
+
+export async function archiveSite(siteId: string): Promise<ActionResult<Site>> {
+  return propertyWrite.run({
+    schema: uuidSchema,
+    input: siteId,
+    handler: async (validSiteId, { supabase }) => {
+      const { data, error } = await supabase
+        .from("site")
+        .update({ is_archived: true, archived_at: new Date().toISOString() })
+        .eq("site_id", validSiteId)
+        .select()
+        .single<Site>();
+
+      if (error || !data) {
+        throw new Error(`Failed to archive site: ${error?.message ?? "Unknown error"}`);
+      }
+
+      return data;
+    },
+  });
+}
+
+export async function unarchiveSite(siteId: string): Promise<ActionResult<Site>> {
+  return propertyWrite.run({
+    schema: uuidSchema,
+    input: siteId,
+    handler: async (validSiteId, { supabase }) => {
+      const { data, error } = await supabase
+        .from("site")
+        .update({ is_archived: false, archived_at: null })
+        .eq("site_id", validSiteId)
+        .select()
+        .single<Site>();
+
+      if (error || !data) {
+        throw new Error(`Failed to unarchive site: ${error?.message ?? "Unknown error"}`);
+      }
+
+      return data;
     },
   });
 }

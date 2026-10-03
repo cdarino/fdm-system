@@ -23,7 +23,8 @@
     "test:e2e:utils": "vitest run scripts/tests/utils/utils.test.ts",
     "seed:baseline": "tsx --env-file=.env.local scripts/seed-baseline.ts",
     "seed:dev": "tsx --env-file=.env.local scripts/seed-dev.ts",
-    "seed:production": "vercel env pull .env.production.local --environment=production --yes && tsx --env-file=.env.production.local scripts/seed-production.ts"
+    "seed:production": "vercel env pull .env.production.local --environment=production --yes && tsx --env-file=.env.production.local scripts/seed-production.ts",
+    "cleanup:test-data": "tsx --env-file=.env.local scripts/cleanup-test-data.ts"
   },
   "dependencies": {
     "@esri/arcgis-rest-request": "^4.11.0",

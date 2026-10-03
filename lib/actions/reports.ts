@@ -62,6 +62,8 @@ interface RawLotQueryResult {
   status: PropertyStatus;
   created_at: string;
   updated_at: string;
+  is_archived?: boolean | null;
+  archived_at?: string | null;
   site?: { site_id: string; name: string; description: string | null } | null;
   ledger_accounts?: RawLedgerEntry[];
 }
@@ -173,6 +175,8 @@ export async function getClientReportData(clientId: string): Promise<ClientRepor
           status: client.status,
           created_at: client.created_at,
           updated_at: client.updated_at,
+          archived_at: client.archived_at ?? null,
+          is_archived: client.status === "Archived" || Boolean(client.archived_at),
         },
         contacts: client.contact_info ?? [],
         documents,
@@ -261,6 +265,8 @@ export async function getPropertyReportData(propertyId: string): Promise<Propert
           status: lot.status,
           created_at: lot.created_at,
           updated_at: lot.updated_at,
+          is_archived: Boolean(lot.is_archived),
+          archived_at: lot.archived_at ?? null,
         },
         site_name: lot.site?.name ?? null,
         calculated_total_price: Number(lot.area_size) * Number(lot.price_per_sqm),

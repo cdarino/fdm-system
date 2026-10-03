@@ -34,7 +34,7 @@ export default defineConfig({
     hookTimeout: 60000,
     fileParallelism: false,
     maxConcurrency: 1,
-    include: ["scripts/tests/**/*.test.ts"],
+    include: ["scripts/tests/**/*.test.ts", "scripts/tests/**/*.test.tsx"],
   },
 });
 

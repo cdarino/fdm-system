@@ -5,6 +5,7 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
@@ -75,22 +76,90 @@ const DropdownMenuContent = React.forwardRef<
 ));
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
+export interface DropdownMenuItemProps
+  extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> {
+  inset?: boolean;
+  icon?: React.ReactNode;
+  hidden?: boolean;
+  disabledReason?: React.ReactNode;
+  tooltipSide?: "top" | "right" | "bottom" | "left";
+  variant?: "default" | "destructive";
+}
+
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
-    inset?: boolean;
-  }
->(({ className, inset, ...props }, ref) => (
-  <DropdownMenuPrimitive.Item
-    ref={ref}
-    className={cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0",
-      inset && "pl-8",
+  DropdownMenuItemProps
+>(
+  (
+    {
       className,
-    )}
-    {...props}
-  />
-));
+      inset,
+      icon,
+      hidden,
+      disabledReason,
+      tooltipSide = "left",
+      variant = "default",
+      disabled,
+      children,
+      onSelect,
+      onPointerDown,
+      ...props
+    },
+    ref
+  ) => {
+    if (hidden) {
+      return null;
+    }
+
+    const isDisabled = Boolean(disabled || disabledReason);
+
+    const item = (
+      <DropdownMenuPrimitive.Item
+        ref={ref}
+        disabled={isDisabled}
+        className={cn(
+          "relative flex select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors [&>svg]:size-4 [&>svg]:shrink-0",
+          variant === "destructive"
+            ? "text-destructive focus:bg-[color-mix(in_srgb,var(--destructive)_10%,white)] focus:text-destructive"
+            : "focus:bg-accent focus:text-accent-foreground",
+          disabledReason
+            ? "pointer-events-auto cursor-not-allowed text-muted-foreground opacity-50"
+            : "cursor-default data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+          inset && "pl-8",
+          className
+        )}
+        onSelect={(event) => {
+          if (disabledReason) {
+            event.preventDefault();
+            return;
+          }
+          onSelect?.(event);
+        }}
+        onPointerDown={(event) => {
+          if (disabledReason) {
+            event.preventDefault();
+          }
+          onPointerDown?.(event);
+        }}
+        {...props}
+      >
+        {icon && <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">{icon}</span>}
+        {children}
+      </DropdownMenuPrimitive.Item>
+    );
+
+    if (disabledReason) {
+      return (
+        <Tooltip delayDuration={150}>
+          <TooltipTrigger asChild>{item}</TooltipTrigger>
+          <TooltipContent side={tooltipSide}>{disabledReason}</TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return item;
+  }
+);
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
 
 const DropdownMenuCheckboxItem = React.forwardRef<

@@ -74,7 +74,8 @@ export async function seedBaseline(options: SeedBaselineOptions = {}): Promise<{
       }
 
       userId = existing.id;
-      console.log(`✅  Found existing user: ${userId} (password unchanged)`);
+      await supabase.auth.admin.updateUserById(userId, { password: adminPassword });
+      console.log(`✅  Found existing user: ${userId} (password synced)`);
     } else {
       throw new Error(`Failed to create user: ${createError.message}`);
     }

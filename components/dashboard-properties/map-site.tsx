@@ -179,7 +179,7 @@ export function SiteMap({
   isEditorModeRef.current = isEditorMode;
   const [token, setToken] = useState<string | null>(null);
   const [mapMode, setMapMode] = useState<'satellite' | 'normal'>(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem('fdm_map_mode');
       if (saved === 'satellite' || saved === 'normal') return saved;
     }
@@ -199,7 +199,7 @@ export function SiteMap({
   const isSettingStyleRef = useRef<boolean>(false);
   const pendingTargetStyleKeyRef = useRef<string | null>(null);
 
-  if (!popupContainerRef.current && typeof document !== 'undefined') {
+  if (!popupContainerRef.current && typeof document !== 'undefined' && typeof document.createElement === 'function') {
     popupContainerRef.current = document.createElement('div');
   }
 

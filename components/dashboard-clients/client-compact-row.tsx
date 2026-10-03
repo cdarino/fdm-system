@@ -13,13 +13,26 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { UserRound, MoreHorizontal, Activity, Edit3, Trash2, Check, FileDown } from 'lucide-react';
+import {
+  UserRound,
+  MoreHorizontal,
+  Activity,
+  Edit3,
+  Trash2,
+  Archive,
+  ArchiveRestore,
+  FileDown,
+  Check,
+} from 'lucide-react';
+import { useSession } from '@/lib/hooks/use-session';
 import { getClientReportData } from '@/lib/actions/reports';
 import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 import { cn } from '@/lib/utils';
+import { ARCHIVED_STATUS } from '@/lib/hooks/use-clients-page';
+import { getArchiveEligibility } from '@/lib/utils/archive-rules';
 import type { ClientListItem } from '@/lib/types/client';
 
 export function ClientStatusPill({ status }: { status: string }) {
@@ -39,6 +52,8 @@ export interface ClientCompactRowProps {
   onSelect?: () => void;
   onOpenDetails?: () => void;
   onOpenEdit?: () => void;
+  onOpenArchive?: () => void;
+  onOpenRestore?: () => void;
   onOpenDelete?: () => void;
   gutterL?: string;
   gutterR?: string;
@@ -51,10 +66,13 @@ export function ClientCompactRow({
   onSelect,
   onOpenDetails,
   onOpenEdit,
+  onOpenArchive,
+  onOpenRestore,
   onOpenDelete,
   gutterL = 'pl-4 sm:pl-6',
   gutterR = 'pr-4 sm:pr-6',
 }: ClientCompactRowProps) {
+  const { isSystemAdmin } = useSession();
   // Selectable row variant for picker dialogs
   if (selectable) {
     return (
@@ -111,6 +129,9 @@ export function ClientCompactRow({
     }
   }
 
+  const isArchived = client.status === ARCHIVED_STATUS || Boolean(client.is_archived);
+  const eligibility = getArchiveEligibility(isArchived, client.archived_at);
+
   return (
     <TableRow
       onClick={onOpenDetails}
@@ -155,24 +176,38 @@ export function ClientCompactRow({
               Actions
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onOpenDetails}>
-              <Activity className="h-4 w-4 mr-2" />
+            <DropdownMenuItem icon={<Activity className="h-4 w-4" />} onSelect={onOpenDetails}>
               View details
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleExportPdf}>
-              <FileDown className="h-4 w-4 mr-2" />
+            <DropdownMenuItem icon={<FileDown className="h-4 w-4" />} onSelect={handleExportPdf}>
               Export PDF
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onOpenEdit}>
-              <Edit3 className="h-4 w-4 mr-2" />
+            <DropdownMenuItem icon={<Edit3 className="h-4 w-4" />} onSelect={onOpenEdit}>
               Edit client
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
+              hidden={!isArchived}
+              icon={<ArchiveRestore className="h-4 w-4" />}
+              onSelect={onOpenRestore}
+            >
+              Restore client
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              hidden={isArchived}
+              icon={<Archive className="h-4 w-4" />}
+              onSelect={onOpenArchive}
+            >
+              Archive client
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              hidden={!isArchived || !isSystemAdmin}
+              disabled={!eligibility.isEligibleForDelete}
+              disabledReason={eligibility.tooltipReason}
+              variant="destructive"
+              icon={<Trash2 className="h-4 w-4" />}
               onSelect={onOpenDelete}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
               Delete client
             </DropdownMenuItem>
           </DropdownMenuContent>

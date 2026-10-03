@@ -11,41 +11,45 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Loader2, AlertTriangle } from 'lucide-react';
-import { useClients } from '@/lib/hooks/use-clients-page';
+import { usePropertyLots, lotLabel } from '@/lib/hooks/use-property-lots';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import { getArchiveEligibility } from '@/lib/utils/archive-rules';
-import type { ClientListItem } from '@/lib/types/client';
+import type { PropertyLotWithClient } from '@/lib/types/property';
 
-export function DeleteClientDialog({
-  client,
+export function DeletePropertyLotDialog({
+  lot,
   open,
+  onOpenChange,
+  onSuccess,
 }: {
-  client: ClientListItem;
+  lot: PropertyLotWithClient;
   open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }) {
-  const { deleteClient, closeDialog } = useClients();
-  const isArchived = client.status === 'Archived' || Boolean(client.is_archived);
-  const eligibility = getArchiveEligibility(isArchived, client.archived_at);
+  const { deleteLot } = usePropertyLots();
+  const isArchived = Boolean(lot.is_archived);
+  const eligibility = getArchiveEligibility(isArchived, lot.archived_at);
 
-  const { state, execute } = useMutation(deleteClient, {
+  const { state, execute } = useMutation(deleteLot, {
     onSuccess: () => {
-      closeDialog();
-      toast.success('Client deleted successfully');
+      onOpenChange(false);
+      toast.success(`${lotLabel(lot)} permanently deleted`);
+      onSuccess?.();
     },
   });
 
   const isPending = state.status === 'pending';
 
   return (
-    <AlertDialog open={open} onOpenChange={(v) => !v && closeDialog()}>
+    <AlertDialog open={open} onOpenChange={(v) => !v && onOpenChange(false)}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete client</AlertDialogTitle>
+          <AlertDialogTitle>Delete Property Lot</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete <strong>{client.full_name}</strong>? 
-            This action cannot be undone and will remove all associated contact information and 
-            activity records.
+            Are you sure you want to permanently delete <strong>{lotLabel(lot)}</strong>?
+            This action cannot be undone and will permanently remove this lot record.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -65,17 +69,16 @@ export function DeleteClientDialog({
           <AlertDialogAction
             onClick={(e) => {
               e.preventDefault();
-              void execute(client.client_id);
+              void execute(lot.property_id);
             }}
             disabled={isPending || !eligibility.isEligibleForDelete}
             className="bg-destructive text-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_90%,black)]"
           >
             {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Delete client
+            Delete Property Lot
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   );
 }
-

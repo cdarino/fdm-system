@@ -166,6 +166,8 @@ export async function getClients(
           status: item.status,
           created_at: item.created_at,
           updated_at: item.updated_at,
+          archived_at: item.archived_at ?? null,
+          is_archived: item.status === "Archived" || Boolean(item.archived_at),
           contact_info: item.contact_info ?? [],
           latest_activity: latestActivity,
         };
@@ -306,7 +308,7 @@ export async function archiveClient(clientId: string): Promise<ActionResult<Clie
     handler: async (validId, { supabase }) => {
       const { data, error } = await supabase
         .from("client")
-        .update({ status: "Archived" })
+        .update({ status: "Archived", archived_at: new Date().toISOString() })
         .eq("client_id", validId)
         .select()
         .single<Client>();
@@ -327,7 +329,7 @@ export async function unarchiveClient(clientId: string): Promise<ActionResult<Cl
     handler: async (validId, { supabase }) => {
       const { data, error } = await supabase
         .from("client")
-        .update({ status: "Active" })
+        .update({ status: "Active", archived_at: null })
         .eq("client_id", validId)
         .select()
         .single<Client>();

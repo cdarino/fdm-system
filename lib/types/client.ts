@@ -12,6 +12,8 @@ export interface Client {
   status: string;
   created_at: string;
   updated_at: string;
+  archived_at: string | null;
+  is_archived?: boolean;
 }
 
 export interface ContactInfo {

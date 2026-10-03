@@ -5,15 +5,27 @@ import {
   getPropertyLots,
   getPropertyLotById,
   updatePropertyLot,
+  archivePropertyLot,
+  unarchivePropertyLot,
   deletePropertyLot,
   assignPropertyClient,
   assignPropertyParties,
 } from "@/lib/actions/properties";
+import {
+  createSite,
+  archiveSite,
+  unarchiveSite,
+  deleteSite,
+  getSiteWithLots,
+} from "@/lib/actions/sites";
 import { createClient } from "@/lib/actions/clients";
 import {
   loginAsAdmin,
   logoutUser,
   getTestAdminClient,
+  hardDeleteTestProperty,
+  hardDeleteTestClient,
+  hardDeleteTestSite,
   runTrackedCleanups,
 } from "../framework/session";
 import { unwrap } from "../framework/action-helper";
@@ -21,24 +33,30 @@ import { unwrap } from "../framework/action-helper";
 describe("Property Lot Management Actions", () => {
   const testPropertyIds: string[] = [];
   const testClientIds: string[] = [];
+  const testSiteIds: string[] = [];
 
   beforeAll(async () => {
     await loginAsAdmin();
   });
 
   afterAll(async () => {
-    const adminClient = getTestAdminClient();
     for (const id of testPropertyIds) {
       try {
-        await adminClient.from("ledger_account").delete().eq("property_id", id);
-        await adminClient.from("property_lot").delete().eq("property_id", id);
+        await hardDeleteTestProperty(id);
       } catch {
         // Ignore cleanup errors
       }
     }
     for (const id of testClientIds) {
       try {
-        await adminClient.from("client").delete().eq("client_id", id);
+        await hardDeleteTestClient(id);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+    for (const id of testSiteIds) {
+      try {
+        await hardDeleteTestSite(id);
       } catch {
         // Ignore cleanup errors
       }
@@ -311,6 +329,47 @@ describe("Property Lot Management Actions", () => {
     unwrap(await deletePropertyLot(lot.property_id));
 
     await expect(getPropertyLotById(lot.property_id)).rejects.toThrow("Property lot not found");
+  });
+
+  it("archivePropertyLot sets is_archived and archived_at, unarchive resets them", async () => {
+    const blockNum = faker.number.int({ min: 100, max: 999 });
+    const lot = unwrap(await createPropertyLot({
+      location: "Archive Test Estate",
+      block_number: blockNum,
+      lot_number: 1,
+      area_size: 150,
+      price_per_sqm: 10000,
+    }));
+    testPropertyIds.push(lot.property_id);
+
+    const archived = unwrap(await archivePropertyLot(lot.property_id));
+    expect(archived.is_archived).toBe(true);
+    expect(archived.archived_at).not.toBeNull();
+
+    const restored = unwrap(await unarchivePropertyLot(lot.property_id));
+    expect(restored.is_archived).toBe(false);
+    expect(restored.archived_at).toBeNull();
+  });
+
+  it("archiveSite, unarchiveSite, and deleteSite manage site lifecycle", async () => {
+    const siteName = `Test Site ${Date.now()}`;
+    const site = unwrap(await createSite({
+      name: siteName,
+      description: "Test site description",
+      boundary: [[0, 0], [10, 0], [10, 10], [0, 10]],
+    }));
+    testSiteIds.push(site.site_id);
+
+    const archived = unwrap(await archiveSite(site.site_id));
+    expect(archived.is_archived).toBe(true);
+    expect(archived.archived_at).not.toBeNull();
+
+    const restored = unwrap(await unarchiveSite(site.site_id));
+    expect(restored.is_archived).toBe(false);
+    expect(restored.archived_at).toBeNull();
+
+    unwrap(await deleteSite(site.site_id));
+    await expect(getSiteWithLots(site.site_id)).rejects.toThrow("Site not found");
   });
 });
 

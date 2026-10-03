@@ -33,6 +33,49 @@ export async function runTrackedCleanups() {
   }
 }
 
+export async function hardDeleteTestClient(clientId: string) {
+  const admin = getTestAdminClient();
+  // Clean dependent rows safely in reverse dependency order
+  await admin.from("account_party").delete().eq("client_id", clientId);
+  await admin.from("client_document").delete().eq("client_id", clientId);
+  await admin.from("client_log").delete().eq("client_id", clientId);
+  await admin.from("contact_info").delete().eq("client_id", clientId);
+  await admin.from("search_index").delete().eq("entity_type", "client_document").eq("entity_id", clientId);
+  await admin.from("client").delete().eq("client_id", clientId);
+}
+
+export async function hardDeleteTestProperty(propertyId: string) {
+  const admin = getTestAdminClient();
+  // Clean associated ledger accounts and parties before lot deletion
+  const { data: accounts } = await admin.from("ledger_account").select("account_id").eq("property_id", propertyId);
+  if (accounts && accounts.length > 0) {
+    const accountIds = accounts.map((a) => a.account_id);
+    await admin.from("account_party").delete().in("account_id", accountIds);
+    await admin.from("ledger_account").delete().eq("property_id", propertyId);
+  }
+  await admin.from("property_lot").delete().eq("property_id", propertyId);
+}
+
+export async function hardDeleteTestSite(siteId: string) {
+  const admin = getTestAdminClient();
+  // Clean subdivisions and detached lots before site deletion
+  await admin.from("site_subdivision").delete().eq("site_id", siteId);
+  await admin.from("property_lot").delete().eq("site_id", siteId);
+  await admin.from("site").delete().eq("site_id", siteId);
+}
+
+export function trackTestClient(clientId: string) {
+  trackCleanup(() => hardDeleteTestClient(clientId));
+}
+
+export function trackTestProperty(propertyId: string) {
+  trackCleanup(() => hardDeleteTestProperty(propertyId));
+}
+
+export function trackTestSite(siteId: string) {
+  trackCleanup(() => hardDeleteTestSite(siteId));
+}
+
 export async function loginAsAdmin() {
   clearCookieJar();
   return login({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });

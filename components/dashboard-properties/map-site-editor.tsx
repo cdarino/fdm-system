@@ -19,8 +19,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { useSession } from '@/lib/hooks/use-session';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { calculatePolygonAreaSqm } from '@/lib/geometry';
+import { getArchiveEligibility } from '@/lib/utils/archive-rules';
+import { DeleteSiteDialog } from './site-delete-dialog';
 import type { Site, SiteWithLots } from '@/lib/types/property';
 import {
   PenTool,
@@ -31,6 +42,9 @@ import {
   MapPin,
   LandPlot,
   AlertTriangle,
+  MoreVertical,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 
 export interface SelectedPlotInfo {
@@ -69,6 +83,9 @@ export interface MapSiteEditorProps {
   onSaveSite: (data: { name: string; description?: string }) => Promise<void>;
   onDiscardSite: () => void;
   isSaving: boolean;
+  onArchiveSite?: (siteId: string) => Promise<void>;
+  onUnarchiveSite?: (siteId: string) => Promise<void>;
+  onDeleteSite?: (siteId: string) => Promise<void>;
 }
 
 export function MapSiteEditor({
@@ -93,7 +110,11 @@ export function MapSiteEditor({
   onSaveSite,
   onDiscardSite,
   isSaving,
+  onArchiveSite,
+  onUnarchiveSite,
+  onDeleteSite,
 }: MapSiteEditorProps) {
+  const { isSystemAdmin } = useSession();
   // Save lot form state
   const [lotBlock, setLotBlock] = useState<string>('');
   const [lotNumber, setLotNumber] = useState<string>('');
@@ -101,8 +122,13 @@ export function MapSiteEditor({
   // Save site form state
   const [siteName, setSiteName] = useState<string>('');
   const [siteDesc, setSiteDesc] = useState<string>('');
+  const [isDeleteSiteOpen, setIsDeleteSiteOpen] = useState(false);
 
   const activeSite = sites.find((s) => s.site_id === activeSiteId);
+  const activeSiteEligibility = getArchiveEligibility(
+    Boolean(activeSite?.is_archived),
+    activeSite?.archived_at
+  );
   const calculatedLotArea = pendingLotBoundary
     ? Math.max(10, Math.round(calculatePolygonAreaSqm(pendingLotBoundary) * 100) / 100)
     : 250;
@@ -158,8 +184,8 @@ export function MapSiteEditor({
           <div className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-1.5 shadow-xl transition-all">
             {plotType === null ? (
               <>
-                {/* Site Picker dropdown */}
-                <div className="min-w-0 flex-1 sm:min-w-[160px]">
+                {/* Site Picker dropdown and site actions */}
+                <div className="flex items-center gap-1 min-w-0 flex-1 sm:min-w-[160px]">
                   <Select
                     value={activeSiteId ?? ''}
                     onValueChange={onSelectSite}
@@ -176,6 +202,54 @@ export function MapSiteEditor({
                       ))}
                     </SelectContent>
                   </Select>
+
+                  {isSystemAdmin && activeSite && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:bg-row-hover hover:text-foreground shrink-0"
+                          aria-label={`Site options for ${activeSite.name}`}
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-44">
+                        <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Site Options
+                        </DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          hidden={!activeSite.is_archived}
+                          icon={<ArchiveRestore className="h-4 w-4" />}
+                          disabled={isSaving}
+                          onSelect={() => onUnarchiveSite?.(activeSite.site_id)}
+                        >
+                          Restore Site
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          hidden={activeSite.is_archived}
+                          icon={<Archive className="h-4 w-4" />}
+                          disabled={isSaving}
+                          onSelect={() => onArchiveSite?.(activeSite.site_id)}
+                        >
+                          Archive Site
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          hidden={!activeSite.is_archived || !isSystemAdmin}
+                          disabled={!activeSiteEligibility.isEligibleForDelete}
+                          disabledReason={activeSiteEligibility.tooltipReason}
+                          tooltipSide="right"
+                          variant="destructive"
+                          icon={<Trash2 className="h-4 w-4" />}
+                          onSelect={() => setIsDeleteSiteOpen(true)}
+                        >
+                          Delete Site
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
 
                 {/* Plot lot button */}
@@ -488,6 +562,21 @@ export function MapSiteEditor({
           </div>
         </DialogContent>
       </Dialog>
+
+      {activeSite && (
+        <DeleteSiteDialog
+          site={activeSite}
+          open={isDeleteSiteOpen}
+          onOpenChange={setIsDeleteSiteOpen}
+          onConfirm={async () => {
+            if (onDeleteSite) {
+              await onDeleteSite(activeSite.site_id);
+            }
+            setIsDeleteSiteOpen(false);
+          }}
+          isPending={isSaving}
+        />
+      )}
     </>
   );
 }

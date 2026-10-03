@@ -31,8 +31,9 @@ import {
   getEntityIndex,
 } from '@/lib/actions/search-index';
 import type { DocumentSearchHit } from '@/lib/types/search';
-import type { PropertyLot, PropertyLotWithClient } from '@/lib/types/property';
+import type { PropertyLotWithClient } from '@/lib/types/property';
 import type { ActionResult } from '@/lib/actions/action-result';
+import { useSession } from '@/lib/hooks/use-session';
 import type {
   ClientListItem,
   ClientWithDetails,
@@ -94,6 +95,7 @@ interface ClientsContextValue {
   assignLot: (propertyId: string, clientId: string) => Promise<PropertyLotWithClient>;
   unassignLot: (propertyId: string) => Promise<void>;
   refreshClients: () => Promise<void>;
+  isSystemAdmin: boolean;
 }
 
 const ClientsContext = createContext<ClientsContextValue | null>(null);
@@ -126,6 +128,7 @@ export function ClientsProvider({
   children: ReactNode;
   initialClients?: ClientListItem[];
 }) {
+  const { isSystemAdmin } = useSession();
   const router = useRouter();
   const requestedClient = useSearchParams().get('client');
   const [clients, setClients] = useState<ClientListItem[]>(initialClients);
@@ -482,6 +485,7 @@ export function ClientsProvider({
         assignLot,
         unassignLot,
         refreshClients,
+        isSystemAdmin: Boolean(isSystemAdmin),
       },
     },
     children

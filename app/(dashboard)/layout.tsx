@@ -1,28 +1,27 @@
 import { DashboardShell } from '@/components/dashboard-layout/dashboard-shell';
-import { getUserInfo } from '@/lib/user';
-import { getIsCurrentUserSystemAdmin, getCurrentUserRoleSections } from '@/lib/actions/check-user';
-
+import { getUserSession } from '@/lib/session';
+import { SessionProvider } from '@/lib/hooks/use-session';
+import { getCurrentUserRoleSections } from '@/lib/actions/check-user';
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Independent of one another — awaiting them in sequence made the shell wait
-  // on three consecutive Supabase round trips before rendering.
-  const [user, isSystemAdmin, roleSections] = await Promise.all([
-    getUserInfo(),
-    getIsCurrentUserSystemAdmin(),
+  // Fetch session and role sections in parallel to avoid sequential round trips.
+  const [session, roleSections] = await Promise.all([
+    getUserSession(),
     getCurrentUserRoleSections(),
   ]);
 
   return (
-    <DashboardShell
-      user={user}
-      isSystemAdmin={isSystemAdmin}
-      roleSections={roleSections}
-    >
-      {children}
-    </DashboardShell>
+    <SessionProvider session={session}>
+      <DashboardShell
+        user={session.user}
+        roleSections={roleSections}
+      >
+        {children}
+      </DashboardShell>
+    </SessionProvider>
   );
 }

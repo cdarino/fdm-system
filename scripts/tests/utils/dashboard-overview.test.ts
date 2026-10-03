@@ -55,6 +55,7 @@ describe('Dashboard overview presentation', () => {
     const html = renderToStaticMarkup(createElement(PropertyMapCard, { preview: { site: {
       site_id: 'site-1', name: 'Sample Site', description: null,
       created_at: '', updated_at: '',
+      is_archived: false, archived_at: null,
       boundary: [[125, 7], [125.01, 7], [125.01, 7.01]], subdivisions: [], lots: [],
     } } }));
     expect(html).toContain('href="/dashboard/properties/map"');

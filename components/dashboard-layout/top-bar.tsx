@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { logout as signOut } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import type { AuthUser } from '@supabase/supabase-js';
+import type { SessionUser } from '@/lib/types/session';
 import { ComingSoonModal } from './coming-soon-modal';
 import {
   DropdownMenu,
@@ -16,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 interface DashboardTopBarProps {
-  user?: AuthUser | null;
+  user?: SessionUser | AuthUser | null;
 }
 
 export function useTopBar() {
@@ -42,7 +43,8 @@ export function useTopBar() {
 
 export function DashboardTopBar({ user }: DashboardTopBarProps) {
   const { isLoggingOut, logoutError, handleLogout } = useTopBar();
-  const displayName = [user?.user_metadata.first_name, user?.user_metadata.last_name]
+  const metadata = user?.user_metadata as Record<string, string> | undefined;
+  const displayName = [metadata?.first_name, metadata?.last_name]
     .filter(Boolean)
     .join(' ') || user?.email || 'Unknown';
   const avatarInitial = displayName[0]?.toUpperCase() ?? '?';

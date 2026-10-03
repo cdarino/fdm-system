@@ -1,5 +1,6 @@
 import { ArrowRight, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useSession } from '@/lib/hooks/use-session';
 import { cn } from '@/lib/utils';
 
 export interface LotPlotProperties {
@@ -47,6 +48,7 @@ export function MapSitePopup({
   onRegisterLot,
   onDeletePlot,
 }: MapSitePopupProps) {
+  const { isSystemAdmin } = useSession();
   const pillClass = STATUS_PILL_MAP[plot.status] ?? STATUS_PILL_MAP.Unregistered;
 
   return (
@@ -104,7 +106,7 @@ export function MapSitePopup({
         </Button>
       )}
 
-      {isEditorMode && (
+      {!plot.isRegistered && isEditorMode && isSystemAdmin && (
         <Button
           variant="outline"
           size="sm"

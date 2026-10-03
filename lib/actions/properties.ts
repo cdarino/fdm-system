@@ -201,6 +201,48 @@ export async function updatePropertyLot(
   });
 }
 
+export async function archivePropertyLot(propertyId: string): Promise<ActionResult<PropertyLot>> {
+  return propertyWrite.run({
+    schema: uuidSchema,
+    input: propertyId,
+    handler: async (validPropertyId, { supabase }) => {
+      const { data, error } = await supabase
+        .from("property_lot")
+        .update({ is_archived: true, archived_at: new Date().toISOString() })
+        .eq("property_id", validPropertyId)
+        .select()
+        .single<PropertyLot>();
+
+      if (error || !data) {
+        throw new Error(`Failed to archive property lot: ${error?.message ?? "Unknown error"}`);
+      }
+
+      return data;
+    },
+  });
+}
+
+export async function unarchivePropertyLot(propertyId: string): Promise<ActionResult<PropertyLot>> {
+  return propertyWrite.run({
+    schema: uuidSchema,
+    input: propertyId,
+    handler: async (validPropertyId, { supabase }) => {
+      const { data, error } = await supabase
+        .from("property_lot")
+        .update({ is_archived: false, archived_at: null })
+        .eq("property_id", validPropertyId)
+        .select()
+        .single<PropertyLot>();
+
+      if (error || !data) {
+        throw new Error(`Failed to unarchive property lot: ${error?.message ?? "Unknown error"}`);
+      }
+
+      return data;
+    },
+  });
+}
+
 export async function deletePropertyLot(propertyId: string): Promise<ActionResult<void>> {
   return propertyDelete.run({
     schema: uuidSchema,

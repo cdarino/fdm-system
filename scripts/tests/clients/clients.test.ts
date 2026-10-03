@@ -5,6 +5,8 @@ import {
   getClients,
   getClientById,
   updateClient,
+  archiveClient,
+  unarchiveClient,
   deleteClient,
   addContactInfo,
   updateContactInfo,
@@ -18,6 +20,7 @@ import {
   loginAsAdmin,
   logoutUser,
   getTestAdminClient,
+  hardDeleteTestClient,
   runTrackedCleanups,
 } from "../framework/session";
 import { unwrap } from "../framework/action-helper";
@@ -35,10 +38,9 @@ describe("Client Management Actions", () => {
   });
 
   afterAll(async () => {
-    const adminClient = getTestAdminClient();
     for (const id of testClientIds) {
       try {
-        await adminClient.from("client").delete().eq("client_id", id);
+        await hardDeleteTestClient(id);
       } catch {
         // Ignore cleanup errors
       }
@@ -268,6 +270,22 @@ describe("Client Management Actions", () => {
     unwrap(await deleteClient(client.client_id));
 
     await expect(getClientById(client.client_id)).rejects.toThrow("Client not found");
+  });
+
+  it("archiveClient sets archived_at and unarchiveClient clears it", async () => {
+    const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
+    testClientIds.push(client.client_id);
+
+    const archived = unwrap(await archiveClient(client.client_id));
+    expect(archived.status).toBe("Archived");
+    expect(archived.archived_at).not.toBeNull();
+
+    const retrievedArchived = await getClientById(client.client_id);
+    expect(retrievedArchived.archived_at).toBe(archived.archived_at);
+
+    const restored = unwrap(await unarchiveClient(client.client_id));
+    expect(restored.status).toBe("Active");
+    expect(restored.archived_at).toBeNull();
   });
 });
 

@@ -57,6 +57,7 @@ import {
 } from '@/lib/hooks/use-clients-page';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { formatActivityTime } from '@/lib/format-activity-time';
+import { getArchiveEligibility } from '@/lib/utils/archive-rules';
 import { CreateClientModal } from './client-create-modal';
 import { EditClientModal } from './client-edit-modal';
 import { DeleteClientDialog } from './client-delete-dialog';
@@ -254,7 +255,7 @@ function EmptyState({
 }
 
 function ClientRow({ client }: { client: ClientListItem }) {
-  const { openDialog, restoreClient, missingDocumentAlerts } = useClients();
+  const { openDialog, restoreClient, missingDocumentAlerts, isSystemAdmin } = useClients();
   const missingDocs = missingDocumentAlerts.find(
     (alert) => alert.client_id === client.client_id
   );
@@ -263,7 +264,8 @@ function ClientRow({ client }: { client: ClientListItem }) {
       toast.success(`${client.full_name} restored`);
     },
   });
-  const isArchived = client.status === ARCHIVED_STATUS;
+  const isArchived = client.status === ARCHIVED_STATUS || Boolean(client.is_archived);
+  const eligibility = getArchiveEligibility(isArchived, client.archived_at);
   const isRestoring = restoreState.status === 'pending';
 
   async function handleRestore() {
@@ -350,11 +352,14 @@ function ClientRow({ client }: { client: ClientListItem }) {
               Actions
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => openDialog({ type: 'details', client })}>
-              <Activity className="h-4 w-4 mr-2" />
+            <DropdownMenuItem
+              icon={<Activity className="h-4 w-4" />}
+              onSelect={() => openDialog({ type: 'details', client })}
+            >
               View details
             </DropdownMenuItem>
             <DropdownMenuItem
+              icon={<FileDown className="h-4 w-4" />}
               onSelect={async () => {
                 try {
                   const data = await getClientReportData(client.client_id);
@@ -365,36 +370,41 @@ function ClientRow({ client }: { client: ClientListItem }) {
                 }
               }}
             >
-              <FileDown className="h-4 w-4 mr-2" />
               Export PDF
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => openDialog({ type: 'edit', client })}>
-              <Edit3 className="h-4 w-4 mr-2" />
+            <DropdownMenuItem
+              icon={<Edit3 className="h-4 w-4" />}
+              onSelect={() => openDialog({ type: 'edit', client })}
+            >
               Edit client
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {isArchived ? (
-              <DropdownMenuItem
-                disabled={isRestoring}
-                onSelect={(e) => {
-                  e.preventDefault();
-                  void handleRestore();
-                }}
-              >
-                <ArchiveRestore className="h-4 w-4 mr-2" />
-                Restore client
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem onSelect={() => openDialog({ type: 'archive', client })}>
-                <Archive className="h-4 w-4 mr-2" />
-                Archive client
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
+              hidden={!isArchived}
+              icon={<ArchiveRestore className="h-4 w-4" />}
+              disabled={isRestoring}
+              onSelect={(e) => {
+                e.preventDefault();
+                void handleRestore();
+              }}
+            >
+              Restore client
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              hidden={isArchived}
+              icon={<Archive className="h-4 w-4" />}
+              onSelect={() => openDialog({ type: 'archive', client })}
+            >
+              Archive client
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              hidden={!isArchived || !isSystemAdmin}
+              disabled={!eligibility.isEligibleForDelete}
+              disabledReason={eligibility.tooltipReason}
+              variant="destructive"
+              icon={<Trash2 className="h-4 w-4" />}
               onSelect={() => openDialog({ type: 'delete', client })}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
               Delete client
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -417,6 +427,7 @@ function ClientsContent() {
     activeDialog,
     openDialog,
     missingDocumentAlerts,
+    restoreClient,
   } = useClients();
 
   const [isDocumentSearchOpen, setIsDocumentSearchOpen] = useState(false);
@@ -620,6 +631,8 @@ function ClientsContent() {
                         gutterR={GUTTER_R}
                         onOpenDetails={() => openDialog({ type: 'details', client })}
                         onOpenEdit={() => openDialog({ type: 'edit', client })}
+                        onOpenArchive={() => openDialog({ type: 'archive', client })}
+                        onOpenRestore={() => void restoreClient(client.client_id)}
                         onOpenDelete={() => openDialog({ type: 'delete', client })}
                       />
                     ))}
@@ -654,7 +667,11 @@ function ClientsContent() {
   );
 }
 
-export function ClientsSection({ clients = [] }: { clients?: ClientListItem[] }) {
+export function ClientsSection({
+  clients = [],
+}: {
+  clients?: ClientListItem[];
+}) {
   return (
     <ClientsProvider initialClients={clients}>
       <ClientsContent />

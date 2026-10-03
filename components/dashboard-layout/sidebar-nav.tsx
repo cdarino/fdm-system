@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession } from '@/lib/hooks/use-session';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -19,7 +20,6 @@ import {
 import { ComingSoonModal } from './coming-soon-modal';
 
 interface SidebarNavProps {
-  isSystemAdmin?: boolean;
   roleSections?: {
     category: string;
     tabs: { title: string; href: string; comingSoon?: true }[];
@@ -85,7 +85,8 @@ function navItemClasses(isActive: boolean): string {
   );
 }
 
-export function SidebarNav({ isSystemAdmin = false, roleSections = [] }: SidebarNavProps) {
+export function SidebarNav({ roleSections = [] }: SidebarNavProps) {
+  const { isSystemAdmin } = useSession();
   const pathname = usePathname();
   const [modalState, setModalState] = useState<{
     isOpen: boolean;

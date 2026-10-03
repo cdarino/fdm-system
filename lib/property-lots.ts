@@ -67,6 +67,8 @@ export function mapLotWithAccount(lot: RawLotRow): PropertyLotWithClient {
     status: lot.status,
     created_at: lot.created_at,
     updated_at: lot.updated_at,
+    is_archived: Boolean(lot.is_archived),
+    archived_at: lot.archived_at ?? null,
     client: primaryParty?.client ?? null,
     client_id: primaryParty?.client_id ?? null,
     active_account: activeAccount as LedgerAccountWithParties | null,

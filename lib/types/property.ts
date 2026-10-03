@@ -39,6 +39,8 @@ export interface Site {
   boundary: unknown;
   created_at: string;
   updated_at: string;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 export interface PropertyLot {
@@ -54,6 +56,8 @@ export interface PropertyLot {
   status: PropertyStatus;
   created_at: string;
   updated_at: string;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 export interface PropertyLotWithClient extends PropertyLot {

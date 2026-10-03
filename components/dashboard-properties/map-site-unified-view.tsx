@@ -7,7 +7,14 @@ import { PanelLeftOpen } from 'lucide-react';
 import { SiteMap } from './map-site';
 import { PropertyLotsSidebar } from './property-lots-sidebar';
 import { MapSiteEditor, type SelectedPlotInfo } from './map-site-editor';
-import { createSite, createSubdivisionLot, deleteSubdivisionLot } from '@/lib/actions/sites';
+import {
+  createSite,
+  createSubdivisionLot,
+  deleteSubdivisionLot,
+  archiveSite,
+  unarchiveSite,
+  deleteSite,
+} from '@/lib/actions/sites';
 import type { PropertyLotWithClient, SiteWithLots } from '@/lib/types/property';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -224,6 +231,67 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
     }
   }, [selectedPlotToDelete, router]);
 
+  const handleArchiveSite = useCallback(
+    async (siteId: string) => {
+      setIsSaving(true);
+      try {
+        const result = await archiveSite(siteId);
+        if (!result.success) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success('Site archived successfully');
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to archive site');
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [router]
+  );
+
+  const handleUnarchiveSite = useCallback(
+    async (siteId: string) => {
+      setIsSaving(true);
+      try {
+        const result = await unarchiveSite(siteId);
+        if (!result.success) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success('Site restored successfully');
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to restore site');
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [router]
+  );
+
+  const handleDeleteSite = useCallback(
+    async (siteId: string) => {
+      setIsSaving(true);
+      try {
+        const result = await deleteSite(siteId);
+        if (!result.success) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success('Site deleted successfully');
+        setActiveSiteId(null);
+        router.refresh();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete site');
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [router]
+  );
+
   return (
     <div className="relative flex flex-1 h-full min-h-0 w-full flex-col overflow-hidden">
       {/* Background: Edge-to-edge interactive canvas */}
@@ -267,6 +335,9 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
         onSaveSite={handleSaveSite}
         onDiscardSite={() => setPendingSiteBoundary(null)}
         isSaving={isSaving}
+        onArchiveSite={handleArchiveSite}
+        onUnarchiveSite={handleUnarchiveSite}
+        onDeleteSite={handleDeleteSite}
       />
 
       {/* Floating Collapsible Card on Left */}
