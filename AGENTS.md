@@ -10,23 +10,15 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Project Stack Notes
 
-- **UI components**: This project uses [shadcn/ui](https://ui.shadcn.com). New UI components should follow shadcn conventions — prefer composing from existing primitives in `components/ui/` before creating new ones, and use the shadcn CLI (`npx shadcn@latest add <component>`) to add any missing ones.
-- **Card Component & Variants**: `components/ui/card.tsx` already encapsulates base border (`border-border`), surface (`bg-card`), text color (`text-card-foreground`), and shadow defaults. Do not redundantly apply `bg-card`, `border-border`, or `rounded-xl` to `<Card>`. Use its built-in `variant` (`section`, `interactive`, `prominent`, `dashed`) and `padding` (`none`, `default`, `lg`) props instead of writing custom Tailwind utility chains.
+- **UI components**: This project uses [shadcn/ui](https://ui.shadcn.com). Prefer composing from existing primitives in `components/ui/` before creating new ones. For full variant extension recipes and composition guidelines, refer to `.agents/skills/ui-components/SKILL.md`.
+- **Mapping & GIS**: Subdivision plat plans and vector maps use MapLibre GL via `useMapLibreMap`. For SSR safeguards and worker asset configuration, refer to `.agents/skills/maplibre-gl/SKILL.md`.
 
-## UI Composition & Variant Rules of Thumb
+## UI Composition Invariants
 
-- **The "Rule of 2" for Long Utility Chains**:
-  Never write long inline Tailwind utility chains (e.g. `flex items-center gap-2 rounded-... bg-[color-mix...]`) for common visual archetypes. If a visual pattern appears in 2+ places or represents a recognized UI role (status pill, callout banner, icon container, filter toolbar), promote it to a primitive prop or variant in `components/ui/`.
-- **Three-Tier Separation**:
-  1. *Primitives (`components/ui/`)*: Strictly domain-agnostic props (`color`, `variant`, `shape`, `size`, `dot`). No domain concepts (no "lot status" or "client badge").
-  2. *Domain Mapping (`lib/`)*: Dictionaries and helpers translating models to primitive props (e.g. `PROPERTY_STATUS_COLOR`).
-  3. *Domain Views (`components/dashboard-*/`)*: Compose primitives. Never hand-roll custom container `div`s when a primitive exists.
-- **When to Extend vs. Create**:
-  - *Extend with variant/prop*: If it is an alternative visual style or state of an existing element (e.g. adding `quiet` to `Button`, `shape="pill"` to `Badge`).
-  - *Add a subcomponent*: If it represents a recurring structural slot in a compound component (e.g. `CardToolbar`, `CardTableFooter` in `Card`).
-  - *Add a new primitive*: Only if it represents a distinct semantic HTML role or standalone composite not covered by shadcn primitives (e.g. `Alert`, `IconBox`).
-- **No Redundant Overrides**:
-  Do not pass inline classes that duplicate or contradict a component's built-in variants (e.g. do not pass `className="bg-primary hover:..."` to `<Button variant="default">`).
+- **The "Rule of 2"**: Never write long inline Tailwind utility chains for common visual archetypes across 2+ places; promote them to a primitive prop or variant in `components/ui/`.
+- **Three-Tier Separation**: Strictly separate Primitives (`components/ui/`), Domain Mappings (`lib/`), and Domain Views (`components/dashboard-*/`).
+- **No Redundant Overrides**: Do not pass inline classes that duplicate or contradict a component's built-in variants (e.g. `<Card>` already includes `bg-card`, `border-border`, and `rounded-xl`).
+- See `.agents/skills/ui-components/SKILL.md` for CVA variant patterns, subcomponents, and Card conventions.
 
 ## Folder Structure
 
@@ -34,6 +26,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ```
 fdm-system/
+├── .agents/                    # Workspace agent customizations
+│   └── skills/                 # Domain skills (ui-components, backend-architecture, maplibre-gl)
 ├── app/                        # Next.js App Router pages
 │   ├── (auth)/                 # Auth route group (login)
 │   ├── (dashboard)/            # Protected dashboard pages
@@ -86,46 +80,16 @@ fdm-system/
 
 ## Auth & RBAC
 
-Permissions live in the `rbac` Postgres schema (not `public`). Roles are `system_admin`, `admin_staff`, `billing_staff`, `legal_staff`, and `accounting_staff`. Permissions follow the pattern `<resource>.<action>` (e.g. `billing.read`, `system.create`). Use `hasPermission()` and `getUserPermissions()` from `lib/permissions.ts` — don't query `rbac.*` tables directly.
+Permissions live in the `rbac` Postgres schema (not `public`). Roles are `system_admin`, `admin_staff`, `billing_staff`, `legal_staff`, and `accounting_staff`. Permissions follow the pattern `<resource>.<action>` (e.g. `billing.read`, `system.create`). Use `hasPermission()` and `getUserPermissions()` from `lib/permissions.ts` — don't query `rbac.*` tables directly. For admin self-protection rules, see `.agents/skills/backend-architecture/SKILL.md`.
 
 ## Server Actions & Action Scopes (`createScope`)
 
-Server actions in `lib/actions/` use `createScope` from `lib/actions/action-handler.ts` to manage authorization, request-bound Supabase client creation, input validation, and standardized responses.
+All server actions in `lib/actions/` must use `createScope` from `lib/actions/action-handler.ts` for unified authorization, Supabase client injection, Zod parsing, and error handling.
 
-- **Scope Definition & Inheritance**:
-  Define a base scope per domain resource and extend it for mutations:
-  ```ts
-  const client = createScope(["clients.read"]);
-  const clientWrite = client.extend(["clients.update"]);
-  ```
-- **Queries (`scope.query`)**:
-  Used for data fetching (Server Components or client hooks). Verifies scope permissions, injects `{ supabase, userId }`, and returns data directly or throws on error:
-  ```ts
-  export async function getClientById(id: string) {
-    return client.query(async ({ supabase }) => {
-      // query logic
-    });
-  }
-  ```
-- **Mutations (`scope.run`)**:
-  Used for mutations returning `ActionResult<T>`. Parses Zod schemas (returns `actionZodError` on failure), injects `{ supabase, userId }`, and automatically wraps returns in `actionSuccess` or `actionError`:
-  ```ts
-  export async function updateClient(clientId: string, input: unknown) {
-    return clientWrite.run({
-      schema: updateClientSchema,
-      input,
-      handler: async (data, { supabase }) => {
-        // update logic
-      },
-    });
-  }
-  ```
-- **Action-Specific Permissions**:
-  Pass `permissions` to `scope.run(...)` or `scope.query(...)` for additive permissions (e.g. `permissions: ["clients.delete"]`).
-- **Partial Updates & Undefined Stripping**:
-  Use `stripUndefined` from `lib/validations/client.ts` in Zod schemas (e.g. `schema.partial().transform(stripUndefined)`) to drop undefined properties before database updates.
-- **Server-Only Files**:
-  Action helper/builder libraries must use `import "server-only";`, NOT `"use server";`. Reserve `"use server";` exclusively for files that export actual `async` server actions.
+- **Query vs. Mutation**: Use `scope.query` for data fetching (throwing on error) and `scope.run` for mutations (returning `ActionResult<T>`).
+- **Partial Updates**: Always apply `stripUndefined` from `lib/validations/client.ts` to partial update schemas to prevent clearing unset fields in the database.
+- **File Directives**: Use `import "server-only";` in action builders and helpers. Reserve `"use server";` strictly for files exporting actual `async` server actions.
+- See `.agents/skills/backend-architecture/SKILL.md` for complete scope inheritance patterns, permission guards, and query/mutation boilerplate.
 
 ## Supabase Clients
 
@@ -137,7 +101,7 @@ Three clients exist — use the right one for the context:
 | Admin client | `lib/supabase/admin.ts` | Server Actions only — **bypasses RLS**, never import in client components |
 | Proxy client | `lib/supabase/proxy.ts` | Middleware only — refreshes session cookies |
 
-Always instantiate a new client per request/function call; never store in a global variable (handled automatically when using `createScope`).
+Always instantiate a new client per request/function call; never store in a global variable (handled automatically when using `createScope`). Refer to `.agents/skills/backend-architecture/SKILL.md`.
 
 ## Environment Variables
 
@@ -151,7 +115,7 @@ All required vars must be set in `.env.local`. See `.env.example` for the full l
 
 ## Database Migrations
 
-Migration files live in `supabase/migrations/` and must follow the naming convention `YYYYMMDDHHMMSS_description.sql`. Apply with `supabase db push` (remote) or `supabase migration up` (local). Never edit an already-applied migration — create a new one instead.
+Migration files live in `supabase/migrations/` and must follow the naming convention `YYYYMMDDHHMMSS_description.sql`. Apply with `supabase db push` (remote) or `supabase migration up` (local). Never edit an already-applied migration — create a new one instead. See `.agents/skills/backend-architecture/SKILL.md` for RLS policy standards.
 
 ## Middleware Route Guard
 
