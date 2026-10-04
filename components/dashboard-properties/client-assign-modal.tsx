@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -19,11 +20,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { Search, X, Users, SearchX, UserCheck, UserX } from 'lucide-react';
+import { Search, X, Users, SearchX, UserCheck, UserX, UserPlus } from 'lucide-react';
 import { ClientCompactRow } from '@/components/dashboard-clients/client-compact-row';
 import { usePropertyLots, lotLabel } from '@/lib/hooks/use-property-lots';
 import { useMutation } from '@/lib/hooks/use-mutation';
-import { getClients } from '@/lib/actions/clients';
+import { getClients, createClient } from '@/lib/actions/clients';
 import { toast } from 'sonner';
 import type { ClientListItem } from '@/lib/types/client';
 import type { PropertyLotWithClient } from '@/lib/types/property';
@@ -56,6 +57,7 @@ export function ClientAssignModal({
   onOpenChange,
   lot,
 }: ClientAssignModalProps) {
+  const router = useRouter();
   const { assignClient } = usePropertyLots();
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +67,8 @@ export function ClientAssignModal({
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
     lot.client?.client_id ?? null
   );
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
 
   const { state: assignState, execute: executeAssign } = useMutation(assignClient);
 
@@ -103,12 +107,34 @@ export function ClientAssignModal({
 
   async function handleAssign() {
     if (!selectedClientId) return;
-    // Transition Open -> Reserved, or preserve existing status
-    const targetStatus = lot.status === 'Open' ? 'Reserved' : lot.status;
-    const ok = await executeAssign(lot.property_id, selectedClientId, targetStatus);
-    if (ok) {
-      toast.success(`Client successfully assigned to ${lotLabel(lot)}`);
+    // Navigate to client page with property pre-selected in URL
+    onOpenChange(false);
+    router.push(`/dashboard/clients/${selectedClientId}?assignProperty=${lot.property_id}`);
+  }
+
+  async function handleCreateAndAssign() {
+    if (!newClientName.trim()) {
+      toast.error('Please enter a client name');
+      return;
+    }
+
+    setIsCreatingClient(true);
+    try {
+      const result = await createClient({ full_name: newClientName.trim() });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create client');
+      }
+
+      toast.success(`Client "${newClientName}" created`);
       onOpenChange(false);
+      
+      // Navigate to the new client's page with property pre-selected
+      router.push(`/dashboard/clients/${result.data.client_id}?assignProperty=${lot.property_id}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create client');
+    } finally {
+      setIsCreatingClient(false);
     }
   }
 
@@ -133,7 +159,7 @@ export function ClientAssignModal({
                 Assign Client to {lotLabel(lot)}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Select a client record to assign as primary buyer on this property lot.
+                Select an existing client or create a new one to begin the property assignment process
               </DialogDescription>
             </div>
           </div>
@@ -163,25 +189,45 @@ export function ClientAssignModal({
               })}
             </div>
 
-            <div className="relative min-w-0 flex-1 sm:max-w-sm">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, address..."
-                className="h-8 pl-8 pr-7 text-xs"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1 sm:max-w-xs">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, address..."
+                  className="h-8 pl-8 pr-7 text-xs"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const name = prompt('Enter client name:');
+                  if (name?.trim()) {
+                    setNewClientName(name.trim());
+                    void handleCreateAndAssign();
+                  }
+                }}
+                disabled={isCreatingClient}
+                className="h-8 gap-1.5 whitespace-nowrap text-xs"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                New Client
+              </Button>
             </div>
           </div>
         </DialogHeader>
@@ -271,7 +317,7 @@ export function ClientAssignModal({
               className="gap-1.5 bg-primary text-xs text-primary-foreground hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)] h-8"
             >
               <UserCheck className="h-3.5 w-3.5" />
-              Assign Client
+              Continue to Assignment
             </LoadingButton>
           </div>
         </DialogFooter>

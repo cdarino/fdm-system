@@ -7,6 +7,8 @@ const dotVariants = {
   default: "bg-primary-foreground",
   secondary: "bg-secondary-foreground",
   outline: "bg-foreground",
+  "outline-warm": "bg-foreground",
+  canvas: "bg-foreground",
   success: "bg-success",
   warning: "bg-row-accent",
   info: "bg-primary",
@@ -24,6 +26,8 @@ const badgeVariants = cva(
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-[color-mix(in_srgb,var(--secondary)_80%,black)]",
         outline: "border-border text-foreground",
+        "outline-warm": "border-border-warm text-foreground",
+        canvas: "border-border-warm bg-card text-foreground",
         success:
           "border-transparent bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success",
         warning:

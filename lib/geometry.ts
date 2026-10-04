@@ -136,7 +136,7 @@ export function fitViewBox(bounds: Bounds, marginRatio = 0.04, extraTopRatio = 0
   return `${x} ${y} ${width + margin * 2} ${height + margin * 2 + extraTop}`;
 }
 
-export function calculatePolygonAreaSqm(points: readonly [number, number][]): number {
+export function calculatePolygonAreaSqm(points: readonly (readonly [number, number])[]): number {
   if (points.length < 3) return 0;
   // Project [lng, lat] coordinates to local metric space around initial vertex
   const [lng0, lat0] = points[0];

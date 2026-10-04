@@ -197,7 +197,7 @@ export function MapSiteEditor({
                     <SelectContent>
                       {sites.map((s) => (
                         <SelectItem key={s.site_id} value={s.site_id} className="text-xs">
-                          {s.name}
+                          {s.name}{s.is_archived ? ' (Archived)' : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -252,14 +252,27 @@ export function MapSiteEditor({
                   )}
                 </div>
 
+                {activeSite?.is_archived && (
+                  <span className="flex items-center gap-1 rounded-md border border-[color-mix(in_srgb,var(--destructive)_30%,transparent)] bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-destructive shrink-0">
+                    <Archive className="h-3 w-3" />
+                    <span>Archived Site</span>
+                  </span>
+                )}
+
                 {/* Plot lot button */}
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => onStartPlotting('lot')}
-                  disabled={!activeSiteId}
-                  className="h-8 gap-1.5 border-border bg-card text-xs font-medium text-foreground hover:bg-row-hover hover:text-foreground"
-                  title={!activeSiteId ? 'Select a site first' : 'Plot a new lot polygon on this site'}
+                  disabled={!activeSiteId || activeSite?.is_archived}
+                  className="h-8 gap-1.5 border-border bg-card text-xs font-medium text-foreground hover:bg-row-hover hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={
+                    !activeSiteId
+                      ? 'Select a site first'
+                      : activeSite?.is_archived
+                        ? 'Restore site before plotting new lots'
+                        : 'Plot a new lot polygon on this site'
+                  }
                 >
                   <LandPlot className="h-3.5 w-3.5 text-primary" />
                   <span>+ Plot Lot</span>

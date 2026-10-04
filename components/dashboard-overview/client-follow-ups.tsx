@@ -42,7 +42,7 @@ export function ClientFollowUps({ items }: { items: ClientFollowUp[] | null }) {
               <p className="mb-2 text-xs text-muted-foreground">Showing {Math.min(limit, current.length)} of {current.length} clients · alphabetical order</p>
               <ul className="divide-y divide-border">
                 {current.slice(0, limit).map(item => <li key={item.clientId}>
-                  <Link href={`/dashboard/clients?client=${encodeURIComponent(item.clientId)}`} className="flex items-center justify-between gap-3 rounded-md py-3 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Link href={`/dashboard/clients/${item.clientId}`} className="flex items-center justify-between gap-3 rounded-md py-3 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <span className="min-w-0"><span className="block break-words text-sm font-medium">{item.name}</span><span className="mt-1 block text-xs text-muted-foreground">{view === 'documents' ? `Missing: ${item.missingDocuments.join(', ')}` : 'Open profile to review contact details'}</span></span>
                     <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0" />
                   </Link>

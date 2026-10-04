@@ -71,7 +71,13 @@ export default {
           DEFAULT: "var(--destructive)",
           foreground: "var(--destructive-foreground)",
         },
-        border: "var(--border)",
+        border: {
+          DEFAULT: "var(--border)",
+          warm: "var(--border-warm)",
+          "warm-subtle": "var(--border-warm-subtle)",
+          "warm-strong": "var(--border-warm-strong)",
+        },
+        "border-warm": "var(--border-warm)",
         input: "var(--input)",
         ring: "var(--ring)",
         chart: {

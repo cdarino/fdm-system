@@ -25,6 +25,9 @@
     --destructive: #ef4444;
     --destructive-foreground: #1A1D20;
     --border: #E2E7EC;
+    --border-warm: #D8D1C5;
+    --border-warm-subtle: #E8E2D6;
+    --border-warm-strong: #C4BCAC;
     --input: #E2E7EC;
     --ring: #5BC4E7;
     --chart-1: #5BC4E7;
@@ -122,6 +125,9 @@
     --destructive: #ef4444;
     --destructive-foreground: #FFFFFF;
     --border: #3A3D40;
+    --border-warm: #363B40;
+    --border-warm-subtle: #292D31;
+    --border-warm-strong: #454B52;
     --input: #3A3D40;
     --ring: #5BC4E7;
     --chart-1: #5BC4E7;

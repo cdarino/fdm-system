@@ -38,7 +38,9 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
 
   // Editor states
   const [isEditorActive, setIsEditorActive] = useState(false);
-  const [activeSiteId, setActiveSiteId] = useState<string | null>(sites[0]?.site_id ?? null);
+  const [activeSiteId, setActiveSiteId] = useState<string | null>(
+    () => sites.find((s) => !s.is_archived)?.site_id ?? sites[0]?.site_id ?? null
+  );
   const [plotType, setPlotType] = useState<'lot' | 'site' | null>(null);
   const [draftPoints, setDraftPoints] = useState<[number, number][]>([]);
   const [selectedPlotToDelete, setSelectedPlotToDelete] = useState<SelectedPlotInfo | null>(null);
@@ -92,7 +94,8 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
       if (active) {
         setIsSidebarOpen(false);
         if (!activeSiteId && sites.length > 0) {
-          setActiveSiteId(sites[0].site_id);
+          const firstSite = sites.find((s) => !s.is_archived) ?? sites[0];
+          setActiveSiteId(firstSite.site_id);
         }
       } else {
         setPlotType(null);
@@ -100,6 +103,10 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
         setSelectedPlotToDelete(null);
         setPendingLotBoundary(null);
         setPendingSiteBoundary(null);
+        const currentSite = sites.find((s) => s.site_id === activeSiteId);
+        if (currentSite?.is_archived) {
+          setActiveSiteId(null);
+        }
       }
     },
     [activeSiteId, sites],

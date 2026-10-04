@@ -399,12 +399,31 @@ export function SiteMap({
     [map, preview]
   );
 
-  // Focus view when focusedSiteId prop changes
+  // Filter visible sites on map canvas (archived sites only visible in editor mode)
+  const activeVisibleSites = useMemo(() => {
+    return isEditorMode ? allSites : allSites.filter((s) => !s.is_archived);
+  }, [allSites, isEditorMode]);
+
+  // Focus view when focusedSiteId changes, or zoom out to regional overview when cleared
+  const isFirstFocusMountRef = useRef(true);
   useEffect(() => {
-    if (!map || !focusedSiteId) return;
+    if (!map) return;
+    if (isFirstFocusMountRef.current) {
+      isFirstFocusMountRef.current = false;
+      if (!focusedSiteId) return;
+    }
+    if (!focusedSiteId) {
+      map.flyTo({
+        center: REGIONAL_CENTER,
+        zoom: REGIONAL_ZOOM,
+        duration: preview ? 0 : 900,
+        essential: true,
+      });
+      return;
+    }
     const targetSite = allSites.find((s) => s.site_id === focusedSiteId);
     if (targetSite) focusSite(targetSite);
-  }, [map, focusedSiteId, allSites, focusSite]);
+  }, [map, focusedSiteId, allSites, focusSite, preview]);
 
   // Dynamic GeoJSON for plotted draft points, connecting lines, and polygon fill
   const draftGeoJson = useMemo(() => {
@@ -449,7 +468,7 @@ export function SiteMap({
 
   // GeoJSON features for all site boundaries
   const sitesGeoJson = useMemo(() => {
-    const features = allSites
+    const features = activeVisibleSites
       .map((s) => {
         const ring = parseRing(s.boundary);
         if (!ring) return null;
@@ -458,6 +477,7 @@ export function SiteMap({
           properties: {
             siteId: s.site_id,
             name: s.name,
+            isSiteArchived: Boolean(s.is_archived),
           },
           geometry: {
             type: 'Polygon' as const,
@@ -471,11 +491,11 @@ export function SiteMap({
       type: 'FeatureCollection' as const,
       features,
     };
-  }, [allSites]);
+  }, [activeVisibleSites]);
 
-  // GeoJSON features for all subdivisions across all sites
+  // GeoJSON features for all subdivisions across visible sites
   const lotsGeoJson = useMemo(() => {
-    const features = allSites
+    const features = activeVisibleSites
       .flatMap((s) => {
         const siteLots = 'lots' in s && Array.isArray(s.lots) ? s.lots : [];
         const siteSubs = 'subdivisions' in s && Array.isArray(s.subdivisions) ? s.subdivisions : [];
@@ -505,6 +525,7 @@ export function SiteMap({
               propertyId: lot?.property_id ?? '',
               siteId: s.site_id,
               siteName: s.name,
+              isSiteArchived: Boolean(s.is_archived),
               block: sub.block_number,
               lot: sub.lot_number,
               name: `Block ${sub.block_number} Lot ${sub.lot_number}`,
@@ -531,7 +552,7 @@ export function SiteMap({
       type: 'FeatureCollection' as const,
       features,
     };
-  }, [allSites]);
+  }, [activeVisibleSites]);
 
   // Focus and fly to the selected property on map viewport
   const prevSelectedLotIdRef = useRef<string | null>(null);
@@ -575,8 +596,18 @@ export function SiteMap({
         type: 'fill',
         source: 'sites-data',
         paint: {
-          'fill-color': '#0284c7',
-          'fill-opacity': 0.15,
+          'fill-color': [
+            'case',
+            ['boolean', ['get', 'isSiteArchived'], false],
+            '#f59e0b',
+            '#0284c7',
+          ],
+          'fill-opacity': [
+            'case',
+            ['boolean', ['get', 'isSiteArchived'], false],
+            0.08,
+            0.15,
+          ],
         },
       });
 
@@ -585,7 +616,12 @@ export function SiteMap({
         type: 'line',
         source: 'sites-data',
         paint: {
-          'line-color': '#38bdf8',
+          'line-color': [
+            'case',
+            ['boolean', ['get', 'isSiteArchived'], false],
+            '#d97706',
+            '#38bdf8',
+          ],
           'line-width': 2.5,
           'line-dasharray': [4, 2],
         },
@@ -622,15 +658,20 @@ export function SiteMap({
           ],
           'fill-opacity': [
             'case',
+            ['boolean', ['get', 'isSiteArchived'], false],
+            0.25,
             [
-              'any',
-              ['==', ['get', 'id'], activeLotIdRef.current || '__NONE__'],
-              ['==', ['get', 'propertyId'], activeLotIdRef.current || '__NONE__'],
+              'case',
+              [
+                'any',
+                ['==', ['get', 'id'], activeLotIdRef.current || '__NONE__'],
+                ['==', ['get', 'propertyId'], activeLotIdRef.current || '__NONE__'],
+              ],
+              0.85,
+              ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
+              0.35,
+              0.75,
             ],
-            0.85,
-            ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
-            0.35,
-            0.75,
           ],
         },
       });
@@ -649,7 +690,7 @@ export function SiteMap({
               ['==', ['get', 'propertyId'], activeLotIdRef.current || '__NONE__'],
             ],
             '#ef4444',
-            '#ffffff',
+            ['case', ['boolean', ['get', 'isSiteArchived'], false], '#d97706', '#ffffff'],
           ],
           'line-width': [
             'case',
@@ -776,15 +817,20 @@ export function SiteMap({
 
     map.setPaintProperty('lots-fill', 'fill-opacity', [
       'case',
+      ['boolean', ['get', 'isSiteArchived'], false],
+      0.25,
       [
-        'any',
-        ['==', ['get', 'id'], activeLotId || '__NONE__'],
-        ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
+        'case',
+        [
+          'any',
+          ['==', ['get', 'id'], activeLotId || '__NONE__'],
+          ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
+        ],
+        0.85,
+        ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
+        0.35,
+        0.75,
       ],
-      0.85,
-      ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
-      0.35,
-      0.75,
     ]);
 
     map.setPaintProperty('lots-stroke', 'line-color', [
@@ -795,7 +841,7 @@ export function SiteMap({
         ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
       ],
       '#ef4444',
-      '#ffffff',
+      ['case', ['boolean', ['get', 'isSiteArchived'], false], '#d97706', '#ffffff'],
     ]);
 
     map.setPaintProperty('lots-stroke', 'line-width', [
@@ -950,10 +996,11 @@ export function SiteMap({
       if (!map) return;
       const { Marker } = await import('maplibre-gl');
 
-      allSites.forEach((targetSite) => {
+      activeVisibleSites.forEach((targetSite) => {
         const ring = parseRing(targetSite.boundary);
         if (!ring) return;
         const center = ringCentroid(ring);
+        const isArchived = Boolean(targetSite.is_archived);
 
         // Marker element with SVG pin icon and title
         const el = document.createElement('div');
@@ -961,15 +1008,17 @@ export function SiteMap({
         el.setAttribute('role', 'button');
         el.tabIndex = 0;
         el.setAttribute('aria-label', `Focus map on ${targetSite.name}`);
+        const isVisible = map.getZoom() < DETAILS_ZOOM;
+        el.style.display = isVisible ? 'flex' : 'none';
         el.innerHTML = `
-          <div class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl ring-2 ring-white">
+          <div class="flex h-9 w-9 items-center justify-center rounded-full ${isArchived ? 'bg-amber-600' : 'bg-primary'} text-white shadow-xl ring-2 ring-white">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
               <polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
           </div>
           <div class="mt-1 rounded-md bg-card px-2 py-0.5 text-[11px] font-bold text-foreground shadow-md border border-border whitespace-nowrap">
-            ${targetSite.name}
+            ${targetSite.name}${isArchived ? ' (Archived)' : ''}
           </div>
         `;
 
@@ -993,7 +1042,7 @@ export function SiteMap({
     return () => {
       markers.forEach((m) => m.remove());
     };
-  }, [map, isReady, allSites, focusSite]);
+  }, [map, isReady, activeVisibleSites, focusSite]);
 
   // Toggle marker pin visibility based on zoom threshold
   useEffect(() => {

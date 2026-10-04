@@ -47,5 +47,8 @@ next-env.d.ts
 # generated maplibre assets
 /public/maplibre/
 .env*
-
 .temp
+
+# Private domain interview transcripts & audio notes (contains PII)
+.agents/skills/fdm-domain/references/
+docs/private/

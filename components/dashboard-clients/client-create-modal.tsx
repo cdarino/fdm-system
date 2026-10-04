@@ -1,22 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -24,49 +18,45 @@ import {
 import { useClients } from '@/lib/hooks/use-clients-page';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
-import { clientSchema, type ClientFormData } from '@/lib/validations/client';
+import { z } from 'zod';
+
+const minimalClientSchema = z.object({
+  full_name: z.string().trim().min(1, "Full name is required"),
+});
+
+type MinimalClientForm = z.infer<typeof minimalClientSchema>;
 
 export function CreateClientModal({ open }: { open: boolean }) {
+  const router = useRouter();
   const { createClient, closeDialog } = useClients();
 
-  const form = useForm<ClientFormData>({
-    resolver: zodResolver(clientSchema),
+  const form = useForm<MinimalClientForm>({
+    resolver: zodResolver(minimalClientSchema),
     defaultValues: {
       full_name: '',
-      address: '',
-      tin_number: '',
-      status: 'Active',
     },
   });
 
-  const { register, control, handleSubmit, reset, formState: { errors } } = form;
+  const { register, handleSubmit, reset, formState: { errors } } = form;
 
   const { state, execute } = useMutation(createClient, {
     setError: form.setError,
-    onSuccess: () => {
+    onSuccess: (client: any) => {
       closeDialog();
       toast.success('Client created successfully');
+      // Navigate to the client's detail page
+      router.push(`/dashboard/clients/${client.client_id}`);
     },
   });
 
   useEffect(() => {
     if (open) {
-      reset({
-        full_name: '',
-        address: '',
-        tin_number: '',
-        status: 'Active',
-      });
+      reset({ full_name: '' });
     }
   }, [open, reset]);
 
   const onSubmit = handleSubmit(async (data) => {
-    await execute({
-      full_name: data.full_name,
-      address: data.address?.trim() || null,
-      tin_number: data.tin_number?.trim() || null,
-      status: data.status,
-    });
+    await execute({ full_name: data.full_name });
   });
 
   const isPending = state.status === 'pending';
@@ -76,6 +66,9 @@ export function CreateClientModal({ open }: { open: boolean }) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add client</DialogTitle>
+          <DialogDescription>
+            Enter the client's full name to create their record. You can complete their profile details later.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4 pt-2">
           <FormField
@@ -83,46 +76,9 @@ export function CreateClientModal({ open }: { open: boolean }) {
             label="Full name"
             placeholder="Juan dela Cruz"
             error={errors.full_name?.message}
+            autoFocus
             {...register('full_name')}
           />
-
-          <FormField
-            id="create-client-address"
-            label="Address"
-            placeholder="Davao City, Philippines"
-            error={errors.address?.message}
-            {...register('address')}
-          />
-
-          <FormField
-            id="create-client-tin"
-            label="TIN number"
-            placeholder="123-456-789"
-            hint="Format: XXX-XXX-XXX (9 digits)"
-            error={errors.tin_number?.message}
-            {...register('tin_number')}
-          />
-
-          <div className="space-y-2">
-            <Label htmlFor="create-client-status" className="text-sm font-medium text-foreground">
-              Status
-            </Label>
-            <Controller
-              control={control}
-              name="status"
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger id="create-client-status" className="w-full">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
 
           <DialogFooter className="pt-2">
             <Button

@@ -5,8 +5,8 @@ import { clearCookieJar } from "./vitest.setup";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY!;
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin";
-const ADMIN_EMAIL = "admin@example.com";
+const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD ?? "admin";
+const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL ?? "admin@example.com";
 
 export function getTestAdminClient() {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {

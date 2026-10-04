@@ -16,6 +16,7 @@ export interface SeedBaselineOptions {
   serviceRoleKey?: string;
   adminEmail?: string;
   adminPassword?: string;
+  syncPassword?: boolean;
 }
 
 export async function seedBaseline(options: SeedBaselineOptions = {}): Promise<{ userId: string; email: string }> {
@@ -74,8 +75,13 @@ export async function seedBaseline(options: SeedBaselineOptions = {}): Promise<{
       }
 
       userId = existing.id;
-      await supabase.auth.admin.updateUserById(userId, { password: adminPassword });
-      console.log(`✅  Found existing user: ${userId} (password synced)`);
+      const shouldSyncPassword = options.syncPassword ?? process.argv.includes("--sync-password");
+      if (shouldSyncPassword) {
+        await supabase.auth.admin.updateUserById(userId, { password: adminPassword });
+        console.log(`✅  Found existing user: ${userId} (password synced)`);
+      } else {
+        console.log(`✅  Found existing user: ${userId} (active sessions preserved)`);
+      }
     } else {
       throw new Error(`Failed to create user: ${createError.message}`);
     }

@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardToolbar, CardTableFooter } from '@/components/ui/card';
 import { IconBox } from '@/components/ui/icon-box';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import {
   Plus,
   Search,
@@ -18,6 +21,7 @@ import {
   ArchiveRestore,
   FileSearch,
   ShieldAlert,
+  ShieldCheck,
   Trash2,
   Copy,
   Check,
@@ -28,6 +32,7 @@ import {
   LayoutList,
   Rows,
   FileDown,
+  ExternalLink,
 } from 'lucide-react';
 import { getClientReportData } from '@/lib/actions/reports';
 import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
@@ -58,13 +63,13 @@ import {
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { formatActivityTime } from '@/lib/format-activity-time';
 import { getArchiveEligibility } from '@/lib/utils/archive-rules';
+import { getClientRequirements } from '@/lib/utils/client-requirements';
 import { CreateClientModal } from './client-create-modal';
 import { EditClientModal } from './client-edit-modal';
 import { DeleteClientDialog } from './client-delete-dialog';
 import { ArchiveClientDialog } from './client-archive-dialog';
 import { DocumentSearchDialog } from './document-search-dialog';
 import { MissingDocumentsDialog } from './missing-documents-dialog';
-import { ClientDetailsModal } from './client-details-modal';
 import { ClientCompactRow, ClientStatusPill } from './client-compact-row';
 import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import type { ClientListItem, ContactInfo } from '@/lib/types/client';
@@ -255,10 +260,21 @@ function EmptyState({
 }
 
 function ClientRow({ client }: { client: ClientListItem }) {
+  const router = useRouter();
   const { openDialog, restoreClient, missingDocumentAlerts, isSystemAdmin } = useClients();
   const missingDocs = missingDocumentAlerts.find(
     (alert) => alert.client_id === client.client_id
   );
+  
+  // Calculate requirements status for badge
+  const requirements = getClientRequirements(
+    client,
+    [] // We don't have full document list here, rely on missingDocumentAlerts
+  );
+  const isProfileIncomplete = !requirements.profileComplete;
+  const hasDocIssues = missingDocs && missingDocs.missing_documents.length > 0;
+  const isIncomplete = isProfileIncomplete || hasDocIssues;
+  
   const { state: restoreState, execute: runRestore } = useMutation(restoreClient, {
     onSuccess: () => {
       toast.success(`${client.full_name} restored`);
@@ -272,10 +288,14 @@ function ClientRow({ client }: { client: ClientListItem }) {
     await runRestore(client.client_id);
   }
 
+  function handleRowClick() {
+    router.push(`/dashboard/clients/${client.client_id}`);
+  }
+
   return (
     <TableRow
       className="group transition-colors duration-150 hover:bg-row-hover cursor-pointer"
-      onClick={() => openDialog({ type: 'details', client })}
+      onClick={handleRowClick}
     >
       {/* Client identification */}
       <TableCell className={`py-4 pr-3 ${GUTTER_L}`}>
@@ -283,19 +303,24 @@ function ClientRow({ client }: { client: ClientListItem }) {
           <IconBox size="md" shape="circle">
             <UserRound className="h-4 w-4" />
           </IconBox>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
-              {missingDocs && (
-                <span
-                  title={`Missing: ${missingDocs.missing_documents.join(', ')}`}
-                  className="shrink-0"
+              {isIncomplete && (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 border-destructive/30 bg-destructive/10 text-[10px] text-destructive"
+                  title={
+                    isProfileIncomplete && hasDocIssues
+                      ? `Missing profile fields and documents: ${missingDocs.missing_documents.join(', ')}`
+                      : isProfileIncomplete
+                        ? 'Incomplete profile (missing address or TIN)'
+                        : `Missing documents: ${missingDocs?.missing_documents.join(', ')}`
+                  }
                 >
-                  <ShieldAlert
-                    className="h-3.5 w-3.5 text-destructive"
-                    aria-label={`Incomplete file, missing ${missingDocs.missing_documents.join(', ')}`}
-                  />
-                </span>
+                  <ShieldAlert className="mr-1 h-2.5 w-2.5" />
+                  Incomplete
+                </Badge>
               )}
             </div>
             <p className="truncate text-xs text-muted-foreground">
@@ -309,7 +334,7 @@ function ClientRow({ client }: { client: ClientListItem }) {
       <TableCell className="px-3 py-4">
         <ContactDetailsCell
           contacts={client.contact_info}
-          onViewMore={() => openDialog({ type: 'details', client })}
+          onViewMore={handleRowClick}
         />
       </TableCell>
 
@@ -353,10 +378,10 @@ function ClientRow({ client }: { client: ClientListItem }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              icon={<Activity className="h-4 w-4" />}
-              onSelect={() => openDialog({ type: 'details', client })}
+              icon={<ExternalLink className="h-4 w-4" />}
+              onSelect={() => router.push(`/dashboard/clients/${client.client_id}`)}
             >
-              View details
+              Open profile
             </DropdownMenuItem>
             <DropdownMenuItem
               icon={<FileDown className="h-4 w-4" />}
@@ -415,6 +440,7 @@ function ClientRow({ client }: { client: ClientListItem }) {
 }
 
 function ClientsContent() {
+  const router = useRouter();
   const {
     clients,
     visibleClients,
@@ -629,7 +655,7 @@ function ClientsContent() {
                         client={client}
                         gutterL={GUTTER_L}
                         gutterR={GUTTER_R}
-                        onOpenDetails={() => openDialog({ type: 'details', client })}
+                        onOpenDetails={() => router.push(`/dashboard/clients/${client.client_id}`)}
                         onOpenEdit={() => openDialog({ type: 'edit', client })}
                         onOpenArchive={() => openDialog({ type: 'archive', client })}
                         onOpenRestore={() => void restoreClient(client.client_id)}
@@ -662,7 +688,6 @@ function ClientsContent() {
       {activeDialog?.type === 'archive' && <ArchiveClientDialog client={activeDialog.client} open={true} />}
       <DocumentSearchDialog open={isDocumentSearchOpen} onOpenChange={setIsDocumentSearchOpen} />
       <MissingDocumentsDialog open={isMissingDocsOpen} onOpenChange={setIsMissingDocsOpen} />
-      {activeDialog?.type === 'details' && <ClientDetailsModal client={activeDialog.client} open={true} />}
     </>
   );
 }

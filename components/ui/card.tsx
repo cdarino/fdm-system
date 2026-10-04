@@ -15,9 +15,11 @@ const cardVariants = cva(
         prominent: "rounded-2xl shadow-lg",
         dashed:
           "border-2 border-dashed hover:border-primary transition-colors flex items-center justify-center",
+        canvas: "border-border-warm bg-card shadow-xs",
       },
       padding: {
         none: "",
+        sm: "p-3",
         default: "p-6",
         lg: "p-8",
       },

@@ -4,9 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const iconBoxVariants = cva(
-  "flex shrink-0 items-center justify-center bg-row-hover ring-1 ring-inset ring-border text-muted-foreground",
+  "flex shrink-0 items-center justify-center ring-1 ring-inset",
   {
     variants: {
+      variant: {
+        default: "bg-row-hover ring-border text-muted-foreground",
+        canvas: "bg-sidebar-accent ring-border-warm text-accent-blue-foreground",
+        warm: "bg-card ring-border-warm text-foreground",
+      },
       size: {
         default: "h-8 w-8 text-sm",
         sm: "h-7 w-7 text-xs",
@@ -21,6 +26,7 @@ const iconBoxVariants = cva(
       },
     },
     defaultVariants: {
+      variant: "default",
       size: "default",
       shape: "square",
     },
@@ -32,10 +38,10 @@ export interface IconBoxProps
     VariantProps<typeof iconBoxVariants> {}
 
 const IconBox = React.forwardRef<HTMLDivElement, IconBoxProps>(
-  ({ className, size, shape, ...props }, ref) => (
+  ({ className, variant, size, shape, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(iconBoxVariants({ size, shape, className }))}
+      className={cn(iconBoxVariants({ variant, size, shape, className }))}
       {...props}
     />
   ),

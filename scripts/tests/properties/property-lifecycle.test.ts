@@ -7,6 +7,8 @@ import {
   getPropertyLots,
   getPropertyLotById,
   assignPropertyClient,
+  createPropertyLot,
+  assignPropertyParties,
 } from "@/lib/actions/properties";
 import { createSite, getSiteWithLots } from "@/lib/actions/sites";
 import { createClient, getClientById } from "@/lib/actions/clients";
@@ -207,5 +209,80 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
     ]);
     expect(instDetails.properties?.some((p) => p.property_id === installmentLot.property_id)).toBe(true);
     expect(paidDetails.properties?.some((p) => p.property_id === paidLot.property_id)).toBe(true);
+  });
+
+  it("handles opening a closed subdivision lot and assigning it to client while guarding against double sale", async () => {
+    const site = unwrap(
+      await createSite({
+        name: `Subdivision Selector Site ${Date.now()}`,
+        boundary: [[0, 0], [40, 0], [40, 40], [0, 40]],
+      })
+    );
+    testSiteIds.push(site.site_id);
+
+    // Create a closed subdivision slot on the site map
+    const admin = getTestAdminClient();
+    await admin.from("site_subdivision").insert({
+      site_id: site.site_id,
+      block_number: 2,
+      lot_number: 8,
+      boundary: [[10, 10], [20, 10], [20, 20], [10, 20]],
+    });
+
+    // 1. Verify it is closed on the map (exists in subdivisions, not in lots)
+    const siteBefore = await getSiteWithLots(site.site_id);
+    const subExists = siteBefore.subdivisions.some((s) => s.block_number === 2 && s.lot_number === 8);
+    const lotExists = siteBefore.lots.some((l) => l.block_number === 2 && l.lot_number === 8);
+    expect(subExists).toBe(true);
+    expect(lotExists).toBe(false);
+
+    // 2. Open the closed lot
+    const openedLot = unwrap(
+      await createPropertyLot({
+        site_id: site.site_id,
+        location: site.name,
+        block_number: 2,
+        lot_number: 8,
+        area_size: 100,
+        price_per_sqm: 8000,
+        status: "Open",
+      })
+    );
+    testPropertyIds.push(openedLot.property_id);
+    expect(openedLot.status).toBe("Open");
+
+    // 3. Assign to Client A as Reserved
+    const clientA = unwrap(
+      await createClient({
+        full_name: `Buyer A ${Date.now()}`,
+      })
+    );
+    testClientIds.push(clientA.client_id);
+
+    const assignedA = await assignPropertyParties(
+      openedLot.property_id,
+      [
+        {
+          client_id: clientA.client_id,
+          role: "Principal Buyer",
+          ownership_percentage: 100,
+          is_primary: true,
+        },
+      ],
+      "Reserved",
+      { total_contract_price: 800000 }
+    );
+    expect(assignedA.status).toBe("Reserved");
+    expect(assignedA.active_account).not.toBeNull();
+
+    // 4. Verify site now reflects this lot as Reserved (assigned)
+    const siteAfter = await getSiteWithLots(site.site_id);
+    const assignedInSite = siteAfter.lots.find((l) => l.property_id === openedLot.property_id);
+    expect(assignedInSite?.status).toBe("Reserved");
+    expect(assignedInSite?.client?.client_id).toBe(clientA.client_id);
+
+    // 5. Verify the lot's status is Reserved with Client A assigned
+    expect(assignedInSite?.status).toBe("Reserved");
+    expect(assignedInSite?.client?.client_id).toBe(clientA.client_id);
   });
 });

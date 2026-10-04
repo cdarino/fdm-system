@@ -19,6 +19,7 @@ export interface LotPlotProperties {
   pricePerSqm: number;
   totalPrice: number;
   clientName: string;
+  isSiteArchived?: boolean;
   centerLng: number;
   centerLat: number;
   topLat: number;
@@ -59,6 +60,11 @@ export function MapSitePopup({
           <p className="text-sm font-bold text-foreground">{plot.name}</p>
           <p className="text-xs text-muted-foreground">{plot.siteName}</p>
         </div>
+        {plot.isSiteArchived && (
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border border-border bg-muted">
+            Archived
+          </span>
+        )}
       </div>
 
       <div className="mt-2 flex items-center gap-2">
@@ -101,7 +107,13 @@ export function MapSitePopup({
           <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       ) : (
-        <Button size="sm" className="mt-3 w-full cursor-pointer gap-1.5" onClick={onRegisterLot}>
+        <Button
+          size="sm"
+          disabled={plot.isSiteArchived}
+          title={plot.isSiteArchived ? 'Restore site before registering lots' : undefined}
+          className="mt-3 w-full cursor-pointer gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={plot.isSiteArchived ? undefined : onRegisterLot}
+        >
           <Plus className="h-3.5 w-3.5" />
           <span>Open for Sale</span>
         </Button>
@@ -111,8 +123,10 @@ export function MapSitePopup({
         <Button
           variant="outline"
           size="sm"
-          onClick={onDeletePlot}
-          className="mt-2 w-full cursor-pointer gap-1.5 border-[color-mix(in_srgb,var(--destructive)_40%,white)] bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_18%,white)]"
+          disabled={plot.isSiteArchived}
+          title={plot.isSiteArchived ? 'Restore site before deleting plots' : undefined}
+          onClick={plot.isSiteArchived ? undefined : onDeletePlot}
+          className="mt-2 w-full cursor-pointer gap-1.5 border-[color-mix(in_srgb,var(--destructive)_40%,white)] bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_18%,white)] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Trash2 className="h-3 w-3" />
           <span>Delete Plot</span>

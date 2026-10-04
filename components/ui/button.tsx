@@ -21,6 +21,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         quiet:
           "border border-border bg-card text-foreground shadow-sm hover:bg-row-hover hover:text-foreground",
+        canvas:
+          "border border-border-warm bg-card text-foreground shadow-xs hover:bg-row-hover hover:text-foreground",
         danger:
           "border border-border bg-card text-destructive shadow-sm hover:bg-[color-mix(in_srgb,var(--destructive)_10%,white)] hover:text-destructive",
         success:

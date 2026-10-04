@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 import { ShieldCheck, Phone, Mail, HelpCircle, UserRound } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
-import type { ClientListItem, ClientDocumentNotification } from '@/lib/types/client';
+import type { ClientDocumentNotification } from '@/lib/types/client';
 
 function ContactLine({ contact }: { contact: ClientDocumentNotification['contact'] }) {
   if (!contact) {
@@ -53,15 +54,12 @@ export function MissingDocumentsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { missingDocumentAlerts, clients, openDialog } = useClients();
+  const router = useRouter();
+  const { missingDocumentAlerts } = useClients();
 
   function openClientProfile(clientId: string) {
-    const client: ClientListItem | undefined = clients.find(
-      (c) => c.client_id === clientId
-    );
-    if (!client) return;
     onOpenChange(false);
-    openDialog({ type: 'details', client });
+    router.push(`/dashboard/clients/${clientId}`);
   }
 
   return (
