@@ -12,11 +12,15 @@ import type { ClientWithDetails } from '@/lib/types/client';
 
 interface ClientDetailTabsProps {
   client: ClientWithDetails;
+  onClientChange: (client: ClientWithDetails | ((prev: ClientWithDetails) => ClientWithDetails)) => void;
   assignPropertyId?: string;
 }
 
-export function ClientDetailTabs({ client: initialClient, assignPropertyId }: ClientDetailTabsProps) {
-  const [client, setClient] = useState(initialClient);
+export function ClientDetailTabs({
+  client,
+  onClientChange,
+  assignPropertyId,
+}: ClientDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<string>(
     assignPropertyId ? 'assign-property' : 'properties'
   );
@@ -80,13 +84,13 @@ export function ClientDetailTabs({ client: initialClient, assignPropertyId }: Cl
           <TabsContent value="properties" className="mt-0">
             <ClientDetailProperties
               client={client}
-              onClientChange={setClient}
+              onClientChange={onClientChange}
               onOpenAssignProperty={handleOpenAssign}
             />
           </TabsContent>
 
           <TabsContent value="documents" className="mt-0">
-            <ClientDetailDocuments client={client} onClientChange={setClient} />
+            <ClientDetailDocuments client={client} onClientChange={onClientChange} />
           </TabsContent>
 
           {isAssignTabRevealed && (

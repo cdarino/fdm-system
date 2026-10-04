@@ -75,11 +75,11 @@ function initials(name: string): string {
 
 interface ClientDetailSidebarProps {
   client: ClientWithDetails;
+  onClientChange: (client: ClientWithDetails | ((prev: ClientWithDetails) => ClientWithDetails)) => void;
 }
 
-export function ClientDetailSidebar({ client: initialClient }: ClientDetailSidebarProps) {
+export function ClientDetailSidebar({ client, onClientChange }: ClientDetailSidebarProps) {
   const router = useRouter();
-  const [client, setClient] = useState(initialClient);
 
   // Activity state
   const [isAddingActivity, setIsAddingActivity] = useState(false);
@@ -95,7 +95,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
       toast.error(result.error);
       throw new Error(result.error);
     }
-    setClient((prev) => ({ ...prev, address: result.data.address }));
+    onClientChange((prev) => ({ ...prev, address: result.data.address }));
     toast.success('Address updated');
     router.refresh();
   }
@@ -107,7 +107,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
       toast.error(result.error);
       throw new Error(result.error);
     }
-    setClient((prev) => ({ ...prev, tin_number: result.data.tin_number }));
+    onClientChange((prev) => ({ ...prev, tin_number: result.data.tin_number }));
     toast.success('TIN number updated');
     router.refresh();
   }
@@ -127,7 +127,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
       throw new Error(result.error);
     }
 
-    setClient((prev) => ({
+    onClientChange((prev) => ({
       ...prev,
       contact_info: [result.data, ...prev.contact_info],
     }));
@@ -145,7 +145,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
       throw new Error(result.error);
     }
 
-    setClient((prev) => ({
+    onClientChange((prev) => ({
       ...prev,
       contact_info: prev.contact_info.map((c) =>
         c.contact_id === contactId ? { ...c, type: result.data.type, value: result.data.value } : c
@@ -162,7 +162,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
         throw new Error(result.error);
       }
 
-      setClient((prev) => ({
+      onClientChange((prev) => ({
         ...prev,
         contact_info: prev.contact_info.filter((c) => c.contact_id !== contactId),
       }));
@@ -180,7 +180,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
         throw new Error(result.error);
       }
 
-      setClient((prev) => ({
+      onClientChange((prev) => ({
         ...prev,
         contact_info: prev.contact_info.map((c) => ({
           ...c,
@@ -205,7 +205,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
         description: activityDescription.trim(),
       });
 
-      setClient((prev) => ({
+      onClientChange((prev) => ({
         ...prev,
         client_log: [created, ...prev.client_log],
       }));
@@ -245,7 +245,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
       </div>
 
       {/* Client Identity Header */}
-      <Card variant="canvas" padding="sm" className="flex items-start gap-3 bg-card/80">
+      <Card variant="canvas" padding="sm" className="flex items-start gap-3">
         <IconBox variant="canvas" size="lg" shape="rounded-xl" className="shrink-0 font-semibold">
           {initials(client.full_name) || <UserRound className="h-5 w-5" />}
         </IconBox>
@@ -422,7 +422,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
         </div>
 
         {/* Add Contact Button with Floating Popup */}
-        <div className="border-t border-border-warm-subtle bg-card/60 p-1.5">
+        <div className="border-t border-border-warm-subtle bg-card p-1.5">
           <ClientFloatingEditor
             mode="contact-add"
             title="Add contact"
@@ -547,7 +547,7 @@ export function ClientDetailSidebar({ client: initialClient }: ClientDetailSideb
 
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
           {client.client_log.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border-warm bg-card/40 px-3 py-6 text-center text-xs text-muted-foreground">
+            <p className="rounded-xl border border-dashed border-border-warm bg-muted/40 px-3 py-6 text-center text-xs text-muted-foreground">
               No activity recorded yet
             </p>
           ) : (

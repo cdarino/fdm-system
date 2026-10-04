@@ -3,8 +3,7 @@ import { notFound } from 'next/navigation';
 import { PageContainer } from '@/components/dashboard-layout/page-container';
 import { getClientById } from '@/lib/actions/clients';
 import { verifyPageAccess } from '@/lib/actions/auth-guard';
-import { ClientDetailSidebar } from '@/components/dashboard-clients/client-detail-sidebar';
-import { ClientDetailTabs } from '@/components/dashboard-clients/client-detail-tabs';
+import { ClientDetailView } from '@/components/dashboard-clients/client-detail-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,17 +24,10 @@ async function ClientDetailContent({ clientId, assignPropertyId }: ClientDetailC
   }
 
   return (
-    <div className="grid flex-1 min-h-0 gap-6 lg:grid-cols-3">
-      {/* Left sidebar pane: with border separator */}
-      <div className="h-full min-h-0 lg:col-span-1 lg:border-r lg:border-border-warm lg:pr-6">
-        <ClientDetailSidebar client={clientDetails} />
-      </div>
-
-      {/* Main content: Property lots and documents tabs */}
-      <div className="h-full min-h-0 lg:col-span-2">
-        <ClientDetailTabs client={clientDetails} assignPropertyId={assignPropertyId} />
-      </div>
-    </div>
+    <ClientDetailView
+      initialClient={clientDetails}
+      assignPropertyId={assignPropertyId}
+    />
   );
 }
 

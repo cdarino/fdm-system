@@ -19,7 +19,6 @@ import {
 import {
   loginAsAdmin,
   logoutUser,
-  getTestAdminClient,
   hardDeleteTestClient,
   runTrackedCleanups,
 } from "../framework/session";

@@ -18,7 +18,7 @@ import {
   Info,
   LandPlot,
 } from 'lucide-react';
-import { parseRing, ringArea, calculatePolygonAreaSqm } from '@/lib/geometry';
+import { computeSubdivisionAreaSqm } from '@/lib/geometry';
 import type { SiteWithLots, PropertyLotWithClient, SiteSubdivision } from '@/lib/types/property';
 
 const PESO = new Intl.NumberFormat('en-PH', {
@@ -112,9 +112,7 @@ export function BlockLotDialog({
     }
 
     if (subdivision) {
-      const ring = parseRing(subdivision.boundary);
-      const rawArea = ring ? (ringArea(ring) >= 1 ? ringArea(ring) : calculatePolygonAreaSqm(ring)) : 0;
-      const computedArea = rawArea > 0 ? Math.round(rawArea * 100) / 100 : 250;
+      const computedArea = computeSubdivisionAreaSqm(subdivision.boundary);
       return { type: 'unopened_plot', subdivision, computedArea };
     }
 

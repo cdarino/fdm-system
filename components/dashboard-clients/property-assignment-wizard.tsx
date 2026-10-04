@@ -432,7 +432,7 @@ export function PropertyAssignmentWizard({
                   'relative flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                   isDisabled && 'cursor-not-allowed opacity-50',
-                  !isDisabled && !isSelected && 'border-border hover:border-primary/50 hover:bg-row-hover',
+                  !isDisabled && !isSelected && 'border-border hover:border-primary hover:bg-row-hover',
                   isSelected && 'border-primary bg-sidebar-accent shadow-sm'
                 )}
               >

@@ -5,7 +5,6 @@ import {
   assignPropertyFullyPaid,
   createAndAssignPropertyFromSubdivision,
   getPropertyLots,
-  getPropertyLotById,
   assignPropertyClient,
   createPropertyLot,
   assignPropertyParties,

@@ -41,10 +41,9 @@ export function CreateClientModal({ open }: { open: boolean }) {
 
   const { state, execute } = useMutation(createClient, {
     setError: form.setError,
-    onSuccess: (client: any) => {
+    onSuccess: (client) => {
       closeDialog();
       toast.success('Client created successfully');
-      // Navigate to the client's detail page
       router.push(`/dashboard/clients/${client.client_id}`);
     },
   });
@@ -67,7 +66,7 @@ export function CreateClientModal({ open }: { open: boolean }) {
         <DialogHeader>
           <DialogTitle>Add client</DialogTitle>
           <DialogDescription>
-            Enter the client's full name to create their record. You can complete their profile details later.
+            Enter the client&apos;s full name to create their record. You can complete their profile details later.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4 pt-2">

@@ -156,3 +156,9 @@ export function calculatePolygonAreaSqm(points: readonly (readonly [number, numb
   return Math.abs(twiceArea) / 2;
 }
 
+export function computeSubdivisionAreaSqm(boundary: unknown, fallback = 250): number {
+  const ring = parseRing(boundary);
+  if (!ring) return fallback;
+  const rawArea = ringArea(ring) >= 1 ? ringArea(ring) : calculatePolygonAreaSqm(ring);
+  return rawArea > 0 ? Math.round(rawArea * 100) / 100 : fallback;
+}

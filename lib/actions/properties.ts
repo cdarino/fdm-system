@@ -23,8 +23,6 @@ import type {
   AssignPartyInput,
   AssignPropertyOptions,
   GetPropertyLotsParams,
-  OpenSubdivisionForSaleInput,
-  CreateAndAssignPropertyFromSubdivisionInput,
 } from "@/lib/types/property";
 import {
   LOT_WITH_CLIENT_SELECT,

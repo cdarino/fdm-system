@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardToolbar, CardTableFooter } from '@/components/ui/card';
@@ -15,13 +14,11 @@ import {
   Users,
   SearchX,
   MoreHorizontal,
-  Activity,
   Edit3,
   Archive,
   ArchiveRestore,
   FileSearch,
   ShieldAlert,
-  ShieldCheck,
   Trash2,
   Copy,
   Check,
@@ -308,8 +305,8 @@ function ClientRow({ client }: { client: ClientListItem }) {
               <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
               {isIncomplete && (
                 <Badge
-                  variant="outline"
-                  className="shrink-0 border-destructive/30 bg-destructive/10 text-[10px] text-destructive"
+                  variant="destructive"
+                  className="shrink-0 text-[10px]"
                   title={
                     isProfileIncomplete && hasDocIssues
                       ? `Missing profile fields and documents: ${missingDocs.missing_documents.join(', ')}`

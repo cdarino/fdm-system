@@ -20,7 +20,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LoadingButton } from '@/components/ui/loading-button';
-import { Search, X, Users, SearchX, UserCheck, UserX, UserPlus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Search, X, Users, SearchX, UserCheck, UserX, UserPlus, Loader2 } from 'lucide-react';
 import { ClientCompactRow } from '@/components/dashboard-clients/client-compact-row';
 import { usePropertyLots, lotLabel } from '@/lib/hooks/use-property-lots';
 import { useMutation } from '@/lib/hooks/use-mutation';
@@ -68,6 +69,7 @@ export function ClientAssignModal({
     lot.client?.client_id ?? null
   );
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [newClientName, setNewClientName] = useState('');
 
   const { state: assignState, execute: executeAssign } = useMutation(assignClient);
@@ -78,6 +80,8 @@ export function ClientAssignModal({
       setSelectedClientId(lot.client?.client_id ?? null);
       setSearch('');
       setStatusFilter('all');
+      setIsQuickCreateOpen(false);
+      setNewClientName('');
       setIsLoading(true);
       setFetchError(null);
 
@@ -112,24 +116,24 @@ export function ClientAssignModal({
     router.push(`/dashboard/clients/${selectedClientId}?assignProperty=${lot.property_id}`);
   }
 
-  async function handleCreateAndAssign() {
-    if (!newClientName.trim()) {
+  async function handleCreateAndAssign(nameToCreate?: string) {
+    const targetName = (nameToCreate ?? newClientName).trim();
+    if (!targetName) {
       toast.error('Please enter a client name');
       return;
     }
 
     setIsCreatingClient(true);
     try {
-      const result = await createClient({ full_name: newClientName.trim() });
+      const result = await createClient({ full_name: targetName });
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to create client');
       }
 
-      toast.success(`Client "${newClientName}" created`);
+      toast.success(`Client "${targetName}" created`);
+      setIsQuickCreateOpen(false);
       onOpenChange(false);
-      
-      // Navigate to the new client's page with property pre-selected
       router.push(`/dashboard/clients/${result.data.client_id}?assignProperty=${lot.property_id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create client');
@@ -211,23 +215,63 @@ export function ClientAssignModal({
                 )}
               </div>
 
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const name = prompt('Enter client name:');
-                  if (name?.trim()) {
-                    setNewClientName(name.trim());
-                    void handleCreateAndAssign();
-                  }
-                }}
-                disabled={isCreatingClient}
-                className="h-8 gap-1.5 whitespace-nowrap text-xs"
-              >
-                <UserPlus className="h-3.5 w-3.5" />
-                New Client
-              </Button>
+              <Popover open={isQuickCreateOpen} onOpenChange={setIsQuickCreateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 whitespace-nowrap text-xs"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    New Client
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 space-y-3 p-3">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-foreground">Create New Client</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Create record and proceed to property assignment.
+                    </p>
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      void handleCreateAndAssign();
+                    }}
+                    className="space-y-2.5"
+                  >
+                    <Input
+                      autoFocus
+                      placeholder="Client full name..."
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setIsQuickCreateOpen(false)}
+                        disabled={isCreatingClient}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5"
+                        disabled={isCreatingClient || !newClientName.trim()}
+                      >
+                        {isCreatingClient && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        Create & Assign
+                      </Button>
+                    </div>
+                  </form>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </DialogHeader>

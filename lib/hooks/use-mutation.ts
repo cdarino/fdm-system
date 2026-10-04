@@ -11,9 +11,13 @@ export type MutationState =
   | { status: 'success' }
   | { status: 'error'; error: string };
 
-type ExtractActionResultData<T> = T extends ActionResult<infer D> ? D : T;
+type ExtractActionResultData<T> = T extends { success: true; data: infer D }
+  ? D
+  : T extends { success: false }
+    ? never
+    : T;
 
-export interface UseMutationOptions<TResult, TFieldValues extends FieldValues = any> {
+export interface UseMutationOptions<TResult, TFieldValues extends FieldValues = FieldValues> {
   setError?: UseFormSetError<TFieldValues>;
   onSuccess?: (data: ExtractActionResultData<TResult>) => void;
   onError?: (error: string) => void;
@@ -23,7 +27,7 @@ export interface UseMutationOptions<TResult, TFieldValues extends FieldValues = 
 export function useMutation<
   TArgs extends unknown[],
   TResult = void,
-  TFieldValues extends FieldValues = any
+  TFieldValues extends FieldValues = FieldValues
 >(
   mutationFn: (...args: TArgs) => Promise<TResult>,
   options?: UseMutationOptions<TResult, TFieldValues>

@@ -11,11 +11,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { getArcGISToken, getArcGISHybridStyle } from '@/lib/actions/arcgis';
+import { getArcGISHybridStyle } from '@/lib/actions/arcgis';
 import { useMapLibreMap } from '@/lib/hooks/use-maplibre-map';
 import { parseRing, ringBounds, ringCentroid } from '@/lib/geometry';
 import type { PropertyLotWithClient, PropertyStatus, Site, SiteWithLots } from '@/lib/types/property';
-import type { ErrorEvent as MapLibreErrorEvent, GeoJSONSource } from 'maplibre-gl';
+import type { ErrorEvent as MapLibreErrorEvent, GeoJSONSource, StyleSpecification, LayerSpecification } from 'maplibre-gl';
 import { cn } from '@/lib/utils';
 import { MapSitePopup, type LotPlotProperties } from '@/components/dashboard-properties/map-site-popup';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -95,22 +95,23 @@ function scaleTextSize(expr: unknown, factor: number = 1.28): unknown {
 }
 
 // Transform basemap style layers to enlarge street and place labels
-function scaleBasemapSymbolText(style: any, factor: number = 1.28): any {
-  if (!style || !Array.isArray(style.layers)) return style;
-  const layers = style.layers.map((layer: any) => {
-    if (layer.type === 'symbol' && layer.layout && layer.layout['text-field']) {
-      const currentSize = layer.layout['text-size'] ?? 12;
+function scaleBasemapSymbolText(style: StyleSpecification | unknown, factor: number = 1.28): StyleSpecification {
+  const spec = style as StyleSpecification;
+  if (!spec || !Array.isArray(spec.layers)) return spec;
+  const layers = spec.layers.map((layer) => {
+    if (layer.type === 'symbol' && layer.layout && 'text-field' in layer.layout) {
+      const currentSize = (layer.layout as Record<string, unknown>)['text-size'] ?? 12;
       return {
         ...layer,
         layout: {
           ...layer.layout,
           'text-size': scaleTextSize(currentSize, factor),
         },
-      };
+      } as LayerSpecification;
     }
     return layer;
   });
-  return { ...style, layers };
+  return { ...spec, layers };
 }
 
 const SATELLITE_FALLBACK_STYLE = {
@@ -139,8 +140,8 @@ const SATELLITE_FALLBACK_STYLE = {
   ],
 };
 
-let cachedScaledNormalStyle: any = null;
-let cachedScaledArcgisStyle: any = null;
+let cachedScaledNormalStyle: StyleSpecification | null = null;
+let cachedScaledArcgisStyle: StyleSpecification | null = null;
 let cachedArcgisToken: string | null = null;
 
 export function SiteMap({
@@ -736,7 +737,7 @@ export function SiteMap({
           'text-line-height': 1.15,
           'text-justify': 'center',
           'text-font': map.getStyle()?.glyphs?.includes('arcgis')
-            ? (((map.getStyle()?.layers as any[])?.find((l) => (l.layout as any)?.['text-font'])?.layout as any)?.['text-font'] ?? ['Arial Bold'])
+            ? ((map.getStyle()?.layers?.find((l) => 'layout' in l && l.layout && 'text-font' in l.layout)?.layout as Record<string, unknown> | undefined)?.['text-font'] as string[] ?? ['Arial Bold'])
             : ['noto_sans_bold'],
           'text-allow-overlap': false,
         },
@@ -1112,13 +1113,13 @@ export function SiteMap({
         } else {
           if (isCancelled) return;
           currentAppliedStyleKeyRef.current = 'satellite-fallback';
-          map.setStyle(SATELLITE_FALLBACK_STYLE as any, { diff: false });
+          map.setStyle(SATELLITE_FALLBACK_STYLE as unknown as StyleSpecification, { diff: false });
         }
       } catch {
         if (isCancelled) return;
         setIsFallbackActive(true);
         currentAppliedStyleKeyRef.current = 'satellite-fallback';
-        map.setStyle(SATELLITE_FALLBACK_STYLE as any, { diff: false });
+        map.setStyle(SATELLITE_FALLBACK_STYLE as unknown as StyleSpecification, { diff: false });
       }
     }
 

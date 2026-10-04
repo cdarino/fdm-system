@@ -14,7 +14,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Plus,
   Trash2,
   Check,
   Circle,
