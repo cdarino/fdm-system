@@ -30,6 +30,8 @@ import {
   Rows,
   FileDown,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { getClientReportData } from '@/lib/actions/reports';
 import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
@@ -441,6 +443,11 @@ function ClientsContent() {
   const {
     clients,
     visibleClients,
+    paginatedClients,
+    currentPage,
+    setPage,
+    pageSize,
+    totalPages,
     isLoading,
     error,
     search,
@@ -482,6 +489,7 @@ function ClientsContent() {
   function clearFilters() {
     setSearch('');
     setStatusFilter('all');
+    setPage(1);
   }
 
   return (
@@ -643,10 +651,10 @@ function ClientsContent() {
               </TableHeader>
               <TableBody>
                 {viewMode === 'standard'
-                  ? visibleClients.map((client) => (
+                  ? paginatedClients.map((client) => (
                       <ClientRow key={client.client_id} client={client} />
                     ))
-                  : visibleClients.map((client) => (
+                  : paginatedClients.map((client) => (
                       <ClientCompactRow
                         key={client.client_id}
                         client={client}
@@ -671,9 +679,41 @@ function ClientsContent() {
               {isLoading
                 ? 'Loading clients…'
                 : isFiltered
-                  ? `Showing ${visibleClients.length} of ${tabTotal} client${tabTotal === 1 ? '' : 's'}`
-                  : `${tabTotal} client${tabTotal === 1 ? '' : 's'}`}
+                  ? `Showing ${visibleClients.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, visibleClients.length)} of ${visibleClients.length} filtered client${visibleClients.length === 1 ? '' : 's'} (${tabTotal} total)`
+                  : visibleClients.length <= pageSize
+                    ? `${tabTotal} client${tabTotal === 1 ? '' : 's'}`
+                    : `Showing ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, visibleClients.length)} of ${tabTotal} clients`}
             </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1 || isLoading}
+                  aria-label="Previous page"
+                  className="h-8 gap-1 px-2.5 text-xs"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Previous</span>
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page <strong className="font-medium text-foreground">{currentPage}</strong> of{' '}
+                  <strong className="font-medium text-foreground">{totalPages}</strong>
+                </span>
+                <Button
+                  variant="quiet"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages || isLoading}
+                  aria-label="Next page"
+                  className="h-8 gap-1 px-2.5 text-xs"
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
           </CardTableFooter>
         )}
       </Card>

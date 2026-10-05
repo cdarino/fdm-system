@@ -82,7 +82,7 @@ export const getClientsParamsSchema = z.object({
   area: z.string().trim().optional(),
   includeArchived: z.boolean().optional().default(false),
   page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(10),
+  limit: z.coerce.number().int().min(1).max(500).default(10),
   sortBy: z
     .enum(["full_name", "created_at", "status", "address"])
     .default("created_at"),

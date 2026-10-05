@@ -46,7 +46,7 @@ describe('Dashboard overview presentation', () => {
 
   it('links follow-ups to the exact client profile and explains the missing paperwork', () => {
     const html = renderToStaticMarkup(createElement(ClientFollowUps, { items: [{ clientId: 'client-1', name: 'Sample Client', missingContact: true, missingDocuments: ['Contract'] }] }));
-    expect(html).toContain('/dashboard/clients?client=client-1');
+    expect(html).toContain('/dashboard/clients/client-1');
     expect(html).toContain('Missing: Contract');
     expect(html).toContain('Archived clients are excluded');
   });

@@ -14,7 +14,7 @@ async function ClientsContent() {
   // populated without a second round trip. The client filters them out of
   // every other tab.
   const result = await getClients({
-    limit: 100,
+    limit: 200,
     sortBy: 'full_name',
     sortOrder: 'asc',
     includeArchived: true,

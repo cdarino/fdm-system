@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Bell } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Bell, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { logout as signOut } from '@/lib/auth';
-import { useRouter } from 'next/navigation';
 import type { AuthUser } from '@supabase/supabase-js';
 import type { SessionUser } from '@/lib/types/session';
 import { ComingSoonModal } from './coming-soon-modal';
@@ -18,6 +18,8 @@ import {
 
 interface DashboardTopBarProps {
   user?: SessionUser | AuthUser | null;
+  isSidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function useTopBar() {
@@ -41,7 +43,92 @@ export function useTopBar() {
   return { isLoggingOut, logoutError, handleLogout };
 }
 
-export function DashboardTopBar({ user }: DashboardTopBarProps) {
+const ROUTE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  clients: 'Clients',
+  properties: 'Property Lots',
+  map: 'Site Map',
+  reports: 'Reports',
+  admin: 'Administration',
+  settings: 'Account Settings',
+  billing: 'Invoicing & Billing',
+  accounting: 'Accounts Payable',
+  legal: 'Contract Management',
+  operations: 'Operations Log',
+};
+
+function getBreadcrumbs(pathname: string) {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 0 || segments[0] !== 'dashboard') {
+    return [{ label: 'Dashboard', isCurrent: true }];
+  }
+
+  const items: Array<{ label: string; href?: string; isCurrent?: boolean }> = [];
+  let currentPath = '';
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    currentPath += `/${segment}`;
+    const isLast = i === segments.length - 1;
+
+    let label = ROUTE_LABELS[segment];
+    if (!label) {
+      if (segments[i - 1] === 'clients') {
+        label = 'Client Profile';
+      } else if (segments[i - 1] === 'properties') {
+        label = 'Lot Details';
+      } else {
+        label = segment.charAt(0).toUpperCase() + segment.slice(1);
+      }
+    }
+
+    items.push({
+      label,
+      href: isLast ? undefined : currentPath,
+      isCurrent: isLast,
+    });
+  }
+
+  return items;
+}
+
+export function DashboardBreadcrumbs() {
+  const pathname = usePathname();
+  const breadcrumbs = getBreadcrumbs(pathname);
+
+  return (
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center space-x-1.5 text-xs sm:text-sm">
+      {breadcrumbs.map((crumb, idx) => (
+        <span key={crumb.label + idx} className="inline-flex min-w-0 items-center space-x-1.5">
+          {idx > 0 && (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          )}
+          {crumb.href && !crumb.isCurrent ? (
+            <Link
+              href={crumb.href}
+              className="truncate font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {crumb.label}
+            </Link>
+          ) : (
+            <span
+              className="truncate font-semibold text-foreground"
+              aria-current={crumb.isCurrent ? 'page' : undefined}
+            >
+              {crumb.label}
+            </span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+export function DashboardTopBar({
+  user,
+  isSidebarOpen = true,
+  onToggleSidebar,
+}: DashboardTopBarProps) {
   const { isLoggingOut, logoutError, handleLogout } = useTopBar();
   const metadata = user?.user_metadata as Record<string, string> | undefined;
   const displayName = [metadata?.first_name, metadata?.last_name]
@@ -63,7 +150,33 @@ export function DashboardTopBar({ user }: DashboardTopBarProps) {
   return (
     <>
       <div className="bg-card border-b border-border sticky top-0 z-40">
-        <div className="flex h-16 min-w-0 items-center justify-end gap-3 px-4 sm:gap-6 sm:px-8">
+        <div className="flex h-16 min-w-0 items-center justify-between gap-3 px-4 sm:px-6 sm:gap-6">
+          {/* Left: Sidebar Toggle + Breadcrumbs */}
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            {onToggleSidebar && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0 text-muted-foreground hover:bg-background hover:text-foreground"
+                onClick={onToggleSidebar}
+                aria-label={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
+                aria-expanded={isSidebarOpen}
+                aria-controls="dashboard-navigation"
+                title={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
+              >
+                {isSidebarOpen ? (
+                  <PanelLeftClose className="h-5 w-5" />
+                ) : (
+                  <PanelLeftOpen className="h-5 w-5" />
+                )}
+              </Button>
+            )}
+            <DashboardBreadcrumbs />
+          </div>
+
+          {/* Right utility buttons */}
+          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           {/* Notifications */}
           <Button
             variant="ghost"
@@ -111,6 +224,7 @@ export function DashboardTopBar({ user }: DashboardTopBarProps) {
           </DropdownMenu>
         </div>
       </div>
+    </div>
 
       <ComingSoonModal 
         isOpen={modalState.isOpen} 

@@ -42,7 +42,6 @@ const allNavigationItems: Array<{
     title: 'Reports',
     href: '/dashboard/reports',
     icon: FileText,
-    comingSoon: true,
   },
   {
     title: 'Admin',

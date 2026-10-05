@@ -42,7 +42,10 @@ export type ListUsersResult = {
 export type DeleteUserResult = { success: true };
 export type UpdateUserProfileResult = { success: true };
 
-const admin = createScope(["system.create"], { admin: true });
+const adminRead = createScope(["system.read"], { admin: true });
+const adminCreate = createScope(["system.create"], { admin: true });
+const adminUpdate = createScope(["system.update"], { admin: true });
+const adminDelete = createScope(["system.delete"], { admin: true });
 
 function describeCreateUserError(error: AuthError): string {
   const code = (error as AuthError & { code?: string }).code;
@@ -66,7 +69,7 @@ function describeCreateUserError(error: AuthError): string {
 export async function registerUser(
   params: unknown
 ): Promise<ActionResult<RegisterUserResult>> {
-  return admin.run({
+  return adminCreate.run({
     schema: createUserSchema,
     input: params,
     handler: async (validated, { supabase: adminClient }) => {
@@ -109,7 +112,7 @@ export async function registerUser(
 }
 
 export async function toggleUser(userId: string, enable: boolean): Promise<ActionResult<{ success: true }>> {
-  return admin.run({
+  return adminUpdate.run({
     schema: toggleUserActionSchema,
     input: { userId, enable },
     handler: async ({ userId: targetUserId, enable: isEnabled }, { supabase: adminClient, userId: callerId }) => {
@@ -134,7 +137,7 @@ export async function toggleUser(userId: string, enable: boolean): Promise<Actio
 }
 
 export async function listUsers(): Promise<ListUsersResult> {
-  return admin.query(async ({ supabase: adminClient }) => {
+  return adminRead.query(async ({ supabase: adminClient }) => {
     const allAuthUsers: {
       id: string;
       email: string;
@@ -203,7 +206,7 @@ export async function listUsers(): Promise<ListUsersResult> {
 }
 
 export async function deleteUser(userId: string): Promise<ActionResult<DeleteUserResult>> {
-  return admin.run({
+  return adminDelete.run({
     schema: uuidSchema,
     input: userId,
     handler: async (targetUserId, { supabase: adminClient, userId: callerId }) => {
@@ -239,7 +242,7 @@ export async function updateUserProfile(
   firstName: string,
   lastName: string
 ): Promise<ActionResult<UpdateUserProfileResult>> {
-  return admin.run({
+  return adminUpdate.run({
     schema: updateUserProfileActionSchema,
     input: { userId, firstName, lastName },
     handler: async ({ userId: targetUserId, firstName: first, lastName: last }, { supabase: adminClient }) => {

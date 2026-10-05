@@ -1,5 +1,6 @@
-"use server";
+import "server-only";
 
+import { redirect } from "next/navigation";
 import { getUserInfo } from "@/lib/user";
 import { hasPermission } from "@/lib/permissions";
 
@@ -50,8 +51,6 @@ export async function requireAnyPermission(permissionNames: string[]): Promise<s
 
   throw new Error(`Forbidden: You do not have any of the required permissions: ${permissionNames.join(", ")}`);
 }
-
-import { redirect } from "next/navigation";
 
 export async function verifyPageAccess(
   permissionName: string,

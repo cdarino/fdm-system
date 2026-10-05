@@ -139,7 +139,7 @@ export function LoginForm() {
           <Link href="/auth/forgot-password">
             <Button
               variant="ghost"
-              className="w-full text-secondary hover:bg-[color-mix(in_srgb,var(--secondary)_15%,white)] font-medium"
+              className="w-full text-muted-foreground hover:text-foreground hover:bg-row-hover font-medium"
             >
               Forgot Password?
             </Button>

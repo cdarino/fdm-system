@@ -585,7 +585,10 @@ export function SiteMap({
   useEffect(() => {
     if (!map || !isReady) return;
 
-    // Site boundary sources and layers
+    try {
+      if (!map.getStyle()) return;
+
+      // Site boundary sources and layers
     if (!map.getSource('sites-data')) {
       map.addSource('sites-data', {
         type: 'geojson',
@@ -796,76 +799,90 @@ export function SiteMap({
     } else {
       (map.getSource('draft-plot-data') as GeoJSONSource).setData(draftGeoJson);
     }
-  }, [map, isReady, styleRevision, sitesGeoJson, lotsGeoJson, draftGeoJson]);
+  } catch (err) {
+    console.warn('Map style is reloading, layer mounting deferred:', err);
+  }
+}, [map, isReady, styleRevision, sitesGeoJson, lotsGeoJson, draftGeoJson]);
 
   // Update dynamic lot styles on selection change
   useEffect(() => {
-    if (!map || !map.getLayer('lots-fill') || !map.getLayer('lots-stroke')) return;
+    if (!map || !isReady) return;
 
-    map.setPaintProperty('lots-fill', 'fill-color', [
-      'match',
-      ['get', 'status'],
-      'Open',
-      STATUS_COLOR_MAP.Open,
-      'Reserved',
-      STATUS_COLOR_MAP.Reserved,
-      'Sold',
-      STATUS_COLOR_MAP.Sold,
-      'Forfeited',
-      STATUS_COLOR_MAP.Forfeited,
-      STATUS_COLOR_MAP.Available,
-    ]);
+    try {
+      if (!map.getLayer('lots-fill') || !map.getLayer('lots-stroke')) return;
 
-    map.setPaintProperty('lots-fill', 'fill-opacity', [
-      'case',
-      ['boolean', ['get', 'isSiteArchived'], false],
-      0.25,
-      [
+      map.setPaintProperty('lots-fill', 'fill-color', [
+        'match',
+        ['get', 'status'],
+        'Open',
+        STATUS_COLOR_MAP.Open,
+        'Reserved',
+        STATUS_COLOR_MAP.Reserved,
+        'Sold',
+        STATUS_COLOR_MAP.Sold,
+        'Forfeited',
+        STATUS_COLOR_MAP.Forfeited,
+        STATUS_COLOR_MAP.Available,
+      ]);
+
+      map.setPaintProperty('lots-fill', 'fill-opacity', [
+        'case',
+        ['boolean', ['get', 'isSiteArchived'], false],
+        0.25,
+        [
+          'case',
+          [
+            'any',
+            ['==', ['get', 'id'], activeLotId || '__NONE__'],
+            ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
+          ],
+          0.85,
+          ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
+          0.35,
+          0.75,
+        ],
+      ]);
+
+      map.setPaintProperty('lots-stroke', 'line-color', [
         'case',
         [
           'any',
           ['==', ['get', 'id'], activeLotId || '__NONE__'],
           ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
         ],
-        0.85,
-        ['any', ['==', ['get', 'status'], 'Closed'], ['==', ['get', 'status'], 'Available'], ['==', ['get', 'status'], 'Unregistered']],
-        0.35,
-        0.75,
-      ],
-    ]);
+        '#ef4444',
+        ['case', ['boolean', ['get', 'isSiteArchived'], false], '#d97706', '#ffffff'],
+      ]);
 
-    map.setPaintProperty('lots-stroke', 'line-color', [
-      'case',
-      [
-        'any',
-        ['==', ['get', 'id'], activeLotId || '__NONE__'],
-        ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
-      ],
-      '#ef4444',
-      ['case', ['boolean', ['get', 'isSiteArchived'], false], '#d97706', '#ffffff'],
-    ]);
-
-    map.setPaintProperty('lots-stroke', 'line-width', [
-      'case',
-      [
-        'any',
-        ['==', ['get', 'id'], activeLotId || '__NONE__'],
-        ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
-      ],
-      3.5,
-      1.5,
-    ]);
-  }, [map, styleRevision, activeLotId]);
+      map.setPaintProperty('lots-stroke', 'line-width', [
+        'case',
+        [
+          'any',
+          ['==', ['get', 'id'], activeLotId || '__NONE__'],
+          ['==', ['get', 'propertyId'], activeLotId || '__NONE__'],
+        ],
+        3.5,
+        1.5,
+      ]);
+    } catch {
+      // Style is reloading; will be reapplied on style.load
+    }
+  }, [map, isReady, styleRevision, activeLotId]);
 
   // Update hover outline filter
   useEffect(() => {
-    if (!map || !map.getLayer('lots-hover-stroke')) return;
-    map.setFilter('lots-hover-stroke', [
-      'any',
-      ['==', ['get', 'lotKey'], hoveredLotKey ?? ''],
-      ['==', ['get', 'siteLotKey'], hoveredLotKey ?? ''],
-    ]);
-  }, [map, styleRevision, hoveredLotKey]);
+    if (!map || !isReady) return;
+    try {
+      if (!map.getLayer('lots-hover-stroke')) return;
+      map.setFilter('lots-hover-stroke', [
+        'any',
+        ['==', ['get', 'lotKey'], hoveredLotKey ?? ''],
+        ['==', ['get', 'siteLotKey'], hoveredLotKey ?? ''],
+      ]);
+    } catch {
+      // Style is reloading; will be reapplied on style.load
+    }
+  }, [map, isReady, styleRevision, hoveredLotKey]);
 
   // Click & hover interactions for house lots
   useEffect(() => {
@@ -875,6 +892,11 @@ export function SiteMap({
 
     async function setupLotInteractions() {
       if (!map) return;
+      try {
+        if (!map.getLayer('lots-fill')) return;
+      } catch {
+        return;
+      }
       const { Popup } = await import('maplibre-gl');
 
       const popupInstance = new Popup({
@@ -1141,7 +1163,6 @@ export function SiteMap({
       };
       const status = err.status ?? err.error?.status;
       const msg = err.error?.message?.toLowerCase() ?? '';
-      const sourceId = err.sourceId?.toLowerCase() ?? '';
 
       if (
         mapMode === 'satellite' &&
@@ -1149,10 +1170,10 @@ export function SiteMap({
         (status === 401 ||
           status === 403 ||
           status === 429 ||
-          sourceId.includes('arcgis') ||
-          sourceId.includes('esri') ||
-          msg.includes('arcgis') ||
-          msg.includes('esri'))
+          msg.includes('token') ||
+          msg.includes('unauthorized') ||
+          msg.includes('quota') ||
+          msg.includes('forbidden'))
       ) {
         setIsFallbackActive(true);
       }

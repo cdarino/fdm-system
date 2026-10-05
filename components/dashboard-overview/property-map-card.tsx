@@ -1,11 +1,50 @@
+'use client';
+
+import * as React from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, MapPinned } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SiteMap } from '@/components/dashboard-properties/map-site';
 import type { DashboardMapPreview } from '@/lib/types/dashboard';
 
+class MapPreviewErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn('Map preview render error caught by boundary:', error.message);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
 export function PropertyMapCard({ preview }: { preview: DashboardMapPreview | null }) {
   const site = preview?.site;
+
+  const fallback = (
+    <div className="flex h-full items-center justify-center px-5 text-center text-muted-foreground">
+      <div>
+        <MapPinned aria-hidden="true" className="mx-auto mb-3 h-8 w-8" />
+        <p className="text-sm">
+          {preview === null ? 'Map preview is temporarily unavailable.' : 'No sites to preview yet.'}
+        </p>
+      </div>
+    </div>
+  );
 
   return (
     <Link href="/dashboard/properties/map" className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
@@ -19,12 +58,12 @@ export function PropertyMapCard({ preview }: { preview: DashboardMapPreview | nu
         </CardHeader>
         <div className="relative mx-6 h-48 overflow-hidden rounded-lg border bg-sidebar-accent">
           {site ? (
-            <div inert aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-[200%] w-[200%] origin-top-left scale-50">
-              <SiteMap site={site} focusedSiteId={site.site_id} isSidebarOpen={false} preview />
-            </div>
-          ) : (
-            <div className="flex h-full items-center justify-center px-5 text-center text-muted-foreground"><div><MapPinned aria-hidden="true" className="mx-auto mb-3 h-8 w-8" /><p className="text-sm">{preview === null ? 'Map preview is temporarily unavailable.' : 'No sites to preview yet.'}</p></div></div>
-          )}
+            <MapPreviewErrorBoundary fallback={fallback}>
+              <div inert aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-[200%] w-[200%] origin-top-left scale-50">
+                <SiteMap site={site} focusedSiteId={site.site_id} isSidebarOpen={false} preview />
+              </div>
+            </MapPreviewErrorBoundary>
+          ) : fallback}
         </div>
         <CardContent className="pt-4">
           <p className="text-xs text-muted-foreground">{site ? 'Site imagery and plotted lots. Open the map to explore.' : 'Open the site map to explore your properties.'}</p>

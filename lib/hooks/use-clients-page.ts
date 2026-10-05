@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useStatusFilter } from '@/lib/hooks/use-status-filter';
@@ -63,6 +63,14 @@ export type ClientDialog =
 interface ClientsContextValue {
   clients: ClientListItem[];
   visibleClients: ClientListItem[];
+  paginatedClients: ClientListItem[];
+  page: number;
+  currentPage: number;
+  setPage: (page: number | ((prev: number) => number)) => void;
+  pageSize: number;
+  setPageSize: (size: number) => void;
+  totalPages: number;
+  totalCount: number;
   isLoading: boolean;
   error: string | null;
   search: string;
@@ -139,6 +147,37 @@ export function ClientsProvider({
   const [statusFilter, setStatusFilter] = useStatusFilter<ClientStatusFilter>(['all', 'all-records', 'Active', 'Inactive', 'Archived'], 'all');
   const [missingDocumentAlerts, setMissingDocumentAlerts] = useState<ClientDocumentNotification[]>([]);
 
+  const searchParams = useSearchParams();
+  const pageParam = searchParams.get('page');
+  const initialPage = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
+  const [page, setPageState] = useState(initialPage);
+  const [pageSize, setPageSize] = useState(20);
+
+  const setPage = useCallback((newPageOrFn: number | ((prev: number) => number)) => {
+    setPageState((prev) => {
+      const next = typeof newPageOrFn === 'function' ? newPageOrFn(prev) : newPageOrFn;
+      return Math.max(1, next);
+    });
+  }, []);
+
+  // Sync page state into URL passively without updating Router during render phase
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const currentParam = url.searchParams.get('page');
+    if (page <= 1) {
+      if (currentParam !== null) {
+        url.searchParams.delete('page');
+        window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    } else {
+      if (currentParam !== String(page)) {
+        url.searchParams.set('page', String(page));
+        window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      }
+    }
+  }, [page]);
+
   // Dashboard follow-ups can open any permitted record, even outside the first list page.
   useEffect(() => {
     if (!requestedClient) return;
@@ -173,6 +212,24 @@ export function ClientsProvider({
       return matchesSearch(client, search);
     });
   }, [clients, search, statusFilter]);
+
+  // Reset page to 1 when filters or search change (skipping initial mount)
+  const isInitialFilterMount = useRef(true);
+  useEffect(() => {
+    if (isInitialFilterMount.current) {
+      isInitialFilterMount.current = false;
+      return;
+    }
+    setPage(1);
+  }, [search, statusFilter, setPage]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleClients.length / pageSize));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+
+  const paginatedClients = useMemo(() => {
+    const from = (currentPage - 1) * pageSize;
+    return visibleClients.slice(from, from + pageSize);
+  }, [visibleClients, currentPage, pageSize]);
 
   const openDialog = useCallback((dialog: ClientDialog) => setActiveDialog(dialog), []);
   const closeDialog = useCallback(() => {
@@ -454,6 +511,14 @@ export function ClientsProvider({
       value: {
         clients,
         visibleClients,
+        paginatedClients,
+        page,
+        currentPage,
+        setPage,
+        pageSize,
+        setPageSize,
+        totalPages,
+        totalCount: visibleClients.length,
         isLoading,
         error,
         search,

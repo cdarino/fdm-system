@@ -52,6 +52,7 @@ import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
 const client = createScope(["clients.read"]);
 const clientWrite = client.extend(["clients.update"]);
+const clientDelete = client.extend(["clients.delete"]);
 
 const uploadClientDocumentSchema = z.object({
   clientId: uuidSchema,
@@ -484,7 +485,7 @@ export async function updateContactInfo(
 }
 
 export async function deleteContactInfo(contactId: string): Promise<ActionResult<void>> {
-  return clientWrite.run({
+  return clientDelete.run({
     schema: uuidSchema,
     input: contactId,
     handler: async (validId, { supabase }) => {
@@ -616,7 +617,7 @@ export async function getClientDocuments(
 }
 
 export async function deleteClientDocument(documentId: string): Promise<ActionResult<void>> {
-  return clientWrite.run({
+  return clientDelete.run({
     schema: uuidSchema,
     input: documentId,
     handler: async (validId, { supabase }) => {
