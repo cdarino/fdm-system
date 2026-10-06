@@ -13,12 +13,12 @@ export interface RbacRole {
 
 export type SetUserRolesResult = { success: true };
 
-const adminRead = createScope(["system.read"], { admin: true });
-const adminUpdate = createScope(["system.update"], { admin: true });
+const adminRead = createScope(["system.read"]);
+const adminUpdate = adminRead.extend(["system.update"], { admin: true });
 
 export async function getActiveRoles(): Promise<RbacRole[]> {
-  return adminRead.query(async ({ supabase: adminClient }) => {
-    const { data, error } = await adminClient
+  return adminRead.query(async ({ supabase }) => {
+    const { data, error } = await supabase
       .schema("rbac")
       .from("role")
       .select("id, name, description")

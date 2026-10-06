@@ -43,9 +43,9 @@ export type DeleteUserResult = { success: true };
 export type UpdateUserProfileResult = { success: true };
 
 const adminRead = createScope(["system.read"], { admin: true });
-const adminCreate = createScope(["system.create"], { admin: true });
-const adminUpdate = createScope(["system.update"], { admin: true });
-const adminDelete = createScope(["system.delete"], { admin: true });
+const adminCreate = adminRead.extend(["system.create"]);
+const adminUpdate = adminRead.extend(["system.update"]);
+const adminDelete = adminRead.extend(["system.delete"]);
 
 function describeCreateUserError(error: AuthError): string {
   const code = (error as AuthError & { code?: string }).code;

@@ -3,13 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardToolbar, CardTableFooter } from '@/components/ui/card';
+import { Card, CardTableFooter } from '@/components/ui/card';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
 import { IconBox } from '@/components/ui/icon-box';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Plus,
-  Search,
   X,
   Users,
   SearchX,
@@ -52,7 +51,6 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import {
   ClientsProvider,
   useClients,
@@ -76,52 +74,6 @@ import type { ClientListItem, ContactInfo } from '@/lib/types/client';
 const GUTTER = 'px-4 sm:px-6';
 const GUTTER_L = 'pl-4 sm:pl-6';
 const GUTTER_R = 'pr-4 sm:pr-6';
-
-function StatusTabs({
-  value,
-  onChange,
-  counts,
-}: {
-  value: ClientStatusFilter;
-  onChange: (val: ClientStatusFilter) => void;
-  counts: Record<ClientStatusFilter, number>;
-}) {
-  const tabs: { value: ClientStatusFilter; label: string }[] = [
-    { value: 'all', label: 'Current' },
-    { value: 'all-records', label: 'All records' },
-    { value: 'Active', label: 'Active' },
-    { value: 'Inactive', label: 'Inactive' },
-    { value: 'Archived', label: 'Archived' },
-  ];
-
-  return (
-    <div
-      role="group"
-      aria-label="Filter clients by status"
-      className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1"
-    >
-      {tabs.map((tab) => {
-        const isActive = value === tab.value;
-        return (
-          <button
-            key={tab.value}
-            type="button"
-            aria-pressed={isActive}
-            onClick={() => onChange(tab.value)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
-              isActive
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab.label}
-            <span className="text-xs tabular-nums text-muted-foreground">{counts[tab.value]}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 function ContactDetailsCell({
   contacts,
@@ -539,62 +491,36 @@ function ClientsContent() {
         </div>
 
         {/* Filters and search */}
-        <CardToolbar>
-          <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="relative min-w-0 flex-1 sm:flex-none">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, address, or contact"
-                aria-label="Search clients"
-                className="w-full pl-9 sm:w-72"
-              />
-            </div>
-            {isFiltered && (
-              <Button
-                variant="ghost"
-                onClick={clearFilters}
-                className="gap-1.5 text-muted-foreground hover:bg-row-hover hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-                Clear
-              </Button>
-            )}
-            <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('standard')}
-                className={cn(
-                  'rounded-md p-1.5 transition-colors',
-                  viewMode === 'standard'
-                    ? 'bg-row-hover text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                title="Standard view"
-                aria-label="Standard view"
-              >
-                <LayoutList className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('compact')}
-                className={cn(
-                  'rounded-md p-1.5 transition-colors',
-                  viewMode === 'compact'
-                    ? 'bg-row-hover text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                title="Compact view"
-                aria-label="Compact view"
-              >
-                <Rows className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </CardToolbar>
+        <FilterToolbar
+          tabs={{
+            value: statusFilter,
+            onChange: setStatusFilter,
+            ariaLabel: 'Filter clients by status',
+            items: [
+              { value: 'all', label: 'Current', count: counts.all },
+              { value: 'all-records', label: 'All records', count: counts['all-records'] },
+              { value: 'Active', label: 'Active', count: counts.Active },
+              { value: 'Inactive', label: 'Inactive', count: counts.Inactive },
+              { value: 'Archived', label: 'Archived', count: counts.Archived },
+            ],
+          }}
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: 'Search name, address, or contact',
+            ariaLabel: 'Search clients',
+          }}
+          isFiltered={isFiltered}
+          onClear={clearFilters}
+          viewMode={{
+            value: viewMode,
+            onChange: setViewMode,
+            options: [
+              { value: 'standard', label: 'Standard view', icon: <LayoutList className="h-4 w-4" /> },
+              { value: 'compact', label: 'Compact view', icon: <Rows className="h-4 w-4" /> },
+            ],
+          }}
+        />
 
         {/* Table / rows */}
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">

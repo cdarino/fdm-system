@@ -177,6 +177,30 @@ Standard container for icon rings, thumbnails, and avatar placeholders.
 </IconBox>
 ```
 
+### 6. FilterToolbar (`components/ui/filter-toolbar.tsx`)
+Declarative filter bar primitive unifying status tabs, clearable search inputs, dropdown/searchable filters (`single-select`, `multi-select`, `searchable`, `custom`), view mode toggles, and filter reset buttons. Also exports sub-parts (`FilterToolbarTabs`, `FilterToolbarSearch`, `FilterToolbarFilterControl`, `FilterToolbarViewToggle`) for custom layouts.
+- **Variants**: `default` (horizontal responsive bar built on `CardToolbar`), `stacked` (compact multi-row layout for narrow sidebars like the map panel).
+
+```tsx
+<FilterToolbar
+  tabs={{
+    value: statusFilter,
+    onChange: setStatusFilter,
+    items: [
+      { value: 'all', label: 'All', count: counts.all },
+      { value: 'Active', label: 'Active', count: counts.Active },
+    ],
+  }}
+  search={{
+    value: search,
+    onChange: setSearch,
+    placeholder: 'Search records...',
+  }}
+  isFiltered={isFiltered}
+  onClear={clearFilters}
+/>
+```
+
 ## Historical UI Patterns
 
 These patterns were established in past refactoring commits and should be preserved:
@@ -199,8 +223,8 @@ These patterns were established in past refactoring commits and should be preser
   ```
 
 ### 3. Clearable Search & Filter Bar UX
+- Prefer `<FilterToolbar>` (`components/ui/filter-toolbar.tsx`) for table and sidebar filter bars instead of hand-rolling local `StatusTabs` or search inputs.
 - Provide instant clear affordances (`SearchX` or `X` icon button) inside search inputs when query is non-empty.
-- Combine search inputs with segmented status tab controls inside `<CardToolbar>`.
 
 ### 4. Dense Pane Action Invariant (Floating Popovers over Accordions)
 - Never use inline expanding accordion forms for creating or recording entries inside narrow sidebars or scrollable timeline containers.

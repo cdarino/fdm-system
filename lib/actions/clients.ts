@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import { createScope } from "@/lib/actions/action-handler";
-import { createAdminClient } from "@/lib/supabase/admin";
 import type { createClient as createSupabaseServerClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/actions/action-result";
 import {
@@ -66,13 +65,15 @@ const uploadClientDocumentSchema = z.object({
     ),
 });
 
-async function resolveUserNames(userIds: string[]): Promise<Map<string, string>> {
+async function resolveUserNames(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userIds: string[]
+): Promise<Map<string, string>> {
   const userMap = new Map<string, string>();
   const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
   if (uniqueIds.length === 0) return userMap;
 
-  const adminClient = createAdminClient();
-  const { data, error } = await adminClient.rpc("get_user_names", {
+  const { data, error } = await supabase.rpc("get_user_names", {
     p_user_ids: uniqueIds,
   });
 
@@ -145,7 +146,7 @@ export async function getClients(
         }
       }
 
-      const userNames = await resolveUserNames(performerIds);
+      const userNames = await resolveUserNames(supabase, performerIds);
 
       const clients: ClientListItem[] = rawClients.map((item) => {
         let latestActivity = null;

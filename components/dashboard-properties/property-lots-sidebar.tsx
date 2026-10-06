@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
 import {
   Table,
   TableBody,
@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/table';
 import {
   Plus,
-  Search,
   X,
   LandPlot,
   SearchX,
@@ -174,40 +173,6 @@ function LotRowItem({
         </div>
         <span className="font-medium">{AREA.format(lot.area_size)} sqm</span>
       </div>
-    </div>
-  );
-}
-
-function StatusTabs({
-  value,
-  onChange,
-  counts,
-}: {
-  value: StatusFilter;
-  onChange: (v: StatusFilter) => void;
-  counts: Record<StatusFilter, number>;
-}) {
-  const tabs: StatusFilter[] = ['all', ...STATUSES];
-  return (
-    <div role="group" aria-label="Filter by status" className="flex flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
-      {tabs.map((tab) => {
-        const isActive = value === tab;
-        return (
-          <button
-            key={tab}
-            role="tab"
-            type="button"
-            aria-selected={isActive}
-            onClick={() => onChange(tab)}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
-              isActive ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab === 'all' ? 'All' : tab}
-            <span className="text-[10px] tabular-nums text-muted-foreground">({counts[tab]})</span>
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -413,82 +378,39 @@ function PropertyLotsSidebarContent({
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="border-b border-border px-4 py-2.5">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Status
-          </span>
-          {isFiltered && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-xs text-primary transition-colors hover:underline"
-            >
-              Reset filters
-            </button>
-          )}
-        </div>
-        <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
-      </div>
-
-      {/* Search Toolbar & View Toggle */}
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search location, block or lot…"
-            aria-label="Search property lots"
-            className="h-8 w-full pl-8 pr-8 text-xs"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch('')}
-              aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
-          <button
-            type="button"
-            onClick={() => setViewMode('grid')}
-            className={cn(
-              'rounded-md p-1.5 transition-colors',
-              viewMode === 'grid'
-                ? 'bg-row-hover text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            title="Grid view"
-            aria-label="Grid view"
-            aria-pressed={viewMode === 'grid'}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('list')}
-            className={cn(
-              'rounded-md p-1.5 transition-colors',
-              viewMode === 'list'
-                ? 'bg-row-hover text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-            title="List view"
-            aria-label="List view"
-            aria-pressed={viewMode === 'list'}
-          >
-            <LayoutList className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
+      <FilterToolbar
+        variant="stacked"
+        tabs={{
+          value: statusFilter,
+          onChange: setStatusFilter,
+          ariaLabel: 'Filter by status',
+          sectionLabel: 'Status',
+          items: [
+            { value: 'all', label: 'All', count: counts.all },
+            ...STATUSES.map((status) => ({
+              value: status,
+              label: status,
+              count: counts[status],
+            })),
+          ],
+        }}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: 'Search location, block or lot…',
+          ariaLabel: 'Search property lots',
+        }}
+        isFiltered={isFiltered}
+        onClear={clearFilters}
+        viewMode={{
+          value: viewMode,
+          onChange: setViewMode,
+          options: [
+            { value: 'grid', label: 'Grid view', icon: <LayoutGrid className="h-3.5 w-3.5" /> },
+            { value: 'list', label: 'List view', icon: <LayoutList className="h-3.5 w-3.5" /> },
+          ],
+        }}
+      />
 
       {/* List Body */}
       <div className="min-h-0 flex-1 overflow-y-auto">

@@ -120,7 +120,7 @@ Three distinct client factories exist — choose the right one for the execution
 - **Location**: `supabase/migrations/`
 - **Naming**: Must follow `YYYYMMDDHHMMSS_description.sql`.
 - **Immutability**: Never edit an already-applied migration — create a new forward migration instead.
-- **Row Level Security**: Every table in the `public` schema must enable RLS (`alter table <name> enable row level security;`) with explicit policies for authenticated and service-role access.
+- **Row Level Security**: Every table in the `public` and `rbac` schemas must enable RLS (`alter table <name> enable row level security;`) with explicit policies for authenticated and service-role access.
 - **Multi-Schema Scope**: Tables and functions span both `public` and `rbac` schemas. Ensure both schemas are targeted in migrations, diffs, and CLI operations.
 
 ### Declarative Schema & Introspection

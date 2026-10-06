@@ -11,6 +11,7 @@ import {
 } from "@/lib/actions/properties";
 import { createSite, getSiteWithLots } from "@/lib/actions/sites";
 import { createClient, getClientById } from "@/lib/actions/clients";
+import { deleteLandTitle } from "@/lib/actions/titles";
 import {
   loginAsAdmin,
   hardDeleteTestProperty,
@@ -130,7 +131,14 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
     const clientLots = await getPropertyLots({ client_id: client.client_id });
     expect(clientLots.data.some((l) => l.property_id === lot.property_id)).toBe(true);
 
-    // Unassigning clears the client and removes land title
+    // Unassigning a titled lot directly is blocked until the land title is deleted
+    const blockedUnassign = await assignPropertyClient(lot.property_id, null);
+    expect(blockedUnassign.success).toBe(false);
+    if (!blockedUnassign.success) {
+      expect(blockedUnassign.error).toMatch(/Cannot unassign a titled property lot/i);
+    }
+
+    unwrap(await deleteLandTitle(assigned.title!.title_id));
     const cleared = unwrap(await assignPropertyClient(lot.property_id, null));
     expect(cleared.status).toBe("Open");
     expect(cleared.client).toBeNull();

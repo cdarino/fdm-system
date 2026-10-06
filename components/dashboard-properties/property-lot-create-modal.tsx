@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,7 @@ import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Dialog,
   DialogContent,
@@ -48,6 +42,16 @@ export interface CreatePropertyLotModalProps {
 
 export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePropertyLotModalProps) {
   const { createLot, closeDialog } = usePropertyLots();
+
+  const siteOptions = useMemo(
+    () =>
+      sites.map((s) => ({
+        value: s.site_id,
+        label: s.name,
+        description: s.description ?? undefined,
+      })),
+    [sites]
+  );
 
   const form = useForm<CreatePropertyLotFormData>({
     resolver: zodResolver(createPropertyLotSchema),
@@ -126,22 +130,15 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
               name="site_id"
               control={form.control}
               render={({ field }) => (
-                <Select
+                <SearchableSelect
+                  id="site_id"
+                  options={siteOptions}
                   value={field.value}
                   onValueChange={field.onChange}
                   disabled={isPending || sites.length === 0}
-                >
-                  <SelectTrigger id="site_id" className="w-full">
-                    <SelectValue placeholder={sites.length === 0 ? 'No sites available' : 'Select a site'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sites.map((s) => (
-                      <SelectItem key={s.site_id} value={s.site_id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder={sites.length === 0 ? 'No sites available' : 'Select a site'}
+                  searchPlaceholder="Search site name or address..."
+                />
               )}
             />
             {errors.site_id && (

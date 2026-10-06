@@ -3,7 +3,7 @@
 import { cache } from "react";
 import { createScope } from "@/lib/actions/action-handler";
 import { hasPermission } from "@/lib/permissions";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { SYSTEM_ADMIN_ROLE } from "@/lib/self-protection";
 import { uuidSchema } from "@/lib/validations/client";
 
@@ -65,8 +65,8 @@ const ROLE_SECTIONS: { role: string; section: RoleSection }[] = [
 ];
 
 const fetchRoleNames = cache(async (userId: string): Promise<string[]> => {
-  const adminClient = createAdminClient();
-  const { data: userRoles, error } = await adminClient
+  const supabase = await createClient();
+  const { data: userRoles, error } = await supabase
     .schema("rbac")
     .from("user_role")
     .select("role:role_id(name)")

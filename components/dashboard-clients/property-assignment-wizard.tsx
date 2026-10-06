@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -8,13 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   CheckCircle2,
   FileText,
@@ -24,7 +18,7 @@ import {
   AlertTriangle,
   Info,
   DollarSign,
-  ChevronDown,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -36,10 +30,12 @@ import {
 } from '@/lib/actions/properties';
 import { getSites, getSiteWithLots } from '@/lib/actions/sites';
 import { getClientRequirements, formatMissingRequirements } from '@/lib/utils/client-requirements';
+import { PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
 import {
-  BlockLotDialog,
+  BlockLotPopup,
+  evaluateLotStatus,
   type SelectedLotDetails,
-} from './block-lot-dialog';
+} from './block-lot-popup';
 import type { ClientWithDetails } from '@/lib/types/client';
 import type { Site, SiteWithLots } from '@/lib/types/property';
 
@@ -98,8 +94,15 @@ export function PropertyAssignmentWizard({
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [siteData, setSiteData] = useState<SiteWithLots | null>(null);
   const [isLoadingSite, setIsLoadingSite] = useState(false);
-  const [selectedLotDetails, setSelectedLotDetails] = useState<SelectedLotDetails | null>(null);
-  const [isLotDialogOpen, setIsLotDialogOpen] = useState(false);
+
+  // Inline Block, Lot, Area & Price state
+  const [blockInput, setBlockInput] = useState<string>('');
+  const [lotInput, setLotInput] = useState<string>('');
+  const [areaInput, setAreaInput] = useState<string>('');
+  const [priceInput, setPriceInput] = useState<string>('');
+  const [isLotPopupOpen, setIsLotPopupOpen] = useState(false);
+  const [editingMetric, setEditingMetric] = useState<'area' | 'price' | null>(null);
+
   const [selectedStage, setSelectedStage] = useState<AssignmentStage>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -114,6 +117,16 @@ export function PropertyAssignmentWizard({
   const [isLoadingPreSelected, setIsLoadingPreSelected] = useState(false);
 
   const requirements = getClientRequirements(client, client.client_document);
+
+  const siteOptions = useMemo(
+    () =>
+      sites.map((site) => ({
+        value: site.site_id,
+        label: site.name,
+        description: site.description ?? undefined,
+      })),
+    [sites]
+  );
 
   // Load sites on mount
   useEffect(() => {
@@ -162,21 +175,10 @@ export function PropertyAssignmentWizard({
       .then((lot) => {
         const siteId = lot.site_id || '';
         if (siteId) setSelectedSiteId(siteId);
-
-        const isRecordOnly = !lot.boundary;
-        setSelectedLotDetails({
-          siteId,
-          siteName: lot.location,
-          blockNumber: lot.block_number,
-          lotNumber: lot.lot_number,
-          areaSize: lot.area_size,
-          pricePerSqm: lot.price_per_sqm,
-          totalPrice: lot.area_size * lot.price_per_sqm,
-          existingPropertyId: lot.property_id,
-          isRecordOnly,
-          isUnopenedPlot: false,
-          isManualNew: false,
-        });
+        setBlockInput(lot.block_number.toString());
+        setLotInput(lot.lot_number.toString());
+        setAreaInput(lot.area_size.toString());
+        setPriceInput(lot.price_per_sqm.toString());
         setTotalContractPrice((lot.area_size * lot.price_per_sqm).toString());
       })
       .catch((err) => {
@@ -185,17 +187,123 @@ export function PropertyAssignmentWizard({
       .finally(() => setIsLoadingPreSelected(false));
   }, [preSelectedPropertyId]);
 
-  function handleSiteChange(newSiteId: string) {
-    setSelectedSiteId(newSiteId);
-    if (selectedLotDetails?.siteId !== newSiteId) {
-      setSelectedLotDetails(null);
-      setTotalContractPrice('');
+  const blockNumber = parseInt(blockInput, 10);
+  const lotNumber = parseInt(lotInput, 10);
+  const hasValidBlockAndLot =
+    !isNaN(blockNumber) && blockNumber > 0 && !isNaN(lotNumber) && lotNumber > 0;
+
+  const evaluatedStatus = useMemo(
+    () => evaluateLotStatus(siteData, blockNumber, lotNumber),
+    [siteData, blockNumber, lotNumber]
+  );
+
+  const isBlocked = evaluatedStatus?.type === 'already_assigned';
+  const isManualMetricsEditable =
+    evaluatedStatus?.type === 'unopened_plot' || evaluatedStatus?.type === 'new_record_only';
+
+  const numericArea = parseFloat(areaInput);
+  const numericPrice = parseFloat(priceInput);
+  const isMetricsValid =
+    !isNaN(numericArea) && numericArea > 0 && !isNaN(numericPrice) && numericPrice > 0;
+  const computedTotalPrice = isMetricsValid ? numericArea * numericPrice : null;
+
+  // Derive active SelectedLotDetails when inputs and status are valid
+  const selectedLotDetails: SelectedLotDetails | null = useMemo(() => {
+    if (
+      !siteData ||
+      !hasValidBlockAndLot ||
+      !evaluatedStatus ||
+      evaluatedStatus.type === 'already_assigned' ||
+      computedTotalPrice === null
+    ) {
+      return null;
+    }
+
+    const base = {
+      siteId: siteData.site_id,
+      siteName: siteData.name,
+      blockNumber,
+      lotNumber,
+      areaSize: numericArea,
+      pricePerSqm: numericPrice,
+      totalPrice: computedTotalPrice,
+    };
+
+    if (evaluatedStatus.type === 'open') {
+      return {
+        ...base,
+        existingPropertyId: evaluatedStatus.lot.property_id,
+        isRecordOnly: evaluatedStatus.isRecordOnly,
+        isUnopenedPlot: false,
+        isManualNew: false,
+      };
+    }
+
+    if (evaluatedStatus.type === 'unopened_plot') {
+      return {
+        ...base,
+        isRecordOnly: false,
+        isUnopenedPlot: true,
+        isManualNew: false,
+      };
+    }
+
+    return {
+      ...base,
+      isRecordOnly: true,
+      isUnopenedPlot: false,
+      isManualNew: true,
+    };
+  }, [
+    siteData,
+    hasValidBlockAndLot,
+    evaluatedStatus,
+    computedTotalPrice,
+    blockNumber,
+    lotNumber,
+    numericArea,
+    numericPrice,
+  ]);
+
+  // Keep Reserved stage totalContractPrice synced with computed lot total unless manually overridden
+  useEffect(() => {
+    if (!isEditingPrice) {
+      setTotalContractPrice(computedTotalPrice !== null ? computedTotalPrice.toString() : '');
+    }
+  }, [computedTotalPrice, isEditingPrice]);
+
+  function updateBlockAndLot(nextBlock: string, nextLot: string) {
+    const prevWasLocked =
+      evaluatedStatus?.type === 'open' || evaluatedStatus?.type === 'already_assigned';
+
+    setBlockInput(nextBlock);
+    setLotInput(nextLot);
+    setEditingMetric(null);
+    setIsEditingPrice(false);
+
+    const nextStatus = evaluateLotStatus(
+      siteData,
+      parseInt(nextBlock, 10),
+      parseInt(nextLot, 10)
+    );
+
+    if (nextStatus?.type === 'open' || nextStatus?.type === 'already_assigned') {
+      setAreaInput(nextStatus.lot.area_size.toString());
+      setPriceInput(nextStatus.lot.price_per_sqm.toString());
+    } else if (!nextStatus || prevWasLocked) {
+      setAreaInput('');
+      setPriceInput('');
     }
   }
 
-  function handleSelectLot(details: SelectedLotDetails) {
-    setSelectedLotDetails(details);
-    setTotalContractPrice(details.totalPrice.toString());
+  function handleSiteChange(newSiteId: string) {
+    setSelectedSiteId(newSiteId);
+    setBlockInput('');
+    setLotInput('');
+    setAreaInput('');
+    setPriceInput('');
+    setEditingMetric(null);
+    setTotalContractPrice('');
     setIsEditingPrice(false);
   }
 
@@ -218,7 +326,7 @@ export function PropertyAssignmentWizard({
     try {
       let targetPropertyId = selectedLotDetails.existingPropertyId;
 
-      // If unopened plot or new lot, create/open it in property_lot first
+      // Create/open lot in property_lot first if unopened plot or new record-only lot
       if (!targetPropertyId) {
         const createResult = await createPropertyLot({
           site_id: selectedLotDetails.siteId,
@@ -295,12 +403,14 @@ export function PropertyAssignmentWizard({
         toast.success(actionText);
       }
 
-      // Reset form
-      setSelectedLotDetails(null);
+      setBlockInput('');
+      setLotInput('');
+      setAreaInput('');
+      setPriceInput('');
+      setEditingMetric(null);
       setSelectedStage(null);
       setTitleNumber('');
 
-      // Refresh page to show updated data
       router.refresh();
 
       if (onSuccess) {
@@ -318,6 +428,7 @@ export function PropertyAssignmentWizard({
   const selectedStageOption = STAGE_OPTIONS.find((opt) => opt.id === selectedStage);
   const needsRequirements = selectedStageOption?.requiresComplete && !requirements.isComplete;
   const needsTitleNumber = selectedStage === 'to-claim' && !titleNumber.trim();
+  const hasAnyInput = Boolean(blockInput || lotInput || areaInput || priceInput || selectedStage);
 
   return (
     <div className="space-y-5">
@@ -333,80 +444,269 @@ export function PropertyAssignmentWizard({
             Loading property details...
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {/* Site Selector */}
-            <div className="space-y-1.5">
-              <Label htmlFor="site-selector" className="text-xs text-muted-foreground font-medium">
-                Subdivision Site
-              </Label>
-              <Select value={selectedSiteId} onValueChange={handleSiteChange}>
-                <SelectTrigger id="site-selector" className="h-9">
-                  <SelectValue placeholder="Choose a development site..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {sites.map((site) => (
-                    <SelectItem key={site.site_id} value={site.site_id}>
-                      {site.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2.5">
+            <div className="grid gap-3 sm:grid-cols-[1fr_13rem]">
+              {/* Searchable Site Selector */}
+              <div className="space-y-1.5">
+                <Label htmlFor="site-selector" className="text-xs text-muted-foreground font-medium">
+                  Subdivision Site
+                </Label>
+                <SearchableSelect
+                  id="site-selector"
+                  options={siteOptions}
+                  value={selectedSiteId}
+                  onValueChange={handleSiteChange}
+                  placeholder="Choose a development site..."
+                  searchPlaceholder="Search site name or address..."
+                  emptyMessage="No matching sites found."
+                />
+              </div>
 
-            {/* Block & Lot Dialog Button */}
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground font-medium">
-                Block & Lot
-              </Label>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!selectedSiteId || isLoadingSite}
-                onClick={() => setIsLotDialogOpen(true)}
-                className="h-9 w-full justify-between text-left font-normal border-input bg-card hover:bg-row-hover px-3"
+              {/* Inline Block & Lot Fields with Focus Grid Popup */}
+              <BlockLotPopup
+                open={isLotPopupOpen && Boolean(selectedSiteId) && !isLoadingSite}
+                onOpenChange={setIsLotPopupOpen}
+                siteData={siteData}
+                activeBlock={!isNaN(blockNumber) && blockNumber > 0 ? blockNumber : null}
+                activeLot={!isNaN(lotNumber) && lotNumber > 0 ? lotNumber : null}
+                onSelectLot={(blk, lot) => updateBlockAndLot(blk.toString(), lot.toString())}
               >
-                <span className="truncate text-xs sm:text-sm">
-                  {isLoadingSite ? (
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Loading site...
-                    </span>
-                  ) : selectedLotDetails && selectedLotDetails.siteId === selectedSiteId ? (
-                    <span className="font-semibold text-foreground">
-                      Block {selectedLotDetails.blockNumber} Lot {selectedLotDetails.lotNumber}
-                      <span className="ml-1.5 font-normal text-muted-foreground text-xs">
-                        ({selectedLotDetails.areaSize} sqm · ₱{selectedLotDetails.pricePerSqm.toLocaleString()}/sqm)
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      {!selectedSiteId ? 'Select a site first...' : 'Choose Block & Lot...'}
-                    </span>
-                  )}
-                </span>
-                <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
-              </Button>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="inline-block" className="text-xs text-muted-foreground font-medium">
+                      Block No.
+                    </Label>
+                    <Input
+                      id="inline-block"
+                      type="number"
+                      min={1}
+                      step={1}
+                      placeholder="e.g. 1"
+                      disabled={!selectedSiteId || isLoadingSite}
+                      value={blockInput}
+                      onFocus={() => setIsLotPopupOpen(true)}
+                      onChange={(e) => updateBlockAndLot(e.target.value, lotInput)}
+                      className="h-9 bg-card"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="inline-lot" className="text-xs text-muted-foreground font-medium">
+                      Lot No.
+                    </Label>
+                    <Input
+                      id="inline-lot"
+                      type="number"
+                      min={1}
+                      step={1}
+                      placeholder="e.g. 5"
+                      disabled={!selectedSiteId || isLoadingSite}
+                      value={lotInput}
+                      onFocus={() => setIsLotPopupOpen(true)}
+                      onChange={(e) => updateBlockAndLot(blockInput, e.target.value)}
+                      className="h-9 bg-card"
+                    />
+                  </div>
+                </div>
+              </BlockLotPopup>
             </div>
-          </div>
-        )}
 
-        <BlockLotDialog
-          open={isLotDialogOpen}
-          onOpenChange={setIsLotDialogOpen}
-          siteData={siteData}
-          selectedLot={selectedLotDetails}
-          onSelectLot={handleSelectLot}
-        />
+            {/* Unified Inline Details & Preview Bar (Clickable Area & Price) */}
+            <div
+              className={cn(
+                'flex flex-col justify-between gap-3 rounded-lg border px-3.5 py-2.5 sm:flex-row sm:items-center',
+                isBlocked
+                  ? 'border-[color-mix(in_srgb,var(--destructive)_30%,white)] bg-[color-mix(in_srgb,var(--destructive)_8%,white)]'
+                  : 'border-border bg-row-hover'
+              )}
+            >
+              {/* Left: Consolidated state & action preview */}
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {isLoadingSite ? (
+                    <Badge variant="muted" shape="pill">
+                      Loading site...
+                    </Badge>
+                  ) : !evaluatedStatus ? (
+                    <Badge variant="muted" shape="pill">
+                      No lot entered
+                    </Badge>
+                  ) : null}
 
-        {/* Total Contract Price Display Only */}
-        {selectedLotDetails && (
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card px-3.5 py-2.5 text-sm">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Total Contract Price
-            </span>
-            <span className="text-base font-bold text-foreground">
-              {PESO.format(selectedLotDetails.totalPrice)}
-            </span>
+                  {evaluatedStatus?.type === 'open' && (
+                    <>
+                      <Badge variant={PROPERTY_STATUS_VARIANT.Open} shape="pill" dot>
+                        Open
+                      </Badge>
+                      {evaluatedStatus.isRecordOnly && (
+                        <Badge variant="outline" shape="pill" className="text-[10px] px-2 py-0">
+                          Record-only
+                        </Badge>
+                      )}
+                    </>
+                  )}
+
+                  {evaluatedStatus?.type === 'unopened_plot' && (
+                    <Badge variant="info" shape="pill" dot>
+                      Unopened Plot
+                    </Badge>
+                  )}
+
+                  {evaluatedStatus?.type === 'new_record_only' && (
+                    <Badge variant="warning" shape="pill" dot>
+                      New Record-Only
+                    </Badge>
+                  )}
+
+                  {evaluatedStatus?.type === 'already_assigned' && (
+                    <Badge variant="destructive" shape="pill" dot>
+                      {evaluatedStatus.lot.status}
+                    </Badge>
+                  )}
+                </div>
+
+                <p
+                  className={cn(
+                    'text-xs leading-snug',
+                    isBlocked ? 'text-destructive' : 'text-muted-foreground'
+                  )}
+                >
+                  {isLoadingSite && 'Fetching site lots and subdivision plan...'}
+                  {!isLoadingSite &&
+                    !evaluatedStatus &&
+                    (selectedSiteId
+                      ? 'Focus Block or Lot to pick from grid, or enter numbers manually.'
+                      : 'Select a subdivision site first.')}
+                  {evaluatedStatus?.type === 'open' &&
+                    (evaluatedStatus.isRecordOnly
+                      ? 'Selects existing open lot (no digital plat on file).'
+                      : 'Selects existing open lot from site plan.')}
+                  {evaluatedStatus?.type === 'unopened_plot' &&
+                    'Plot exists on plan; will open lot and assign. Click Area and Price to set.'}
+                  {evaluatedStatus?.type === 'new_record_only' &&
+                    'Not on digital plan; will create a record-only lot. Click Area and Price to set.'}
+                  {evaluatedStatus?.type === 'already_assigned' &&
+                    `Assigned${
+                      evaluatedStatus.lot.client?.full_name
+                        ? ` to ${evaluatedStatus.lot.client.full_name}`
+                        : ''
+                    } — double sale prevented.`}
+                </p>
+              </div>
+
+              {/* Right: Always-visible Area, Price / sqm (clickable when editable) & Total Price */}
+              <div className="flex flex-wrap items-center gap-3 sm:shrink-0 sm:gap-4">
+                {/* Area (sqm) */}
+                <div
+                  className={cn(
+                    'text-left sm:text-right',
+                    !isManualMetricsEditable && 'opacity-50'
+                  )}
+                >
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Area (sqm)
+                  </p>
+                  {isManualMetricsEditable && editingMetric === 'area' ? (
+                    <Input
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      autoFocus
+                      placeholder="250"
+                      value={areaInput}
+                      onChange={(e) => setAreaInput(e.target.value)}
+                      onBlur={() => setEditingMetric(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') {
+                          e.preventDefault();
+                          setEditingMetric(null);
+                        }
+                      }}
+                      className="mt-0.5 h-7 w-24 bg-card px-2 text-xs tabular-nums"
+                    />
+                  ) : isManualMetricsEditable ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingMetric('area')}
+                      className="mt-0.5 inline-flex items-center gap-1 rounded border border-dashed border-primary bg-card px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground hover:bg-sidebar-accent"
+                    >
+                      <span>
+                        {!isNaN(numericArea) && numericArea > 0
+                          ? `${numericArea} sqm`
+                          : 'Set area'}
+                      </span>
+                      <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
+                    </button>
+                  ) : (
+                    <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
+                      {!isNaN(numericArea) && numericArea > 0 ? `${numericArea} sqm` : '—'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Price / sqm */}
+                <div
+                  className={cn(
+                    'text-left sm:text-right',
+                    !isManualMetricsEditable && 'opacity-50'
+                  )}
+                >
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Price / sqm
+                  </p>
+                  {isManualMetricsEditable && editingMetric === 'price' ? (
+                    <Input
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      autoFocus
+                      placeholder="3500"
+                      value={priceInput}
+                      onChange={(e) => setPriceInput(e.target.value)}
+                      onBlur={() => setEditingMetric(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') {
+                          e.preventDefault();
+                          setEditingMetric(null);
+                        }
+                      }}
+                      className="mt-0.5 h-7 w-28 bg-card px-2 text-xs tabular-nums"
+                    />
+                  ) : isManualMetricsEditable ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingMetric('price')}
+                      className="mt-0.5 inline-flex items-center gap-1 rounded border border-dashed border-primary bg-card px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground hover:bg-sidebar-accent"
+                    >
+                      <span>
+                        {!isNaN(numericPrice) && numericPrice > 0
+                          ? PESO.format(numericPrice)
+                          : 'Set price'}
+                      </span>
+                      <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
+                    </button>
+                  ) : (
+                    <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
+                      {!isNaN(numericPrice) && numericPrice > 0 ? PESO.format(numericPrice) : '—'}
+                    </p>
+                  )}
+                </div>
+
+                {/* Total Price */}
+                <div
+                  className={cn(
+                    'border-l border-border pl-3 text-left sm:pl-4 sm:text-right',
+                    computedTotalPrice === null && 'opacity-50'
+                  )}
+                >
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Total Price
+                  </p>
+                  <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">
+                    {computedTotalPrice !== null ? PESO.format(computedTotalPrice) : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -608,11 +908,17 @@ export function PropertyAssignmentWizard({
           type="button"
           variant="outline"
           onClick={() => {
-            setSelectedLotDetails(null);
+            setBlockInput('');
+            setLotInput('');
+            setAreaInput('');
+            setPriceInput('');
+            setEditingMetric(null);
             setSelectedStage(null);
             setTitleNumber('');
+            setTotalContractPrice('');
+            setIsEditingPrice(false);
           }}
-          disabled={!selectedLotDetails && !selectedStage && !isSubmitting}
+          disabled={!hasAnyInput && !isSubmitting}
         >
           Clear Selection
         </Button>

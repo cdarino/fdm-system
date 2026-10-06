@@ -5,7 +5,7 @@ import { PageContainer } from '@/components/dashboard-layout/page-container';
 import { verifyPageAccess } from '@/lib/actions/auth-guard';
 
 async function AdminContent() {
-  const { userId } = await verifyPageAccess('system.create');
+  const { userId } = await verifyPageAccess('system.read');
 
   return (
     <div className="flex flex-col gap-6 flex-1">

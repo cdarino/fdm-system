@@ -1,7 +1,7 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createScope } from "@/lib/actions/action-handler";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { uuidSchema } from "@/lib/validations/client";
 import { REQUIRED_CLIENT_DOCUMENTS } from "@/lib/types/client";
 import type { DocType, ClientLog, ContactInfo } from "@/lib/types/client";
@@ -71,14 +71,16 @@ interface RawLotQueryResult {
 const clientScope = createScope(["clients.read"]);
 const propertyScope = createScope(["properties.read"]);
 
-async function resolvePerformerNames(userIds: string[]): Promise<Map<string, string>> {
+async function resolvePerformerNames(
+  supabase: SupabaseClient,
+  userIds: string[]
+): Promise<Map<string, string>> {
   const userMap = new Map<string, string>();
   const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
   if (uniqueIds.length === 0) return userMap;
 
-  // Resolve user full names from RBAC / auth store
-  const adminClient = createAdminClient();
-  const { data, error } = await adminClient.rpc("get_user_names", { p_user_ids: uniqueIds });
+  // Resolve user full names via authenticated RPC
+  const { data, error } = await supabase.rpc("get_user_names", { p_user_ids: uniqueIds });
   if (error) return userMap;
 
   for (const user of (data ?? []) as Array<{ id: string; full_name: string }>) {
@@ -152,7 +154,7 @@ export async function getClientReportData(clientId: string): Promise<ClientRepor
       const performerIds = clientLogs
         .map((l) => l.performed_by)
         .filter((id): id is string => Boolean(id));
-      const userNames = await resolvePerformerNames(performerIds);
+      const userNames = await resolvePerformerNames(supabase, performerIds);
 
       const logs = [...clientLogs]
         .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())

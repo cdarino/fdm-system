@@ -3,10 +3,10 @@
 import { Fragment, useState, useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardToolbar, CardTableFooter } from '@/components/ui/card';
+import { Card, CardTableFooter } from '@/components/ui/card';
+import { FilterToolbar } from '@/components/ui/filter-toolbar';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { FormField } from '@/components/ui/form-field';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { RoleCheckboxList } from './role-checkbox-list';
 import {
@@ -15,9 +15,6 @@ import {
   Trash2,
   X,
   MoreHorizontal,
-  Search,
-  ListFilter,
-  Check,
   ChevronRight,
   UserRoundPlus,
   UserRoundCheck,
@@ -668,97 +665,6 @@ function UserDetailRow({ user }: { user: UserListItem }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Toolbar                                                                   */
-/* -------------------------------------------------------------------------- */
-
-/** Status filter as a segmented control, doubling as an at-a-glance breakdown. */
-function StatusTabs({
-  value,
-  onChange,
-  counts,
-}: {
-  value: StatusFilter;
-  onChange: (v: StatusFilter) => void;
-  counts: Record<StatusFilter, number>;
-}) {
-  const tabs: { value: StatusFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'active', label: 'Active' },
-    { value: 'inactive', label: 'Inactive' },
-  ];
-
-  return (
-    <div role="group" aria-label="Filter by status" className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-row-hover p-1">
-      {tabs.map((tab) => {
-        const isActive = value === tab.value;
-        return (
-          <button
-            key={tab.value}
-            type="button"
-            aria-pressed={isActive}
-            onClick={() => onChange(tab.value)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
-              isActive
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab.label}
-            <span className={`text-xs tabular-nums ${isActive ? 'text-muted-foreground' : ''}`}>
-              {counts[tab.value]}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function RoleFilter({
-  value,
-  onChange,
-}: {
-  value: string | null;
-  onChange: (v: string | null) => void;
-}) {
-  const { roles } = useAdminUsers();
-  const active = roles.find((r) => r.id === value);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="quiet" className="gap-2">
-          <ListFilter className="h-4 w-4 text-muted-foreground" />
-          {active ? roleLabel(active.name) : 'All roles'}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[220px]">
-        <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Role
-        </DropdownMenuLabel>
-        <DropdownMenuItem
-          onSelect={(e) => { e.preventDefault(); onChange(null); }}
-          className="justify-between"
-        >
-          All roles
-          {value === null && <Check className="h-4 w-4" />}
-        </DropdownMenuItem>
-        {roles.map((role) => (
-          <DropdownMenuItem
-            key={role.id}
-            onSelect={(e) => { e.preventDefault(); onChange(role.id); }}
-            className="justify-between"
-          >
-            {roleLabel(role.name)}
-            {value === role.id && <Check className="h-4 w-4" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
 /*  Loading / empty states                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -810,6 +716,7 @@ function EmptyState({
 function UserManagementContent() {
   const {
     users,
+    roles,
     visibleUsers,
     isLoading,
     error,
@@ -862,29 +769,40 @@ function UserManagementContent() {
         </div>
 
         {/* Toolbar */}
-        <CardToolbar>
-          <StatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="relative min-w-0 flex-1 sm:flex-none">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, email or role"
-                aria-label="Search users"
-                className="w-full pl-9 sm:w-72"
-              />
-            </div>
-            <RoleFilter value={roleFilter} onChange={setRoleFilter} />
-            {isFiltered && (
-              <Button variant="ghost" onClick={clearFilters} className="gap-1.5 text-muted-foreground hover:bg-row-hover hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
-                Clear
-              </Button>
-            )}
-          </div>
-        </CardToolbar>
+        <FilterToolbar
+          tabs={{
+            value: statusFilter,
+            onChange: setStatusFilter,
+            ariaLabel: 'Filter by status',
+            items: [
+              { value: 'all', label: 'All', count: counts.all },
+              { value: 'active', label: 'Active', count: counts.active },
+              { value: 'inactive', label: 'Inactive', count: counts.inactive },
+            ],
+          }}
+          search={{
+            value: search,
+            onChange: setSearch,
+            placeholder: 'Search name, email or role',
+            ariaLabel: 'Search users',
+          }}
+          filters={[
+            {
+              type: 'single-select',
+              id: 'role',
+              label: 'Role',
+              allLabel: 'All roles',
+              value: roleFilter,
+              onChange: setRoleFilter,
+              options: roles.map((role) => ({
+                value: role.id,
+                label: roleLabel(role.name),
+              })),
+            },
+          ]}
+          isFiltered={isFiltered}
+          onClear={clearFilters}
+        />
 
         {/* List */}
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">

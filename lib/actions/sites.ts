@@ -239,71 +239,42 @@ export async function createSubdivisionLot(
   input: CreateSubdivisionLotInput
 ): Promise<ActionResult<{ subdivision: SiteSubdivision; lot: PropertyLot | null }>> {
   return propertyCreate.run({
+    permissions: ["properties.update"],
     schema: createSubdivisionLotSchema,
     input,
     handler: async (validatedInput, { supabase }) => {
-      const { data: site, error: siteError } = await supabase
-        .from("site")
-        .select("site_id, name")
-        .eq("site_id", validatedInput.site_id)
-        .single<{ site_id: string; name: string }>();
-
-      if (siteError || !site) {
-        throw new Error(`Site not found: ${siteError?.message ?? "Unknown error"}`);
-      }
-
-      const { data: subData, error: subError } = await supabase
-        .from("site_subdivision")
-        .insert({
-          site_id: validatedInput.site_id,
-          block_number: validatedInput.block_number,
-          lot_number: validatedInput.lot_number,
-          boundary: validatedInput.boundary,
-        })
-        .select()
-        .single<SiteSubdivision>();
-
-      if (subError || !subData) {
-        throw new Error(`Failed to create subdivision: ${subError?.message ?? "Unknown error"}`);
-      }
-
-      // Only create registered property_lot if explicitly requested
-      let lotData: PropertyLot | null = null;
-      if (validatedInput.create_property_lot) {
-        const computedArea = validatedInput.area_size && validatedInput.area_size > 0
+      const shouldCreateLot = Boolean(validatedInput.create_property_lot);
+      const computedArea = shouldCreateLot
+        ? validatedInput.area_size && validatedInput.area_size > 0
           ? validatedInput.area_size
-          : Math.max(10, Math.round(calculatePolygonAreaSqm(validatedInput.boundary) * 100) / 100);
+          : Math.max(10, Math.round(calculatePolygonAreaSqm(validatedInput.boundary) * 100) / 100)
+        : null;
 
-        const pricePerSqm = validatedInput.price_per_sqm && validatedInput.price_per_sqm > 0
+      const pricePerSqm = shouldCreateLot
+        ? validatedInput.price_per_sqm && validatedInput.price_per_sqm > 0
           ? validatedInput.price_per_sqm
-          : 6500;
+          : 6500
+        : null;
 
-        const { data, error: lotError } = await supabase
-          .from("property_lot")
-          .upsert(
-            {
-              site_id: validatedInput.site_id,
-              location: site.name,
-              block_number: validatedInput.block_number,
-              lot_number: validatedInput.lot_number,
-              area_size: computedArea,
-              price_per_sqm: pricePerSqm,
-              status: "Open",
-              boundary: validatedInput.boundary,
-            },
-            { onConflict: "location,block_number,lot_number" }
-          )
-          .select()
-          .single<PropertyLot>();
+      const { data, error } = await supabase.rpc("create_subdivision_lot", {
+        p_site_id: validatedInput.site_id,
+        p_block_number: validatedInput.block_number,
+        p_lot_number: validatedInput.lot_number,
+        p_boundary: validatedInput.boundary,
+        p_create_property_lot: shouldCreateLot,
+        p_area_size: computedArea,
+        p_price_per_sqm: pricePerSqm,
+      });
 
-        if (lotError || !data) {
-          await supabase.from("site_subdivision").delete().eq("subdivision_id", subData.subdivision_id);
-          throw new Error(`Failed to create property lot: ${lotError?.message ?? "Unknown error"}`);
-        }
-        lotData = data;
+      if (error || !data) {
+        throw new Error(`Failed to create subdivision: ${error?.message ?? "Unknown error"}`);
       }
 
-      return { subdivision: subData, lot: lotData };
+      const result = data as { subdivision: SiteSubdivision; lot: PropertyLot | null };
+      return {
+        subdivision: result.subdivision,
+        lot: result.lot ?? null,
+      };
     },
   });
 }
