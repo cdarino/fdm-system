@@ -15,6 +15,7 @@ import {
   getTestAdminClient,
   createTemporaryUser,
   runTrackedCleanups,
+  TEST_ADMIN_EMAIL,
   type TemporaryUser,
 } from "../framework/session";
 
@@ -143,7 +144,7 @@ describe("Admin User Management Actions", () => {
     expect(res.success).toBe(true);
     if (res.success) {
       expect(res.users.length).toBeGreaterThan(0);
-      const admin = res.users.find((u) => u.email === "admin@example.com");
+      const admin = res.users.find((u) => u.email === TEST_ADMIN_EMAIL || u.email === "admin@example.com");
       expect(admin).toBeDefined();
       expect(admin?.roles.some((r) => r.name === "system_admin")).toBe(true);
       expect(typeof admin?.isBanned).toBe("boolean");

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@example.com";
+const TEST_ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL ?? "tester@example.com";
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY");
@@ -31,8 +32,9 @@ async function cleanupTestData() {
       (u) =>
         u.email &&
         u.email !== ADMIN_EMAIL &&
+        u.email !== TEST_ADMIN_EMAIL &&
         (u.email.includes("test-user-") ||
-          u.email.includes("@example.com") ||
+          /-\d{10,}(-[a-z0-9]+)?@example\.com$/i.test(u.email) ||
           u.user_metadata?.first_name === "Temp" ||
           u.user_metadata?.last_name?.startsWith("User-"))
     );

@@ -10,7 +10,7 @@
  *   (or: npx tsx --env-file=.env.local scripts/seed-dev.ts)
  */
 
-import { seedBaseline } from "./seed-baseline";
+import { seedBaseline, seedTester } from "./seed-baseline";
 import { seedAllSampleSites } from "./seed-sample-site";
 
 async function main() {
@@ -18,6 +18,7 @@ async function main() {
 
   console.log("--- Step 1: Baseline Seed ---");
   await seedBaseline();
+  await seedTester();
 
   console.log("--- Step 2: Sample Sites & Properties Seed ---");
   await seedAllSampleSites();

@@ -147,9 +147,22 @@ export async function seedBaseline(options: SeedBaselineOptions = {}): Promise<{
   return { userId, email: adminEmail };
 }
 
+export async function seedTester(options: SeedBaselineOptions = {}): Promise<{ userId: string; email: string }> {
+  const testerEmail = options.adminEmail ?? process.env.TEST_ADMIN_EMAIL ?? "tester@example.com";
+  const testerPassword = options.adminPassword ?? process.env.TEST_ADMIN_PASSWORD ?? "tester123!";
+  return seedBaseline({
+    ...options,
+    adminEmail: testerEmail,
+    adminPassword: testerPassword,
+  });
+}
+
 async function main() {
   try {
     await seedBaseline();
+    if (!process.argv.includes("--skip-tester")) {
+      await seedTester();
+    }
   } catch (err: unknown) {
     if (err instanceof Error) {
       console.error(err.message);

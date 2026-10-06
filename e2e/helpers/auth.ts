@@ -1,7 +1,7 @@
 import { Page, expect } from '@playwright/test';
 
-export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@example.com';
-export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+export const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL || 'tester@example.com';
+export const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD || 'tester123!';
 
 /**
  * Logs in as system administrator via the UI form and waits for redirection to dashboard.

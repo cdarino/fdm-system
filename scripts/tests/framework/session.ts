@@ -5,8 +5,8 @@ import { clearCookieJar } from "./vitest.setup";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SECRET_KEY!;
-const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD ?? "admin";
-const ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL ?? process.env.ADMIN_EMAIL ?? "admin@example.com";
+const ADMIN_PASSWORD = process.env.TEST_ADMIN_PASSWORD ?? "tester123!";
+export const TEST_ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL ?? "tester@example.com";
 
 export function getTestAdminClient() {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
@@ -78,9 +78,56 @@ export function trackTestSite(siteId: string) {
   trackCleanup(() => hardDeleteTestSite(siteId));
 }
 
+let testerProvisioned = false;
+
+async function ensureTesterAccountExists() {
+  if (testerProvisioned) return;
+  const adminClient = getTestAdminClient();
+
+  const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
+    email: TEST_ADMIN_EMAIL,
+    password: ADMIN_PASSWORD,
+    email_confirm: true,
+    user_metadata: { first_name: "System", last_name: "Tester" },
+  });
+
+  let userId = createData?.user?.id;
+  if (createError && createError.message.toLowerCase().includes("already been registered")) {
+    const { data: listData } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const existing = listData?.users.find((u) => u.email === TEST_ADMIN_EMAIL);
+    if (existing) {
+      userId = existing.id;
+      await adminClient.auth.admin.updateUserById(userId, { password: ADMIN_PASSWORD });
+    }
+  }
+
+  if (userId) {
+    const { data: roles } = await adminClient
+      .schema("rbac")
+      .from("role")
+      .select("id")
+      .eq("name", "system_admin");
+    if (roles && roles.length > 0) {
+      await adminClient
+        .schema("rbac")
+        .from("user_role")
+        .upsert([{ user_id: userId, role_id: roles[0].id }], { onConflict: "user_id,role_id" });
+    }
+  }
+  testerProvisioned = true;
+}
+
 export async function loginAsAdmin() {
   clearCookieJar();
-  return login({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
+  try {
+    const res = await login({ email: TEST_ADMIN_EMAIL, password: ADMIN_PASSWORD });
+    testerProvisioned = true;
+    return res;
+  } catch {
+    await ensureTesterAccountExists();
+    clearCookieJar();
+    return login({ email: TEST_ADMIN_EMAIL, password: ADMIN_PASSWORD });
+  }
 }
 
 export async function loginAs(email: string, password: string) {
