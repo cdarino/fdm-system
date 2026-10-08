@@ -35,7 +35,20 @@ export async function getArcGISHybridStyle(
       throw new Error(`Failed to load ArcGIS hybrid style: ${res.status}`);
     }
 
-    const style = await res.json();
+    const rawStyle = await res.json();
+    const layers = Array.isArray(rawStyle?.layers)
+      ? [
+          {
+            id: "background",
+            type: "background",
+            paint: { "background-color": "#0b1120" },
+          },
+          ...rawStyle.layers.filter(
+            (layer: { type?: string }) => layer?.type !== "background"
+          ),
+        ]
+      : [];
+    const style = { ...rawStyle, layers };
     return { style, token };
   });
 }

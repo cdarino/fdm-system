@@ -14,6 +14,7 @@ export interface UseMapLibreMapOptions {
   center?: [number, number]; // [lng, lat]
   zoom?: number;
   padding?: Partial<MapLibrePadding>;
+  backgroundColor?: string;
 }
 
 export function useMapLibreMap(
@@ -42,6 +43,7 @@ export function useMapLibreMap(
         center = [125.5844925, 7.0447193], // Default 36km regional overview
         zoom = 11.8,
         padding = {},
+        backgroundColor = '#0b1120',
       } = optionsRef.current;
 
       const fullPadding: MapLibrePadding = {
@@ -60,7 +62,7 @@ export function useMapLibreMap(
             {
               id: 'background',
               type: 'background',
-              paint: { 'background-color': '#0b1120' },
+              paint: { 'background-color': backgroundColor },
             },
           ],
         },

@@ -1,7 +1,6 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -27,26 +26,16 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatActivityTime } from '@/lib/format-activity-time';
-import {
-  uploadClientDocument,
-  getClientDocumentUrl,
-  deleteClientDocument,
-} from '@/lib/actions/clients';
+import { useClientDetail } from '@/lib/hooks/use-client-detail';
 import {
   REQUIRED_CLIENT_DOCUMENTS,
-  type ClientWithDetails,
   type DocType,
 } from '@/lib/types/client';
 
 const DOCUMENT_TYPES: DocType[] = ['Valid ID', 'Contract', 'Deed of Sale', 'eCAR', 'Other'];
 
-interface ClientDetailDocumentsProps {
-  client: ClientWithDetails;
-  onClientChange: (client: ClientWithDetails) => void;
-}
-
-export function ClientDetailDocuments({ client, onClientChange }: ClientDetailDocumentsProps) {
-  const router = useRouter();
+export function ClientDetailDocuments() {
+  const { client, uploadDocument, deleteDocument, getDocumentUrl } = useClientDetail();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [documentType, setDocumentType] = useState<DocType>('Valid ID');
   const [categoryFilter, setCategoryFilter] = useState<DocType | 'all'>('all');
@@ -84,22 +73,12 @@ export function ClientDetailDocuments({ client, onClientChange }: ClientDetailDo
       formData.append('file', selectedFile);
       formData.append('document_type', documentType);
 
-      const result = await uploadClientDocument(client.client_id, formData);
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onClientChange({
-        ...client,
-        client_document: [result.data, ...client.client_document],
-      });
+      await uploadDocument(formData);
 
       setSelectedFile(null);
       setIsUploadOpen(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
       toast.success('Document uploaded');
-      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to upload document');
     } finally {
@@ -110,19 +89,8 @@ export function ClientDetailDocuments({ client, onClientChange }: ClientDetailDo
   async function handleDelete(documentId: string) {
     setDeletingId(documentId);
     try {
-      const result = await deleteClientDocument(documentId);
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onClientChange({
-        ...client,
-        client_document: client.client_document.filter((d) => d.document_id !== documentId),
-      });
-
+      await deleteDocument(documentId);
       toast.success('Document removed');
-      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove document');
     } finally {
@@ -133,7 +101,7 @@ export function ClientDetailDocuments({ client, onClientChange }: ClientDetailDo
   async function handleOpen(documentId: string) {
     setOpeningId(documentId);
     try {
-      const url = await getClientDocumentUrl(documentId);
+      const url = await getDocumentUrl(documentId);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to open document');

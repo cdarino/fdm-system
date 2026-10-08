@@ -7,6 +7,7 @@ import {
   updatePassword,
   changePassword,
   resetPassword,
+  verifyResetCode,
   MIN_PASSWORD_LENGTH,
 } from "@/lib/auth";
 import { getUserInfo } from "@/lib/user";
@@ -144,11 +145,27 @@ describe("Authentication & User Session Functions", () => {
     tempUser.password = newPassword;
   });
 
+  it("updatePassword validates password confirmation and minimum length", async () => {
+    await expect(
+      updatePassword({
+        password: "ValidPass123!",
+        confirmPassword: "DifferentPass123!",
+      })
+    ).rejects.toThrow("Passwords do not match.");
+
+    await expect(
+      updatePassword({
+        password: "123",
+        confirmPassword: "123",
+      })
+    ).rejects.toThrow(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  });
+
   it("updatePassword updates the password for the active session", async () => {
     const newPassword = `UpdatePass-${faker.string.alphanumeric(8)}!`;
 
     await login({ email: tempUser.email, password: tempUser.password });
-    await updatePassword({ password: newPassword });
+    await updatePassword({ password: newPassword, confirmPassword: newPassword });
 
     await logoutUser();
 
@@ -170,5 +187,15 @@ describe("Authentication & User Session Functions", () => {
   it("resetPassword dispatches reset email request without throwing", async () => {
     const res = await resetPassword({ email: faker.internet.email() });
     expect(res).toBeDefined();
+  });
+
+  it("verifyResetCode rejects empty or invalid OTP codes", async () => {
+    await expect(
+      verifyResetCode({ email: tempUser.email, token: "   " })
+    ).rejects.toThrow("Please enter the verification code.");
+
+    await expect(
+      verifyResetCode({ email: tempUser.email, token: "000000" })
+    ).rejects.toThrow();
   });
 });

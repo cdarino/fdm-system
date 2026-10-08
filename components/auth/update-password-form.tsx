@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { updatePassword } from "@/lib/auth";
+import { updatePassword, logout, MIN_PASSWORD_LENGTH } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,14 +14,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
-/** Client form that accepts a new password and calls `updatePassword`, redirecting 
- * to `/dashboard` on success. */
+/**
+ * Client form that accepts and confirms a new password, calls `updatePassword`,
+ * signs out the recovery session, and redirects to `/login`.
+ */
 export function UpdatePasswordForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -32,9 +36,12 @@ export function UpdatePasswordForm({
     setError(null);
 
     try {
-      await updatePassword({ password });
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/dashboard");
+      await updatePassword({ password, confirmPassword });
+      await logout();
+      toast.success(
+        "Password updated! Please sign in with your new password."
+      );
+      router.push("/login");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -48,7 +55,7 @@ export function UpdatePasswordForm({
         <CardHeader>
           <CardTitle size="xl">Reset Your Password</CardTitle>
           <CardDescription>
-            Please enter your new password below.
+            Choose a new password of at least {MIN_PASSWORD_LENGTH} characters.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -60,13 +67,33 @@ export function UpdatePasswordForm({
                   id="password"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="New password"
+                  placeholder="••••••••"
+                  minLength={MIN_PASSWORD_LENGTH}
                   required
+                  disabled={isLoading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
-              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+              <div className="grid gap-2">
+                <Label htmlFor="confirm-password">Confirm new password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  minLength={MIN_PASSWORD_LENGTH}
+                  required
+                  disabled={isLoading}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? "Saving..." : "Save new password"}
               </Button>
@@ -77,3 +104,4 @@ export function UpdatePasswordForm({
     </div>
   );
 }
+

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { IconBox } from '@/components/ui/icon-box';
 import { PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
-import type { ClientWithDetails } from '@/lib/types/client';
+import { useClientDetail } from '@/lib/hooks/use-client-detail';
 
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -16,18 +16,16 @@ const PESO = new Intl.NumberFormat('en-PH', {
 const AREA = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 });
 
 interface ClientDetailPropertiesProps {
-  client: ClientWithDetails;
-  onClientChange: (client: ClientWithDetails) => void;
   onOpenAssignProperty: () => void;
   /** False for inactive or archived clients, which cannot take new lots. */
   canAssign?: boolean;
 }
 
 export function ClientDetailProperties({
-  client,
   onOpenAssignProperty,
   canAssign = true,
 }: ClientDetailPropertiesProps) {
+  const { client } = useClientDetail();
   const properties = client.properties || [];
   const assignDisabledReason = canAssign
     ? undefined

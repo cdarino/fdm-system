@@ -114,6 +114,24 @@ function scaleBasemapSymbolText(style: StyleSpecification | unknown, factor: num
   return { ...spec, layers };
 }
 
+const SATELLITE_BACKGROUND_COLOR = '#0b1120';
+const NORMAL_BACKGROUND_COLOR = '#f8f4f0';
+
+// Ensure satellite basemap style has a dark blue background layer while tiles load
+function withSatelliteBackground(style: StyleSpecification): StyleSpecification {
+  if (!style || !Array.isArray(style.layers)) return style;
+  const backgroundLayer: LayerSpecification = {
+    id: 'background',
+    type: 'background',
+    paint: { 'background-color': SATELLITE_BACKGROUND_COLOR },
+  };
+  const nonBackgroundLayers = style.layers.filter((layer) => layer.type !== 'background');
+  return {
+    ...style,
+    layers: [backgroundLayer, ...nonBackgroundLayers],
+  };
+}
+
 const SATELLITE_FALLBACK_STYLE = {
   version: 8,
   glyphs: 'https://tiles.versatiles.org/assets/glyphs/{fontstack}/{range}.pbf',
@@ -130,7 +148,7 @@ const SATELLITE_FALLBACK_STYLE = {
     {
       id: 'background',
       type: 'background',
-      paint: { 'background-color': '#0b1120' },
+      paint: { 'background-color': SATELLITE_BACKGROUND_COLOR },
     },
     {
       id: 'versatiles-satellite-layer',
@@ -179,7 +197,7 @@ export function SiteMap({
   onDeletePlotRef.current = onDeletePlot;
   const isEditorModeRef = useRef(isEditorMode);
   isEditorModeRef.current = isEditorMode;
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => cachedArcgisToken);
   const [mapMode, setMapMode] = useState<'satellite' | 'normal'>(() => {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem('fdm_map_mode');
@@ -188,7 +206,7 @@ export function SiteMap({
     return 'satellite';
   });
   const [isFallbackActive, setIsFallbackActive] = useState(false);
-  const [isCheckingArcGIS, setIsCheckingArcGIS] = useState(false);
+  const [isCheckingArcGIS, setIsCheckingArcGIS] = useState<boolean>(() => !cachedArcgisToken);
   const [styleRevision, setStyleRevision] = useState(0);
   const [currentZoom, setCurrentZoom] = useState<number>(initialZoom);
   const [activeLotId, setActiveLotId] = useState<string | null>(selectedLotId ?? null);
@@ -211,6 +229,7 @@ export function SiteMap({
     center: initialCenter,
     zoom: initialZoom,
     padding: { top: 0, bottom: 0, left: isSidebarOpen ? SIDEBAR_WIDTH : 0, right: 0 },
+    backgroundColor: mapMode === 'satellite' ? SATELLITE_BACKGROUND_COLOR : NORMAL_BACKGROUND_COLOR,
   });
 
   // Track style reload events to mount custom property layers on top
@@ -255,7 +274,7 @@ export function SiteMap({
       try {
         const { style, token: receivedToken } = await getArcGISHybridStyle();
         setToken(receivedToken);
-        cachedScaledArcgisStyle = scaleBasemapSymbolText(style, 1.28);
+        cachedScaledArcgisStyle = withSatelliteBackground(scaleBasemapSymbolText(style, 1.28));
         cachedArcgisToken = receivedToken;
         setIsFallbackActive(false);
       } catch {
@@ -1089,6 +1108,12 @@ export function SiteMap({
   useEffect(() => {
     if (!map || !isReady) return;
 
+    // In satellite mode, wait while the initial ArcGIS style check is in flight
+    // so the map stays on its initial dark blue background instead of flashing fallback
+    if (mapMode === 'satellite' && isCheckingArcGIS && !token && !isFallbackActive) {
+      return;
+    }
+
     const targetStyleKey =
       mapMode === 'normal'
         ? 'normal'
@@ -1096,7 +1121,10 @@ export function SiteMap({
           ? 'satellite-fallback'
           : `satellite-arcgis-${token}`;
 
-    if (currentAppliedStyleKeyRef.current === targetStyleKey) {
+    const hasExpectedBackground =
+      mapMode !== 'satellite' || Boolean(map.getLayer('background'));
+
+    if (currentAppliedStyleKeyRef.current === targetStyleKey && hasExpectedBackground) {
       return;
     }
 
@@ -1109,7 +1137,6 @@ export function SiteMap({
 
     async function applyStyle() {
       if (!map) return;
-      isSettingStyleRef.current = true;
       pendingTargetStyleKeyRef.current = null;
 
       try {
@@ -1121,25 +1148,31 @@ export function SiteMap({
             cachedScaledNormalStyle = scaleBasemapSymbolText(styleJson, 1.28);
           }
           if (isCancelled) return;
+          isSettingStyleRef.current = true;
           currentAppliedStyleKeyRef.current = targetStyleKey;
           map.setStyle(cachedScaledNormalStyle, { diff: false });
         } else if (targetStyleKey.startsWith('satellite-arcgis-') && token) {
           if (!cachedScaledArcgisStyle || cachedArcgisToken !== token) {
             const { style, token: freshToken } = await getArcGISHybridStyle();
-            cachedScaledArcgisStyle = scaleBasemapSymbolText(style, 1.28);
+            cachedScaledArcgisStyle = withSatelliteBackground(scaleBasemapSymbolText(style, 1.28));
             cachedArcgisToken = freshToken;
+          } else {
+            cachedScaledArcgisStyle = withSatelliteBackground(cachedScaledArcgisStyle);
           }
           if (isCancelled) return;
+          isSettingStyleRef.current = true;
           currentAppliedStyleKeyRef.current = targetStyleKey;
           map.setStyle(cachedScaledArcgisStyle, { diff: false });
         } else {
           if (isCancelled) return;
+          isSettingStyleRef.current = true;
           currentAppliedStyleKeyRef.current = 'satellite-fallback';
           map.setStyle(SATELLITE_FALLBACK_STYLE as unknown as StyleSpecification, { diff: false });
         }
       } catch {
         if (isCancelled) return;
         setIsFallbackActive(true);
+        isSettingStyleRef.current = true;
         currentAppliedStyleKeyRef.current = 'satellite-fallback';
         map.setStyle(SATELLITE_FALLBACK_STYLE as unknown as StyleSpecification, { diff: false });
       }
@@ -1150,7 +1183,7 @@ export function SiteMap({
     return () => {
       isCancelled = true;
     };
-  }, [map, isReady, styleRevision, mapMode, isFallbackActive, token]);
+  }, [map, isReady, styleRevision, mapMode, isFallbackActive, isCheckingArcGIS, token]);
 
   // Handle tile loading errors by falling back to free alternative
   useEffect(() => {
@@ -1189,9 +1222,14 @@ export function SiteMap({
     <div
       className={cn('relative flex flex-1 h-full min-h-0 w-full flex-col overflow-hidden bg-background', className)}
       data-engine="maplibre"
+      style={mapMode === 'satellite' ? { backgroundColor: SATELLITE_BACKGROUND_COLOR } : undefined}
     >
       {/* MapLibre WebGL canvas */}
-      <div ref={containerRef} className="h-full w-full z-0" />
+      <div
+        ref={containerRef}
+        className="flex-1 h-full w-full z-0"
+        style={mapMode === 'satellite' ? { backgroundColor: SATELLITE_BACKGROUND_COLOR } : undefined}
+      />
 
       {/* Floating map controls (top-right) */}
       {!preview && (

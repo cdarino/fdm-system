@@ -3,8 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardTableFooter } from '@/components/ui/card';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Card } from '@/components/ui/card';
+import {
+  FilterToolbar,
+  ListPaginationFooter,
+} from '@/components/ui/filter-toolbar';
 import { IconBox } from '@/components/ui/icon-box';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -29,8 +32,6 @@ import {
   Rows,
   FileDown,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { getClientReportData } from '@/lib/actions/reports';
 import {
@@ -54,7 +55,6 @@ import {
   ClientsProvider,
   useClients,
   ARCHIVED_STATUS,
-  type ClientStatusFilter,
 } from '@/lib/hooks/use-clients-page';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { formatActivityTime } from '@/lib/format-activity-time';
@@ -163,15 +163,13 @@ function ContactDetailsCell({
 }
 
 function EmptyState({
-  isFiltered,
-  onClear,
+  controller,
   onCreate,
 }: {
-  isFiltered: boolean;
-  onClear: () => void;
+  controller: { isFiltered: boolean; clearAll: () => void };
   onCreate: () => void;
 }) {
-  const Icon = isFiltered ? SearchX : Users;
+  const Icon = controller.isFiltered ? SearchX : Users;
   return (
     <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-row-hover">
@@ -179,18 +177,18 @@ function EmptyState({
       </div>
       <div className="space-y-1.5">
         <p className="text-sm font-semibold text-foreground">
-          {isFiltered ? 'No matching clients' : 'No clients yet'}
+          {controller.isFiltered ? 'No matching clients' : 'No clients yet'}
         </p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          {isFiltered
+          {controller.isFiltered
             ? 'Try a different search term, or clear the filters to view all clients.'
             : 'Add the first client to start maintaining client records and contact information.'}
         </p>
       </div>
-      {isFiltered ? (
+      {controller.isFiltered ? (
         <Button
           variant="outline"
-          onClick={onClear}
+          onClick={controller.clearAll}
           className="gap-1.5 border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
@@ -394,19 +392,9 @@ function ClientRow({ client }: { client: ClientListItem }) {
 function ClientsContent() {
   const router = useRouter();
   const {
-    clients,
-    visibleClients,
-    paginatedClients,
-    currentPage,
-    setPage,
-    pageSize,
-    totalPages,
+    controller,
     isLoading,
     error,
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
     activeDialog,
     openDialog,
     missingDocumentAlerts,
@@ -415,35 +403,7 @@ function ClientsContent() {
 
   const [isDocumentSearchOpen, setIsDocumentSearchOpen] = useState(false);
   const [isMissingDocsOpen, setIsMissingDocsOpen] = useState(false);
-
   const [viewMode, setViewMode] = useState<'standard' | 'compact'>('standard');
-
-  const isFiltered = search.trim() !== '' || statusFilter !== 'all';
-
-  /**
-   * Denominator for the footer: the set the current tab draws from, not every
-   * loaded row. All records includes archives; Current excludes them.
-   */
-  const tabTotal = statusFilter === 'all-records' ? clients.length :
-    statusFilter === 'Archived'
-      ? clients.filter((c) => c.status === ARCHIVED_STATUS).length
-      : clients.filter((c) => c.status !== ARCHIVED_STATUS).length;
-
-  // Current clients exclude archives; All records matches the dashboard total.
-  const active = clients.filter((c) => c.status !== ARCHIVED_STATUS);
-  const counts: Record<ClientStatusFilter, number> = {
-    all: active.length,
-    'all-records': clients.length,
-    Active: active.filter((c) => c.status.toLowerCase() === 'active').length,
-    Inactive: active.filter((c) => c.status.toLowerCase() === 'inactive').length,
-    Archived: clients.length - active.length,
-  };
-
-  function clearFilters() {
-    setSearch('');
-    setStatusFilter('all');
-    setPage(1);
-  }
 
   return (
     <>
@@ -491,28 +451,9 @@ function ClientsContent() {
           </div>
         </div>
 
-        {/* Filters and search */}
+        {/* Filters, search, and sort */}
         <FilterToolbar
-          tabs={{
-            value: statusFilter,
-            onChange: setStatusFilter,
-            ariaLabel: 'Filter clients by status',
-            items: [
-              { value: 'all', label: 'Current', count: counts.all },
-              { value: 'all-records', label: 'All records', count: counts['all-records'] },
-              { value: 'Active', label: 'Active', count: counts.Active },
-              { value: 'Inactive', label: 'Inactive', count: counts.Inactive },
-              { value: 'Archived', label: 'Archived', count: counts.Archived },
-            ],
-          }}
-          search={{
-            value: search,
-            onChange: setSearch,
-            placeholder: 'Search name, address, or contact',
-            ariaLabel: 'Search clients',
-          }}
-          isFiltered={isFiltered}
-          onClear={clearFilters}
+          controller={controller}
           viewMode={{
             value: viewMode,
             onChange: setViewMode,
@@ -532,10 +473,9 @@ function ClientsContent() {
             </div>
           ) : isLoading ? (
             <ClientRowsSkeleton />
-          ) : visibleClients.length === 0 ? (
+          ) : controller.matchedItems.length === 0 ? (
             <EmptyState
-              isFiltered={isFiltered}
-              onClear={clearFilters}
+              controller={controller}
               onCreate={() => openDialog({ type: 'create' })}
             />
           ) : (
@@ -578,10 +518,10 @@ function ClientsContent() {
               </TableHeader>
               <TableBody>
                 {viewMode === 'standard'
-                  ? paginatedClients.map((client) => (
+                  ? controller.truncatedItems.map((client) => (
                       <ClientRow key={client.client_id} client={client} />
                     ))
-                  : paginatedClients.map((client) => (
+                  : controller.truncatedItems.map((client) => (
                       <ClientCompactRow
                         key={client.client_id}
                         client={client}
@@ -601,47 +541,13 @@ function ClientsContent() {
 
         {/* Summary footer */}
         {!error && (
-          <CardTableFooter>
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              {isLoading
-                ? 'Loading clients…'
-                : isFiltered
-                  ? `Showing ${visibleClients.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, visibleClients.length)} of ${visibleClients.length} filtered client${visibleClients.length === 1 ? '' : 's'} (${tabTotal} total)`
-                  : visibleClients.length <= pageSize
-                    ? `${tabTotal} client${tabTotal === 1 ? '' : 's'}`
-                    : `Showing ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, visibleClients.length)} of ${tabTotal} clients`}
-            </p>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="quiet"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage <= 1 || isLoading}
-                  aria-label="Previous page"
-                  className="h-8 gap-1 px-2.5 text-xs"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Previous</span>
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Page <strong className="font-medium text-foreground">{currentPage}</strong> of{' '}
-                  <strong className="font-medium text-foreground">{totalPages}</strong>
-                </span>
-                <Button
-                  variant="quiet"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage >= totalPages || isLoading}
-                  aria-label="Next page"
-                  className="h-8 gap-1 px-2.5 text-xs"
-                >
-                  <span className="hidden sm:inline">Next</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            )}
-          </CardTableFooter>
+          <ListPaginationFooter
+            controller={controller}
+            isLoading={isLoading}
+            singularLabel="client"
+            pluralLabel="clients"
+            loadingText="Loading clients…"
+          />
         )}
       </Card>
 

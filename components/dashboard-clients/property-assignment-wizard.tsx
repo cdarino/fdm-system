@@ -36,7 +36,7 @@ import {
   evaluateLotStatus,
   type SelectedLotDetails,
 } from './block-lot-popup';
-import type { ClientWithDetails } from '@/lib/types/client';
+import { useClientDetail } from '@/lib/hooks/use-client-detail';
 import type { Site, SiteWithLots } from '@/lib/types/property';
 
 const PESO = new Intl.NumberFormat('en-PH', {
@@ -80,16 +80,15 @@ const STAGE_OPTIONS: StageOption[] = [
 ];
 
 interface PropertyAssignmentWizardProps {
-  client: ClientWithDetails;
   preSelectedPropertyId?: string;
   onSuccess?: () => void;
 }
 
 export function PropertyAssignmentWizard({
-  client,
   preSelectedPropertyId,
   onSuccess,
 }: PropertyAssignmentWizardProps) {
+  const { client } = useClientDetail();
   const router = useRouter();
   const [selectedSiteId, setSelectedSiteId] = useState<string>('');
   const [siteData, setSiteData] = useState<SiteWithLots | null>(null);
