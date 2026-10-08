@@ -14,6 +14,13 @@ export const metadata: Metadata = {
   title: "FDM - Project Management Platform",
   description: "A warm, minimalist platform for project and resource management. Built for teams who value simplicity and clarity.",
   referrer: "origin-when-cross-origin",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 const geistSans = Geist({

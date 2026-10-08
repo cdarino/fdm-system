@@ -1,14 +1,26 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Check, ListFilter, Search, X } from 'lucide-react';
+import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ListFilter,
+  Search,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CardToolbar } from '@/components/ui/card';
+import { CardTableFooter, CardToolbar } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -84,6 +96,19 @@ export interface FilterToolbarSearchableFilter {
   className?: string;
 }
 
+export interface FilterToolbarToggleFilter {
+  type: 'toggle';
+  id: string;
+  label: string;
+  /** Optional shorter label rendered when toolbar size is 'sm' (e.g. stacked sidebar) */
+  compactLabel?: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  count?: number;
+  icon?: ReactNode;
+  disabled?: boolean;
+}
+
 export interface FilterToolbarCustomFilter {
   type: 'custom';
   id: string;
@@ -94,7 +119,21 @@ export type FilterToolbarFilterItem =
   | FilterToolbarSingleSelectFilter
   | FilterToolbarMultiSelectFilter
   | FilterToolbarSearchableFilter
+  | FilterToolbarToggleFilter
   | FilterToolbarCustomFilter;
+
+export interface FilterToolbarSortOption<S extends string = string> {
+  value: S;
+  label: string;
+}
+
+export interface FilterToolbarSortConfig<S extends string = string> {
+  value: S;
+  order: 'asc' | 'desc';
+  onChange: (key: S, order?: 'asc' | 'desc') => void;
+  onToggleOrder?: () => void;
+  options: readonly FilterToolbarSortOption<S>[];
+}
 
 export interface FilterToolbarViewModeOption<V extends string = string> {
   value: V;
@@ -108,14 +147,30 @@ export interface FilterToolbarViewModeConfig<V extends string = string> {
   options: FilterToolbarViewModeOption<V>[];
 }
 
+/**
+ * Structural subset of `ListControllerValue` consumed by `<FilterToolbar controller={controller} />`.
+ */
+export interface FilterToolbarControllerBinding<S extends string = string> {
+  tabsConfig?: FilterToolbarTabsConfig<string>;
+  searchConfig: FilterToolbarSearchConfig;
+  filterControls: FilterToolbarFilterItem[];
+  sortConfig: FilterToolbarSortConfig<S>;
+  isFiltered: boolean;
+  clearAll: () => void;
+}
+
 export interface FilterToolbarProps<
   T extends string = string,
   V extends string = string,
+  S extends string = string,
 > {
   variant?: 'default' | 'stacked';
+  /** Pass the `useListController` instance directly to auto-bind tabs, search, filters, sort, and clear */
+  controller?: FilterToolbarControllerBinding<S>;
   tabs?: FilterToolbarTabsConfig<T>;
   search?: FilterToolbarSearchConfig;
   filters?: FilterToolbarFilterItem[];
+  sort?: FilterToolbarSortConfig<S> | false;
   viewMode?: FilterToolbarViewModeConfig<V>;
   actions?: ReactNode;
   isFiltered?: boolean;
@@ -234,6 +289,42 @@ export function FilterToolbarFilterControl({
     return <>{filter.render}</>;
   }
 
+  if (filter.type === 'toggle') {
+    const isSmall = size === 'sm';
+    const displayLabel = isSmall && filter.compactLabel ? filter.compactLabel : filter.label;
+    return (
+      <button
+        type="button"
+        disabled={filter.disabled}
+        aria-pressed={filter.checked}
+        onClick={() => filter.onChange(!filter.checked)}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-md border font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+          isSmall ? 'h-8 px-2.5 text-xs' : 'h-9 px-3 text-sm',
+          filter.checked
+            ? 'border-primary bg-[color-mix(in_srgb,var(--primary)_10%,white)] text-primary'
+            : 'border-border bg-card text-muted-foreground hover:bg-row-hover hover:text-foreground'
+        )}
+      >
+        {filter.icon && (
+          <span className="shrink-0 [&>svg]:h-3.5 [&>svg]:w-3.5">{filter.icon}</span>
+        )}
+        <span>{displayLabel}</span>
+        {filter.count !== undefined && (
+          <span
+            className={cn(
+              'tabular-nums',
+              isSmall ? 'text-[10px]' : 'text-xs',
+              filter.checked ? 'text-primary' : 'text-muted-foreground'
+            )}
+          >
+            ({filter.count})
+          </span>
+        )}
+      </button>
+    );
+  }
+
   if (filter.type === 'searchable') {
     const allLabel = filter.allLabel ?? 'All';
     const options = [
@@ -248,7 +339,12 @@ export function FilterToolbarFilterControl({
         placeholder={filter.placeholder ?? allLabel}
         searchPlaceholder={filter.searchPlaceholder}
         emptyMessage={filter.emptyMessage}
-        className={cn(size === 'sm' ? 'h-8 text-xs' : 'w-full sm:w-44', filter.className)}
+        className={cn(
+          size === 'sm' ? 'h-8 text-xs' : 'w-full sm:w-44',
+          filter.value !== null &&
+            'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,white)] text-primary',
+          filter.className
+        )}
       />
     );
   }
@@ -277,7 +373,11 @@ export function FilterToolbarFilterControl({
           <Button
             variant="quiet"
             size={size === 'sm' ? 'sm' : 'default'}
-            className="gap-2"
+            className={cn(
+              'gap-2',
+              selectedCount > 0 &&
+                'border-primary bg-[color-mix(in_srgb,var(--primary)_10%,white)] text-primary'
+            )}
           >
             {filter.icon ?? <ListFilter className="h-4 w-4 text-muted-foreground" />}
             {summaryLabel}
@@ -328,9 +428,20 @@ export function FilterToolbarFilterControl({
         <Button
           variant="quiet"
           size={size === 'sm' ? 'sm' : 'default'}
-          className="gap-2"
+          className={cn(
+            'gap-2',
+            activeOption &&
+              'border-primary bg-[color-mix(in_srgb,var(--primary)_10%,white)] text-primary'
+          )}
         >
-          {filter.icon ?? <ListFilter className="h-4 w-4 text-muted-foreground" />}
+          {filter.icon ?? (
+            <ListFilter
+              className={cn(
+                'h-4 w-4',
+                activeOption ? 'text-primary' : 'text-muted-foreground'
+              )}
+            />
+          )}
           {activeOption ? activeOption.label : allLabel}
         </Button>
       </DropdownMenuTrigger>
@@ -364,6 +475,116 @@ export function FilterToolbarFilterControl({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+export function FilterToolbarSort<S extends string = string>({
+  value,
+  order,
+  onChange,
+  onToggleOrder,
+  options,
+  size = 'default',
+  className,
+}: FilterToolbarSortConfig<S> & { size?: 'default' | 'sm'; className?: string }) {
+  const isSmall = size === 'sm';
+  const activeOption = options.find((opt) => opt.value === value) ?? options[0];
+  const DirectionIcon = order === 'asc' ? ArrowUpAZ : ArrowDownAZ;
+
+  const handleToggleOrder = () => {
+    if (onToggleOrder) {
+      onToggleOrder();
+    } else {
+      onChange(value, order === 'asc' ? 'desc' : 'asc');
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        'inline-flex items-center rounded-md border border-border bg-card shadow-xs',
+        className
+      )}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Sort by ${activeOption?.label ?? value}`}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-l-md font-medium text-foreground transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              isSmall ? 'h-8 px-2.5 text-xs' : 'h-9 px-3 text-sm'
+            )}
+          >
+            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate">{activeOption?.label ?? 'Sort'}</span>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Sort by
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <DropdownMenuItem
+                key={opt.value}
+                onSelect={() => {
+                  if (isSelected) {
+                    handleToggleOrder();
+                  } else {
+                    onChange(opt.value);
+                  }
+                }}
+                className="justify-between"
+              >
+                <span>{opt.label}</span>
+                {isSelected && <Check className="h-4 w-4 text-primary" />}
+              </DropdownMenuItem>
+            );
+          })}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => onChange(value, 'asc')}
+            className="justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <ArrowUpAZ className="h-3.5 w-3.5 text-muted-foreground" />
+              Ascending
+            </span>
+            {order === 'asc' && <Check className="h-4 w-4 text-primary" />}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => onChange(value, 'desc')}
+            className="justify-between"
+          >
+            <span className="flex items-center gap-2">
+              <ArrowDownAZ className="h-3.5 w-3.5 text-muted-foreground" />
+              Descending
+            </span>
+            {order === 'desc' && <Check className="h-4 w-4 text-primary" />}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <button
+        type="button"
+        onClick={handleToggleOrder}
+        title={
+          order === 'asc'
+            ? 'Ascending (click for descending)'
+            : 'Descending (click for ascending)'
+        }
+        aria-label={order === 'asc' ? 'Sort descending' : 'Sort ascending'}
+        className={cn(
+          'inline-flex items-center justify-center rounded-r-md border-l border-border text-muted-foreground transition-colors hover:bg-row-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+          isSmall ? 'h-8 w-7' : 'h-9 w-8'
+        )}
+      >
+        <DirectionIcon className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 
@@ -402,55 +623,70 @@ export function FilterToolbarViewToggle<V extends string = string>({
 export function FilterToolbar<
   T extends string = string,
   V extends string = string,
+  S extends string = string,
 >({
   variant = 'default',
-  tabs,
-  search,
-  filters,
+  controller,
+  tabs: tabsProp,
+  search: searchProp,
+  filters: filtersProp,
+  sort: sortProp,
   viewMode,
   actions,
-  isFiltered = false,
-  onClear,
+  isFiltered: isFilteredProp,
+  onClear: onClearProp,
   clearLabel,
   className,
-}: FilterToolbarProps<T, V>) {
+}: FilterToolbarProps<T, V, S>) {
+  const resolvedTabs = (tabsProp ?? controller?.tabsConfig) as FilterToolbarTabsConfig<T> | undefined;
+  const resolvedSearch = searchProp ?? controller?.searchConfig;
+  const resolvedFilters = filtersProp ?? controller?.filterControls;
+  const resolvedSort = sortProp === false ? undefined : (sortProp ?? controller?.sortConfig);
+  const resolvedIsFiltered = isFilteredProp ?? controller?.isFiltered ?? false;
+  const resolvedOnClear = onClearProp ?? controller?.clearAll;
+
   if (variant === 'stacked') {
     const hasSecondRow = Boolean(
-      search || (filters && filters.length > 0) || viewMode || actions
+      resolvedSearch ||
+        (resolvedFilters && resolvedFilters.length > 0) ||
+        resolvedSort ||
+        viewMode ||
+        actions
     );
 
     return (
       <div className={className}>
-        {tabs && (
+        {resolvedTabs && (
           <div className="border-b border-border px-4 py-2.5">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {tabs.sectionLabel ?? 'Status'}
+                {resolvedTabs.sectionLabel ?? 'Status'}
               </span>
-              {isFiltered && onClear && (
+              {resolvedIsFiltered && resolvedOnClear && (
                 <button
                   type="button"
-                  onClick={onClear}
+                  onClick={resolvedOnClear}
                   className="text-xs text-primary transition-colors hover:underline"
                 >
                   {clearLabel ?? 'Reset filters'}
                 </button>
               )}
             </div>
-            <FilterToolbarTabs {...tabs} size="sm" />
+            <FilterToolbarTabs {...resolvedTabs} size="sm" />
           </div>
         )}
 
         {hasSecondRow && (
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-            {search && <FilterToolbarSearch {...search} size="sm" />}
-            {filters?.map((filter) => (
+            {resolvedSearch && <FilterToolbarSearch {...resolvedSearch} size="sm" />}
+            {resolvedFilters?.map((filter) => (
               <FilterToolbarFilterControl key={filter.id} filter={filter} size="sm" />
             ))}
-            {!tabs && isFiltered && onClear && (
+            {resolvedSort && <FilterToolbarSort {...resolvedSort} size="sm" />}
+            {!resolvedTabs && resolvedIsFiltered && resolvedOnClear && (
               <button
                 type="button"
-                onClick={onClear}
+                onClick={resolvedOnClear}
                 className="text-xs text-primary transition-colors hover:underline"
               >
                 {clearLabel ?? 'Reset filters'}
@@ -466,16 +702,17 @@ export function FilterToolbar<
 
   return (
     <CardToolbar className={className}>
-      {tabs && <FilterToolbarTabs {...tabs} />}
+      {resolvedTabs && <FilterToolbarTabs {...resolvedTabs} />}
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {search && <FilterToolbarSearch {...search} />}
-        {filters?.map((filter) => (
+        {resolvedSearch && <FilterToolbarSearch {...resolvedSearch} />}
+        {resolvedFilters?.map((filter) => (
           <FilterToolbarFilterControl key={filter.id} filter={filter} />
         ))}
-        {isFiltered && onClear && (
+        {resolvedSort && <FilterToolbarSort {...resolvedSort} />}
+        {resolvedIsFiltered && resolvedOnClear && (
           <Button
             variant="ghost"
-            onClick={onClear}
+            onClick={resolvedOnClear}
             className="gap-1.5 text-muted-foreground hover:bg-row-hover hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
@@ -486,5 +723,129 @@ export function FilterToolbar<
         {actions}
       </div>
     </CardToolbar>
+  );
+}
+
+/**
+ * Structural subset of `ListControllerValue` consumed by `<ListPaginationFooter controller={controller} />`.
+ */
+export interface ListPaginationControllerBinding<T = unknown> {
+  matchedItems: T[];
+  totalPoolCount: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  setPage: (page: number | ((prev: number) => number)) => void;
+  isFiltered: boolean;
+}
+
+export interface ListPaginationFooterProps<T = unknown> {
+  controller: ListPaginationControllerBinding<T>;
+  isLoading?: boolean;
+  singularLabel: string;
+  pluralLabel?: string;
+  loadingText?: string;
+  className?: string;
+}
+
+export function ListPaginationFooter<T = unknown>({
+  controller,
+  isLoading = false,
+  singularLabel,
+  pluralLabel,
+  loadingText,
+  className,
+}: ListPaginationFooterProps<T>) {
+  const {
+    matchedItems,
+    totalPoolCount,
+    currentPage,
+    pageSize,
+    totalPages,
+    setPage,
+    isFiltered,
+  } = controller;
+  const resolvedPlural = pluralLabel ?? `${singularLabel}s`;
+  const count = matchedItems.length;
+  const rangeStart = count === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const rangeEnd = Math.min(currentPage * pageSize, count);
+
+  return (
+    <CardTableFooter className={className}>
+      <p className="text-xs text-muted-foreground" aria-live="polite">
+        {isLoading
+          ? (loadingText ?? `Loading ${resolvedPlural}…`)
+          : isFiltered
+            ? `Showing ${rangeStart}–${rangeEnd} of ${count} filtered ${count === 1 ? singularLabel : resolvedPlural} (${totalPoolCount} total)`
+            : count <= pageSize
+              ? `${totalPoolCount} ${totalPoolCount === 1 ? singularLabel : resolvedPlural}`
+              : `Showing ${rangeStart}–${rangeEnd} of ${totalPoolCount} ${resolvedPlural}`}
+      </p>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-2">
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1 || isLoading}
+            aria-label="Previous page"
+            className="h-8 gap-1 px-2.5 text-xs"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Previous</span>
+          </Button>
+          <span className="text-xs text-muted-foreground">
+            Page <strong className="font-medium text-foreground">{currentPage}</strong> of{' '}
+            <strong className="font-medium text-foreground">{totalPages}</strong>
+          </span>
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages || isLoading}
+            aria-label="Next page"
+            className="h-8 gap-1 px-2.5 text-xs"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
+    </CardTableFooter>
+  );
+}
+
+/**
+ * Structural subset of `ListControllerValue` consumed by `<ListShowMoreButton controller={controller} />`.
+ */
+export interface ListShowMoreControllerBinding {
+  hasMore: boolean;
+  stepSize: number;
+  remainingCount: number;
+  showMore: () => void;
+}
+
+export function ListShowMoreButton({
+  controller,
+  className,
+}: {
+  controller: ListShowMoreControllerBinding;
+  className?: string;
+}) {
+  if (!controller.hasMore) return null;
+
+  return (
+    <div className={cn('border-t border-border p-3 text-center', className)}>
+      <Button
+        type="button"
+        variant="quiet"
+        size="sm"
+        onClick={controller.showMore}
+        className="w-full gap-1.5 text-xs"
+      >
+        <ChevronDown className="h-3.5 w-3.5" />
+        Show {Math.min(controller.stepSize, controller.remainingCount)} more ({controller.remainingCount} remaining)
+      </Button>
+    </div>
   );
 }

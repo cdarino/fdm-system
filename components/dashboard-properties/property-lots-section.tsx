@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardTableFooter } from '@/components/ui/card';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { Card } from '@/components/ui/card';
+import {
+  FilterToolbar,
+  ListPaginationFooter,
+} from '@/components/ui/filter-toolbar';
 import Link from 'next/link';
 import {
   Plus,
@@ -41,10 +44,9 @@ import {
   usePropertyLots,
   lotLabel,
   totalPrice,
-  type StatusFilter,
 } from '@/lib/hooks/use-property-lots';
 import type { PropertyLotWithClient, PropertyStatus, Site } from '@/lib/types/property';
-import { STATUSES, PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
+import { PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 
@@ -54,7 +56,6 @@ const DIALOG_EXIT_MS = 200;
 const GUTTER = 'px-4 sm:px-6';
 const GUTTER_L = 'pl-4 sm:pl-6';
 const GUTTER_R = 'pr-4 sm:pr-6';
-
 
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -91,7 +92,14 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
             <LandPlot className="h-4 w-4 text-muted-foreground" />
           </IconBox>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">{lotLabel(lot)}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-sm font-medium text-foreground">{lotLabel(lot)}</p>
+              {lot.is_archived && (
+                <Badge variant="muted" className="shrink-0 text-[10px]">
+                  Archived
+                </Badge>
+              )}
+            </div>
             <p className="truncate text-xs text-muted-foreground">{lot.location}</p>
             <p className="mt-1 truncate text-xs text-muted-foreground md:hidden">
               {AREA.format(lot.area_size)} sqm
@@ -146,8 +154,14 @@ function LotRow({ lot }: { lot: PropertyLotWithClient }) {
   );
 }
 
-function EmptyState({ isFiltered, onClear, onCreate }: { isFiltered: boolean; onClear: () => void; onCreate: () => void }) {
-  const Icon = isFiltered ? SearchX : LandPlot;
+function EmptyState({
+  controller,
+  onCreate,
+}: {
+  controller: { isFiltered: boolean; clearAll: () => void };
+  onCreate: () => void;
+}) {
+  const Icon = controller.isFiltered ? SearchX : LandPlot;
   return (
     <div className="flex flex-col items-center justify-center gap-4 px-6 py-20 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-row-hover">
@@ -155,16 +169,16 @@ function EmptyState({ isFiltered, onClear, onCreate }: { isFiltered: boolean; on
       </div>
       <div className="space-y-1.5">
         <p className="text-sm font-semibold text-foreground">
-          {isFiltered ? 'No matching lots' : 'No property lots yet'}
+          {controller.isFiltered ? 'No matching lots' : 'No property lots yet'}
         </p>
         <p className="max-w-sm text-sm text-muted-foreground">
-          {isFiltered
+          {controller.isFiltered
             ? 'Try a different search term, or clear the filters to see every lot.'
             : 'Add the first lot to start tracking property availability and inventory.'}
         </p>
       </div>
-      {isFiltered ? (
-        <Button variant="quiet" onClick={onClear} className="gap-1.5">
+      {controller.isFiltered ? (
+        <Button variant="quiet" onClick={controller.clearAll} className="gap-1.5">
           <X className="h-3.5 w-3.5" />
           Clear filters
         </Button>
@@ -180,16 +194,11 @@ function EmptyState({ isFiltered, onClear, onCreate }: { isFiltered: boolean; on
 
 function PropertyLotsContent() {
   const {
-    lots,
-    visibleLots,
+    controller,
     isLoading,
     error,
     activeDialog,
     openDialog,
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
     sites,
   } = usePropertyLots();
 
@@ -203,20 +212,6 @@ function PropertyLotsContent() {
     const timer = setTimeout(() => setRenderedDialog(null), DIALOG_EXIT_MS);
     return () => clearTimeout(timer);
   }, [activeDialog]);
-
-  const isFiltered = search.trim() !== '' || statusFilter !== 'all';
-  const counts = {
-    all: lots.length,
-    Open: lots.filter((l) => l.status === 'Open').length,
-    Reserved: lots.filter((l) => l.status === 'Reserved').length,
-    Sold: lots.filter((l) => l.status === 'Sold').length,
-    Forfeited: lots.filter((l) => l.status === 'Forfeited').length,
-  } satisfies Record<StatusFilter, number>;
-
-  function clearFilters() {
-    setSearch('');
-    setStatusFilter('all');
-  }
 
   return (
     <>
@@ -251,29 +246,7 @@ function PropertyLotsContent() {
           </div>
         </div>
 
-        <FilterToolbar
-          tabs={{
-            value: statusFilter,
-            onChange: setStatusFilter,
-            ariaLabel: 'Filter by status',
-            items: [
-              { value: 'all', label: 'All', count: counts.all },
-              ...STATUSES.map((status) => ({
-                value: status,
-                label: status,
-                count: counts[status],
-              })),
-            ],
-          }}
-          search={{
-            value: search,
-            onChange: setSearch,
-            placeholder: 'Search location, block or lot',
-            ariaLabel: 'Search property lots',
-          }}
-          isFiltered={isFiltered}
-          onClear={clearFilters}
-        />
+        <FilterToolbar controller={controller} />
 
         <div className="min-h-0 flex-1 overflow-y-auto border-t border-border">
           {error ? (
@@ -283,10 +256,9 @@ function PropertyLotsContent() {
             </div>
           ) : isLoading ? (
             <PropertyRowsSkeleton />
-          ) : visibleLots.length === 0 ? (
+          ) : controller.matchedItems.length === 0 ? (
             <EmptyState
-              isFiltered={isFiltered}
-              onClear={clearFilters}
+              controller={controller}
               onCreate={() => openDialog({ type: 'create' })}
             />
           ) : (
@@ -314,22 +286,20 @@ function PropertyLotsContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleLots.map((lot) => <LotRow key={lot.property_id} lot={lot} />)}
+                {controller.truncatedItems.map((lot) => <LotRow key={lot.property_id} lot={lot} />)}
               </TableBody>
             </Table>
           )}
         </div>
 
         {!error && (
-          <CardTableFooter>
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              {isLoading
-                ? 'Loading property lots…'
-                : isFiltered
-                  ? `Showing ${visibleLots.length} of ${lots.length} lot${lots.length === 1 ? '' : 's'}`
-                  : `${lots.length} lot${lots.length === 1 ? '' : 's'}`}
-            </p>
-          </CardTableFooter>
+          <ListPaginationFooter
+            controller={controller}
+            isLoading={isLoading}
+            singularLabel="lot"
+            pluralLabel="lots"
+            loadingText="Loading property lots…"
+          />
         )}
       </Card>
 

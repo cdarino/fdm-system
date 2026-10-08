@@ -1,10 +1,14 @@
 'use client';
 
-import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { Archive } from 'lucide-react';
 import { useSession } from '@/lib/hooks/use-session';
-import { useStatusFilter } from '@/lib/hooks/use-status-filter';
+import {
+  useListController,
+  type ListControllerValue,
+} from '@/lib/hooks/use-list-controller';
 import {
   getPropertyLots,
   createPropertyLot,
@@ -23,8 +27,24 @@ import type {
   UpdatePropertyLotInput,
   Site,
 } from '@/lib/types/property';
+import { STATUSES } from '@/lib/status-colors';
 
 export type StatusFilter = 'all' | PropertyStatus;
+export type PropertySortKey = 'block_lot' | 'contract_price' | 'area_size' | 'created_at';
+
+export const PROPERTY_STATUS_FILTERS: readonly StatusFilter[] = [
+  'all',
+  'Open',
+  'Reserved',
+  'Sold',
+  'Forfeited',
+];
+
+export type PropertyFilters = {
+  status: StatusFilter;
+  siteId: string | null;
+  showArchived: boolean;
+};
 
 export type PropertyDialog =
   | { type: 'create' }
@@ -38,14 +58,10 @@ export type PropertyDialog =
  */
 interface PropertyLotsContextValue {
   lots: PropertyLotWithClient[];
-  visibleLots: PropertyLotWithClient[];
+  controller: ListControllerValue<PropertyLotWithClient, PropertyFilters, PropertySortKey>;
   isLoading: boolean;
   error: string | null;
   activeDialog: PropertyDialog;
-  search: string;
-  setSearch: (query: string) => void;
-  statusFilter: StatusFilter;
-  setStatusFilter: (status: StatusFilter) => void;
   openDialog: (dialog: PropertyDialog) => void;
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<ActionResult<PropertyLot>>;
@@ -76,27 +92,23 @@ export function totalPrice(lot: PropertyLotWithClient): number {
   return lot.area_size * lot.price_per_sqm;
 }
 
-function matchesSearch(lot: PropertyLotWithClient, query: string): boolean {
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return true;
-
-  const fields = [
-    lot.location,
-    lotLabel(lot),
-    String(lot.block_number),
-    String(lot.lot_number),
-    lot.client?.full_name ?? '',
-  ].map((field) => field.toLowerCase());
-
-  return words.every((word) => fields.some((field) => field.includes(word)));
+function matchesSite(lot: PropertyLotWithClient, siteId: string | null, sites: Site[]): boolean {
+  if (!siteId) return true;
+  if (lot.site_id === siteId) return true;
+  const targetSite = sites.find((s) => s.site_id === siteId);
+  return Boolean(targetSite && lot.location === targetSite.name);
 }
 
 export function PropertyLotsProvider({
   children,
   sites,
+  truncationMode = 'paged',
+  onSiteFilterChange,
 }: {
   children: ReactNode;
   sites: Site[];
+  truncationMode?: 'paged' | 'cap';
+  onSiteFilterChange?: (siteId: string | null) => void;
 }) {
   const { isSystemAdmin } = useSession();
   const router = useRouter();
@@ -104,16 +116,108 @@ export function PropertyLotsProvider({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeDialog, setActiveDialog] = useState<PropertyDialog>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useStatusFilter<StatusFilter>(['all', 'Open', 'Reserved', 'Sold', 'Forfeited'], 'all');
 
-  const visibleLots = useMemo(() => {
-    return lots.filter((lot) => {
-      if (!matchesSearch(lot, search)) return false;
-      if (statusFilter !== 'all' && lot.status !== statusFilter) return false;
-      return true;
-    });
-  }, [lots, search, statusFilter]);
+  const controller = useListController<PropertyLotWithClient, PropertyFilters, PropertySortKey>({
+    items: lots,
+    search: {
+      fields: (lot) => [
+        lot.location,
+        lotLabel(lot),
+        lot.block_number,
+        lot.lot_number,
+        lot.client?.full_name,
+      ],
+      placeholder: 'Search location, block or lot',
+      ariaLabel: 'Search property lots',
+    },
+    filters: {
+      status: {
+        defaultValue: 'all',
+        urlParam: 'status',
+        parseUrlParam: (raw) => PROPERTY_STATUS_FILTERS.find((s) => s === raw),
+        predicate: (lot, statusFilter) =>
+          statusFilter === 'all' || lot.status === statusFilter,
+        ui: {
+          variant: 'tabs',
+          ariaLabel: 'Filter by status',
+          sectionLabel: 'Status',
+          items: [
+            { value: 'all', label: 'All' },
+            ...STATUSES.map((status) => ({ value: status, label: status })),
+          ],
+        },
+      },
+      siteId: {
+        defaultValue: null,
+        urlParam: 'site',
+        parseUrlParam: (raw) => raw || null,
+        onChange: onSiteFilterChange,
+        predicate: (lot, siteId) => matchesSite(lot, siteId, sites),
+        ui: {
+          variant: 'single-select',
+          id: 'site',
+          label: 'Site',
+          allLabel: 'All sites',
+          hidden: sites.length === 0,
+          options: sites
+            .filter((s) => !s.is_archived)
+            .map((s) => ({
+              value: s.site_id,
+              label: s.name,
+            })),
+        },
+      },
+      showArchived: {
+        defaultValue: false,
+        urlParam: 'archived',
+        predicate: (lot, showArchived) => (showArchived ? true : !lot.is_archived),
+        ui: {
+          variant: 'toggle',
+          id: 'show-archived',
+          label: 'Show archived',
+          compactLabel: 'Archived',
+          icon: createElement(Archive, { className: 'h-3.5 w-3.5' }),
+          countPredicate: (lot) => Boolean(lot.is_archived),
+          hidden: true,
+        },
+      },
+    },
+    sort: {
+      defaultKey: 'created_at',
+      defaultOrder: 'desc',
+      options: {
+        block_lot: {
+          label: 'Block & Lot',
+          defaultOrder: 'asc',
+          compare: (a, b) =>
+            a.block_number - b.block_number || a.lot_number - b.lot_number,
+        },
+        contract_price: {
+          label: 'Contract Price',
+          defaultOrder: 'desc',
+          compare: (a, b) => totalPrice(a) - totalPrice(b),
+        },
+        area_size: {
+          label: 'Area Size',
+          defaultOrder: 'desc',
+          compare: (a, b) => a.area_size - b.area_size,
+        },
+        created_at: {
+          label: 'Date Added',
+          defaultOrder: 'desc',
+          compare: (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        },
+      },
+    },
+    truncation: {
+      mode: truncationMode,
+      pageSize: 20,
+      stepSize: 20,
+    },
+    poolPredicate: (lot, currentFilters) =>
+      currentFilters.showArchived ? true : !lot.is_archived,
+  });
 
   useEffect(() => {
     getPropertyLots({ limit: 200, sortBy: 'created_at', sortOrder: 'desc' })
@@ -136,7 +240,6 @@ export function PropertyLotsProvider({
     },
     [router],
   );
-
 
   const updateLot = useCallback(
     async (propertyId: string, input: UpdatePropertyLotInput): Promise<ActionResult<PropertyLot>> => {
@@ -230,14 +333,10 @@ export function PropertyLotsProvider({
 
   const value: PropertyLotsContextValue = {
     lots,
-    visibleLots,
+    controller,
     isLoading,
     error,
     activeDialog,
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
     openDialog,
     closeDialog,
     createLot,

@@ -3,7 +3,10 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import {
+  FilterToolbar,
+  ListShowMoreButton,
+} from '@/components/ui/filter-toolbar';
 import {
   Table,
   TableBody,
@@ -31,10 +34,9 @@ import {
   usePropertyLots,
   lotLabel,
   totalPrice,
-  type StatusFilter,
 } from '@/lib/hooks/use-property-lots';
 import type { PropertyLotWithClient, PropertyStatus, Site } from '@/lib/types/property';
-import { STATUSES, PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
+import { PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 import { cn } from '@/lib/utils';
@@ -178,15 +180,13 @@ function LotRowItem({
 }
 
 function EmptyState({
-  isFiltered,
-  onClear,
+  controller,
   onCreate,
 }: {
-  isFiltered: boolean;
-  onClear: () => void;
+  controller: { isFiltered: boolean; clearAll: () => void };
   onCreate: () => void;
 }) {
-  const Icon = isFiltered ? SearchX : LandPlot;
+  const Icon = controller.isFiltered ? SearchX : LandPlot;
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-4 py-12 text-center">
       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-row-hover">
@@ -194,19 +194,19 @@ function EmptyState({
       </div>
       <div className="space-y-1">
         <p className="text-sm font-semibold text-foreground">
-          {isFiltered ? 'No matching lots' : 'No property lots yet'}
+          {controller.isFiltered ? 'No matching lots' : 'No property lots yet'}
         </p>
         <p className="max-w-xs text-xs text-muted-foreground">
-          {isFiltered
+          {controller.isFiltered
             ? 'Try a different search term or clear the filter.'
             : 'Add the first lot to start tracking lot availability.'}
         </p>
       </div>
-      {isFiltered ? (
+      {controller.isFiltered ? (
         <Button
           variant="outline"
           size="sm"
-          onClick={onClear}
+          onClick={controller.clearAll}
           className="gap-1.5 border-border bg-card text-xs text-foreground hover:bg-row-hover hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
@@ -232,6 +232,7 @@ export interface PropertyLotsSidebarProps {
   selectedLot?: PropertyLotWithClient | null;
   onSelectLot?: (lot: PropertyLotWithClient | null) => void;
   onHoverLot?: (lotKey: string | null) => void;
+  onSiteFilterChange?: (siteId: string | null) => void;
   createInitialValues?: { site_id?: string; block_number?: number; lot_number?: number } | null;
   onClearCreateInitialValues?: () => void;
 }
@@ -247,16 +248,12 @@ function PropertyLotsSidebarContent({
 }: PropertyLotsSidebarProps) {
   const {
     lots,
-    visibleLots,
+    controller,
     isLoading,
     error,
     activeDialog,
     openDialog,
     closeDialog,
-    search,
-    setSearch,
-    statusFilter,
-    setStatusFilter,
   } = usePropertyLots();
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -310,20 +307,6 @@ function PropertyLotsSidebarContent({
     );
   }
 
-  const isFiltered = search.trim() !== '' || statusFilter !== 'all';
-  const counts = {
-    all: lots.length,
-    Open: lots.filter((l) => l.status === 'Open').length,
-    Reserved: lots.filter((l) => l.status === 'Reserved').length,
-    Sold: lots.filter((l) => l.status === 'Sold').length,
-    Forfeited: lots.filter((l) => l.status === 'Forfeited').length,
-  } satisfies Record<StatusFilter, number>;
-
-  function clearFilters() {
-    setSearch('');
-    setStatusFilter('all');
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card">
       {/* Floating Card Header */}
@@ -335,7 +318,7 @@ function PropertyLotsSidebarContent({
           <div>
             <h2 className="text-sm font-semibold leading-none text-foreground">Property Lots</h2>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {lots.length} lot{lots.length === 1 ? '' : 's'} total
+              {controller.totalPoolCount} lot{controller.totalPoolCount === 1 ? '' : 's'} total
             </p>
           </div>
         </div>
@@ -380,28 +363,8 @@ function PropertyLotsSidebarContent({
 
       <FilterToolbar
         variant="stacked"
-        tabs={{
-          value: statusFilter,
-          onChange: setStatusFilter,
-          ariaLabel: 'Filter by status',
-          sectionLabel: 'Status',
-          items: [
-            { value: 'all', label: 'All', count: counts.all },
-            ...STATUSES.map((status) => ({
-              value: status,
-              label: status,
-              count: counts[status],
-            })),
-          ],
-        }}
-        search={{
-          value: search,
-          onChange: setSearch,
-          placeholder: 'Search location, block or lot…',
-          ariaLabel: 'Search property lots',
-        }}
-        isFiltered={isFiltered}
-        onClear={clearFilters}
+        controller={controller}
+        sort={false}
         viewMode={{
           value: viewMode,
           onChange: setViewMode,
@@ -421,74 +384,79 @@ function PropertyLotsSidebarContent({
           </div>
         ) : isLoading ? (
           <PropertyRowsSkeleton rows={4} />
-        ) : visibleLots.length === 0 ? (
+        ) : controller.matchedItems.length === 0 ? (
           <EmptyState
-            isFiltered={isFiltered}
-            onClear={clearFilters}
+            controller={controller}
             onCreate={() => openDialog({ type: 'create' })}
           />
-        ) : viewMode === 'grid' ? (
-          <div className="divide-y divide-border">
-            {visibleLots.map((lot) => (
-              <LotRowItem
-                key={lot.property_id}
-                lot={lot}
-                onSelect={() => onSelectLot?.(lot)}
-                onHover={(hovering) =>
-                  onHoverLot?.(
-                    hovering
-                      ? (lot.site_id
-                          ? `${lot.site_id}:${lot.block_number}-${lot.lot_number}`
-                          : `${lot.block_number}-${lot.lot_number}`)
-                      : null
-                  )
-                }
-              />
-            ))}
-          </div>
         ) : (
-          <div className="p-3">
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-card">
-                    <TableHead className="h-9 px-3 text-[11px] uppercase">Lot</TableHead>
-                    <TableHead className="h-9 px-2 text-[11px] uppercase">Area</TableHead>
-                    <TableHead className="h-9 px-2 text-[11px] uppercase">Price</TableHead>
-                    <TableHead className="h-9 px-3 text-[11px] uppercase">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleLots.map((lot) => (
-                    <TableRow
-                      key={lot.property_id}
-                      onClick={() => onSelectLot?.(lot)}
-                      onMouseEnter={() =>
-                        onHoverLot?.(
-                          lot.site_id
-                            ? `${lot.site_id}:${lot.block_number}-${lot.lot_number}`
-                            : `${lot.block_number}-${lot.lot_number}`
-                        )
-                      }
-                      onMouseLeave={() => onHoverLot?.(null)}
-                      className="text-xs cursor-pointer hover:bg-row-hover"
-                    >
-                      <TableCell className="py-2.5 px-3 font-medium">{lotLabel(lot)}</TableCell>
-                      <TableCell className="py-2.5 px-2 whitespace-nowrap text-muted-foreground">
-                        {AREA.format(lot.area_size)} sqm
-                      </TableCell>
-                      <TableCell className="py-2.5 px-2 whitespace-nowrap">
-                        {PESO.format(totalPrice(lot))}
-                      </TableCell>
-                      <TableCell className="py-2.5 px-3">
-                        <StatusPill status={lot.status} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+          <>
+            {viewMode === 'grid' ? (
+              <div className="divide-y divide-border">
+                {controller.truncatedItems.map((lot) => (
+                  <LotRowItem
+                    key={lot.property_id}
+                    lot={lot}
+                    onSelect={() => onSelectLot?.(lot)}
+                    onHover={(hovering) =>
+                      onHoverLot?.(
+                        hovering
+                          ? (lot.site_id
+                              ? `${lot.site_id}:${lot.block_number}-${lot.lot_number}`
+                              : `${lot.block_number}-${lot.lot_number}`)
+                          : null
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="p-3">
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-card">
+                        <TableHead className="h-9 px-3 text-[11px] uppercase">Lot</TableHead>
+                        <TableHead className="h-9 px-2 text-[11px] uppercase">Area</TableHead>
+                        <TableHead className="h-9 px-2 text-[11px] uppercase">Price</TableHead>
+                        <TableHead className="h-9 px-3 text-[11px] uppercase">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {controller.truncatedItems.map((lot) => (
+                        <TableRow
+                          key={lot.property_id}
+                          onClick={() => onSelectLot?.(lot)}
+                          onMouseEnter={() =>
+                            onHoverLot?.(
+                              lot.site_id
+                                ? `${lot.site_id}:${lot.block_number}-${lot.lot_number}`
+                                : `${lot.block_number}-${lot.lot_number}`
+                            )
+                          }
+                          onMouseLeave={() => onHoverLot?.(null)}
+                          className="text-xs cursor-pointer hover:bg-row-hover"
+                        >
+                          <TableCell className="py-2.5 px-3 font-medium">{lotLabel(lot)}</TableCell>
+                          <TableCell className="py-2.5 px-2 whitespace-nowrap text-muted-foreground">
+                            {AREA.format(lot.area_size)} sqm
+                          </TableCell>
+                          <TableCell className="py-2.5 px-2 whitespace-nowrap">
+                            {PESO.format(totalPrice(lot))}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-3">
+                            <StatusPill status={lot.status} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            <ListShowMoreButton controller={controller} />
+          </>
         )}
       </div>
 
@@ -498,9 +466,9 @@ function PropertyLotsSidebarContent({
           <span>
             {isLoading
               ? 'Loading…'
-              : isFiltered
-                ? `Showing ${visibleLots.length} of ${lots.length}`
-                : `${lots.length} lots total`}
+              : controller.isFiltered || controller.truncatedItems.length < controller.matchedItems.length
+                ? `Showing ${controller.truncatedItems.length} of ${controller.matchedItems.length} (${controller.totalPoolCount} total)`
+                : `${controller.totalPoolCount} lot${controller.totalPoolCount === 1 ? '' : 's'} total`}
           </span>
           <Button
             asChild
@@ -530,7 +498,11 @@ function PropertyLotsSidebarContent({
 
 export function PropertyLotsSidebar(props: PropertyLotsSidebarProps) {
   return (
-    <PropertyLotsProvider sites={props.sites}>
+    <PropertyLotsProvider
+      sites={props.sites}
+      truncationMode="cap"
+      onSiteFilterChange={props.onSiteFilterChange}
+    >
       <PropertyLotsSidebarContent {...props} />
     </PropertyLotsProvider>
   );

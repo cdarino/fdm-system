@@ -364,6 +364,7 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
           selectedLot={selectedPropertyLot}
           onSelectLot={handleSelectLot}
           onHoverLot={setHoveredLotKey}
+          onSiteFilterChange={setActiveSiteId}
           createInitialValues={createInitialValues}
           onClearCreateInitialValues={() => setCreateInitialValues(null)}
         />
