@@ -8,17 +8,12 @@ import { ArrowLeft, X, LandPlot, FileText, PlusCircle } from 'lucide-react';
 import { ClientDetailProperties } from './client-detail-properties';
 import { ClientDetailDocuments } from './client-detail-documents';
 import { PropertyAssignmentWizard } from './property-assignment-wizard';
-import type { ClientWithDetails } from '@/lib/types/client';
 
 interface ClientDetailTabsProps {
-  client: ClientWithDetails;
-  onClientChange: (client: ClientWithDetails | ((prev: ClientWithDetails) => ClientWithDetails)) => void;
   assignPropertyId?: string;
 }
 
 export function ClientDetailTabs({
-  client,
-  onClientChange,
   assignPropertyId,
 }: ClientDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<string>(
@@ -82,15 +77,11 @@ export function ClientDetailTabs({
 
         <CardContent className="min-h-0 flex-1 overflow-y-auto p-6">
           <TabsContent value="properties" className="mt-0">
-            <ClientDetailProperties
-              client={client}
-              onClientChange={onClientChange}
-              onOpenAssignProperty={handleOpenAssign}
-            />
+            <ClientDetailProperties onOpenAssignProperty={handleOpenAssign} />
           </TabsContent>
 
           <TabsContent value="documents" className="mt-0">
-            <ClientDetailDocuments client={client} onClientChange={onClientChange} />
+            <ClientDetailDocuments />
           </TabsContent>
 
           {isAssignTabRevealed && (
@@ -107,7 +98,6 @@ export function ClientDetailTabs({
                 </Button>
               </div>
               <PropertyAssignmentWizard
-                client={client}
                 preSelectedPropertyId={assignPropertyId}
                 onSuccess={() => {
                   handleCloseAssign();

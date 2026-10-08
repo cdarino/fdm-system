@@ -44,18 +44,10 @@ import {
   MapPin,
   FileText,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { formatActivityTime } from '@/lib/format-activity-time';
-import {
-  updateClient,
-  addContactInfo,
-  deleteContactInfo,
-  updateContactInfo,
-  createClientLog,
-} from '@/lib/actions/clients';
+import { useClientDetail } from '@/lib/hooks/use-client-detail';
 import { ClientFloatingEditor } from './client-floating-editor';
-import type { ClientWithDetails } from '@/lib/types/client';
 
 const ACTIVITY_TYPES = ['Call', 'Meeting', 'Email', 'Note', 'Follow-up'];
 
@@ -73,13 +65,17 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-interface ClientDetailSidebarProps {
-  client: ClientWithDetails;
-  onClientChange: (client: ClientWithDetails | ((prev: ClientWithDetails) => ClientWithDetails)) => void;
-}
-
-export function ClientDetailSidebar({ client, onClientChange }: ClientDetailSidebarProps) {
-  const router = useRouter();
+export function ClientDetailSidebar() {
+  const {
+    client,
+    updateAddress,
+    updateTin,
+    addContact,
+    updateContact,
+    deleteContact,
+    setPrimaryContact,
+    addActivity,
+  } = useClientDetail();
 
   // Activity state
   const [isAddingActivity, setIsAddingActivity] = useState(false);
@@ -89,85 +85,51 @@ export function ClientDetailSidebar({ client, onClientChange }: ClientDetailSide
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function handleUpdateAddress(address: string) {
-    const trimmed = address.trim() || null;
-    const result = await updateClient(client.client_id, { address: trimmed });
-    if (!result.success) {
-      toast.error(result.error);
-      throw new Error(result.error);
+    try {
+      await updateAddress(address);
+      toast.success('Address updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update address');
+      throw err;
     }
-    onClientChange((prev) => ({ ...prev, address: result.data.address }));
-    toast.success('Address updated');
-    router.refresh();
   }
 
-  async function handleUpdateTin(tin_number: string) {
-    const trimmed = tin_number.trim() || null;
-    const result = await updateClient(client.client_id, { tin_number: trimmed });
-    if (!result.success) {
-      toast.error(result.error);
-      throw new Error(result.error);
+  async function handleUpdateTin(tinNumber: string) {
+    try {
+      await updateTin(tinNumber);
+      toast.success('TIN number updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update TIN number');
+      throw err;
     }
-    onClientChange((prev) => ({ ...prev, tin_number: result.data.tin_number }));
-    toast.success('TIN number updated');
-    router.refresh();
   }
 
   async function handleAddContact(type: string, value: string) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-
-    const result = await addContactInfo(client.client_id, {
-      type,
-      value: trimmed,
-      is_primary: client.contact_info.length === 0,
-    });
-
-    if (!result.success) {
-      toast.error(result.error);
-      throw new Error(result.error);
+    if (!value.trim()) return;
+    try {
+      await addContact(type, value);
+      toast.success('Contact added');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add contact');
+      throw err;
     }
-
-    onClientChange((prev) => ({
-      ...prev,
-      contact_info: [result.data, ...prev.contact_info],
-    }));
-    toast.success('Contact added');
-    router.refresh();
   }
 
   async function handleUpdateContact(contactId: string, type: string, value: string) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
-
-    const result = await updateContactInfo(contactId, { type, value: trimmed });
-    if (!result.success) {
-      toast.error(result.error);
-      throw new Error(result.error);
+    if (!value.trim()) return;
+    try {
+      await updateContact(contactId, type, value);
+      toast.success('Contact updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update contact');
+      throw err;
     }
-
-    onClientChange((prev) => ({
-      ...prev,
-      contact_info: prev.contact_info.map((c) =>
-        c.contact_id === contactId ? { ...c, type: result.data.type, value: result.data.value } : c
-      ),
-    }));
-    toast.success('Contact updated');
-    router.refresh();
   }
 
   async function handleDeleteContact(contactId: string) {
     try {
-      const result = await deleteContactInfo(contactId);
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onClientChange((prev) => ({
-        ...prev,
-        contact_info: prev.contact_info.filter((c) => c.contact_id !== contactId),
-      }));
+      await deleteContact(contactId);
       toast.success('Contact removed');
-      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete contact');
     }
@@ -175,20 +137,8 @@ export function ClientDetailSidebar({ client, onClientChange }: ClientDetailSide
 
   async function handleSetPrimaryContact(contactId: string) {
     try {
-      const result = await updateContactInfo(contactId, { is_primary: true });
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onClientChange((prev) => ({
-        ...prev,
-        contact_info: prev.contact_info.map((c) => ({
-          ...c,
-          is_primary: c.contact_id === contactId,
-        })),
-      }));
+      await setPrimaryContact(contactId);
       toast.success('Primary contact updated');
-      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to set primary contact');
     }
@@ -200,19 +150,13 @@ export function ClientDetailSidebar({ client, onClientChange }: ClientDetailSide
 
     setIsSubmittingActivity(true);
     try {
-      const created = await createClientLog(client.client_id, {
+      await addActivity({
         event_type: activityType,
         description: activityDescription.trim(),
       });
-
-      onClientChange((prev) => ({
-        ...prev,
-        client_log: [created, ...prev.client_log],
-      }));
       setActivityDescription('');
       setIsAddingActivity(false);
       toast.success('Activity logged');
-      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to record activity');
     } finally {
@@ -235,7 +179,7 @@ export function ClientDetailSidebar({ client, onClientChange }: ClientDetailSide
           variant="ghost"
           size="sm"
           asChild
-          className="-ml-2 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <Link href="/dashboard/clients">
             <ArrowLeft className="h-3.5 w-3.5" />
