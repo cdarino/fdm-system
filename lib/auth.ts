@@ -16,9 +16,18 @@ export interface ResetPasswordParams {
   redirectTo?: string;
 }
 
+export interface VerifyResetCodeParams {
+  email: string;
+  token: string;
+}
+
 export interface UpdatePasswordParams {
   password: string;
+  confirmPassword?: string;
 }
+
+/** Minimum accepted password length. Mirrors Supabase's minimum_password_length. */
+export const MIN_PASSWORD_LENGTH = 6;
 
 /**
  * Log in an existing user using email & password.
@@ -67,7 +76,7 @@ export async function logout() {
 }
 
 /**
- * Send password reset email.
+ * Send password reset email containing a 6-digit recovery code and fallback link.
  * Note that this differs from updatePassword(), which directly changes the password of the currently logged in user.
  */
 export async function resetPassword({ email, redirectTo }: ResetPasswordParams) {
@@ -86,19 +95,49 @@ export async function resetPassword({ email, redirectTo }: ResetPasswordParams) 
 }
 
 /**
+ * Verify a 6-digit password recovery OTP code sent to the user's email.
+ * Establishes a recovery session so `updatePassword()` can be called next.
+ */
+export async function verifyResetCode({ email, token }: VerifyResetCodeParams) {
+  const cleanedToken = token.trim();
+  if (!cleanedToken) {
+    throw new Error("Please enter the verification code.");
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token: cleanedToken,
+    type: "recovery",
+  });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Update user password (when logged in or from reset flow).
  * Note that this differs from resetPassword(), which sends an email to the user to reset their password.
  */
-export async function updatePassword({ password }: UpdatePasswordParams) {
+export async function updatePassword({
+  password,
+  confirmPassword,
+}: UpdatePasswordParams) {
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    throw new Error("Passwords do not match.");
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`
+    );
+  }
+
   const supabase = createClient();
   const { data, error } = await supabase.auth.updateUser({ password });
 
   if (error) throw error;
   return data;
 }
-
-/** Minimum accepted password length. Mirrors Supabase's minimum_password_length. */
-export const MIN_PASSWORD_LENGTH = 6;
 
 export interface ChangePasswordParams {
   currentPassword: string;
