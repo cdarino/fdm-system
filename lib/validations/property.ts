@@ -8,35 +8,55 @@ export const polygonBoundarySchema = z
   .array(boundaryPointSchema)
   .min(3, "Boundary must have at least 3 points");
 
+// Upper bounds keep values inside the database columns (area NUMERIC(10,2),
+// price NUMERIC(12,2), contract price NUMERIC(15,2)), so out-of-range input
+// gets a form message instead of a database error.
+export const LOT_LIMITS = {
+  blockOrLotNumber: 9999,
+  areaSqm: 1_000_000,
+  pricePerSqm: 1_000_000,
+  contractPrice: 1_000_000_000_000,
+} as const;
+
+const LIMIT_FORMAT = new Intl.NumberFormat("en-PH");
+
+function hasAtMostTwoDecimals(value: number) {
+  return Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
+}
+
+function blockOrLotNumberSchema(label: string) {
+  return z
+    .number({ error: `${label} is required` })
+    .int("Must be a whole number")
+    .positive("Must be greater than 0")
+    .max(LOT_LIMITS.blockOrLotNumber, `Must be ${LIMIT_FORMAT.format(LOT_LIMITS.blockOrLotNumber)} or less`);
+}
+
+function amountSchema(label: string, max: number) {
+  return z
+    .number({ error: `${label} is required` })
+    .positive("Must be greater than 0")
+    .max(max, `Must be ${LIMIT_FORMAT.format(max)} or less`)
+    .refine(hasAtMostTwoDecimals, "Use at most 2 decimal places");
+}
+
+const areaSchema = amountSchema("Area", LOT_LIMITS.areaSqm);
+const pricePerSqmSchema = amountSchema("Price per sqm", LOT_LIMITS.pricePerSqm);
+const contractPriceSchema = amountSchema("Contract price", LOT_LIMITS.contractPrice);
+
 export const createPropertyLotSchema = z.object({
   site_id: z.string().min(1, "Please select a site").optional(),
   location: z.string().trim().min(1, "Location is required").optional(),
-  block_number: z
-    .number({ error: "Block number is required" })
-    .int("Must be a whole number")
-    .positive("Must be greater than 0"),
-  lot_number: z
-    .number({ error: "Lot number is required" })
-    .int("Must be a whole number")
-    .positive("Must be greater than 0"),
-  area_size: z
-    .number({ error: "Area is required" })
-    .positive("Must be greater than 0"),
-  price_per_sqm: z
-    .number({ error: "Price is required" })
-    .positive("Must be greater than 0"),
+  block_number: blockOrLotNumberSchema("Block number"),
+  lot_number: blockOrLotNumberSchema("Lot number"),
+  area_size: areaSchema,
+  price_per_sqm: pricePerSqmSchema,
   status: propertyStatusEnum.optional(),
 });
 
 export const updateLotSchema = z.object({
-  price_per_sqm: z
-    .number({ error: "Price is required" })
-    .positive("Must be greater than 0")
-    .optional(),
-  area_size: z
-    .number({ error: "Area is required" })
-    .positive("Must be greater than 0")
-    .optional(),
+  price_per_sqm: pricePerSqmSchema.optional(),
+  area_size: areaSchema.optional(),
 });
 
 export const getPropertyLotsParamsSchema = z
@@ -69,10 +89,10 @@ export const updatePropertyLotActionSchema = z
   .object({
     propertyId: uuidSchema,
     location: z.string().trim().min(1).optional(),
-    block_number: z.number().int().positive().optional(),
-    lot_number: z.number().int().positive().optional(),
-    area_size: z.number().positive().optional(),
-    price_per_sqm: z.number().positive().optional(),
+    block_number: blockOrLotNumberSchema("Block number").optional(),
+    lot_number: blockOrLotNumberSchema("Lot number").optional(),
+    area_size: areaSchema.optional(),
+    price_per_sqm: pricePerSqmSchema.optional(),
   })
   .transform(stripUndefined);
 
@@ -80,7 +100,7 @@ export const assignPropertyClientActionSchema = z.object({
   propertyId: uuidSchema,
   clientId: uuidSchema.nullable(),
   status: propertyStatusEnum.optional(),
-  total_contract_price: z.number().positive().optional(),
+  total_contract_price: contractPriceSchema.optional(),
 });
 
 export const assignPartyInputSchema = z.object({
@@ -94,7 +114,7 @@ export const assignPropertyPartiesActionSchema = z.object({
   propertyId: uuidSchema,
   parties: z.array(assignPartyInputSchema).min(1, "At least one party must be specified"),
   status: propertyStatusEnum.optional(),
-  total_contract_price: z.number().positive().optional(),
+  total_contract_price: contractPriceSchema.optional(),
 });
 
 export const addAccountPartyActionSchema = z.object({
@@ -118,12 +138,12 @@ export const createSiteSchema = z.object({
 
 export const createSubdivisionLotSchema = z.object({
   site_id: uuidSchema,
-  block_number: z.number().int().positive("Block number must be greater than 0"),
-  lot_number: z.number().int().positive("Lot number must be greater than 0"),
+  block_number: blockOrLotNumberSchema("Block number"),
+  lot_number: blockOrLotNumberSchema("Lot number"),
   boundary: polygonBoundarySchema,
   create_property_lot: z.boolean().optional(),
-  area_size: z.number().positive().optional(),
-  price_per_sqm: z.number().positive().optional(),
+  area_size: areaSchema.optional(),
+  price_per_sqm: pricePerSqmSchema.optional(),
 });
 
 export const deleteSubdivisionLotSchema = z.object({
@@ -135,10 +155,10 @@ export const deleteSubdivisionLotSchema = z.object({
 
 export const openSubdivisionForSaleSchema = z.object({
   site_id: uuidSchema,
-  block_number: z.number().int().positive(),
-  lot_number: z.number().int().positive(),
-  area_size: z.number().positive("Area is required"),
-  price_per_sqm: z.number().positive("Price per sqm is required"),
+  block_number: blockOrLotNumberSchema("Block number"),
+  lot_number: blockOrLotNumberSchema("Lot number"),
+  area_size: areaSchema,
+  price_per_sqm: pricePerSqmSchema,
 });
 
 export const assignPropertyFullyPaidActionSchema = z.object({
@@ -149,14 +169,14 @@ export const assignPropertyFullyPaidActionSchema = z.object({
 
 export const createAndAssignPropertyFromSubdivisionSchema = z.object({
   site_id: uuidSchema,
-  block_number: z.number().int().positive(),
-  lot_number: z.number().int().positive(),
-  area_size: z.number().positive("Area is required"),
-  price_per_sqm: z.number().positive("Price per sqm is required"),
+  block_number: blockOrLotNumberSchema("Block number"),
+  lot_number: blockOrLotNumberSchema("Lot number"),
+  area_size: areaSchema,
+  price_per_sqm: pricePerSqmSchema,
   client_id: uuidSchema,
   ownership_type: z.enum(["installment", "fully_paid"]),
-  total_contract_price: z.number().positive().optional(),
-  remaining_balance: z.number().min(0).optional(),
+  total_contract_price: contractPriceSchema.optional(),
+  remaining_balance: z.number().min(0).max(LOT_LIMITS.contractPrice).optional(),
   title_number: z.string().trim().max(100).optional().nullable(),
 });
 

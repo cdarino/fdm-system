@@ -1,5 +1,6 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createScope } from "@/lib/actions/action-handler";
 import type { ActionResult } from "@/lib/actions/action-result";
 import { uuidSchema } from "@/lib/validations/client";
@@ -34,6 +35,37 @@ const property = createScope(["properties.read"]);
 const propertyCreate = property.extend(["properties.create"]);
 const propertyWrite = property.extend(["properties.update"]);
 const propertyDelete = property.extend(["properties.delete"]);
+
+/**
+ * Lots can only go to active clients. Inactive and archived clients keep their
+ * records but must be reactivated before they can take a new lot. Every
+ * assignment path calls this, so the rule holds even if a form lets one through.
+ */
+async function assertClientsActive(supabase: SupabaseClient, clientIds: string[]) {
+  const ids = Array.from(new Set(clientIds));
+  if (ids.length === 0) return;
+
+  const { data, error } = await supabase
+    .from("client")
+    .select("client_id, full_name, status")
+    .in("client_id", ids)
+    .returns<{ client_id: string; full_name: string; status: string }[]>();
+
+  if (error) {
+    throw new Error(`Failed to check client status: ${error.message}`);
+  }
+  if (!data || data.length !== ids.length) {
+    throw new Error("Client not found.");
+  }
+
+  const inactive = data.filter((c) => c.status !== "Active");
+  if (inactive.length > 0) {
+    const names = inactive.map((c) => c.full_name).join(", ");
+    throw new Error(
+      `${names} ${inactive.length === 1 ? "is" : "are"} not active. Only active clients can be assigned a lot.`
+    );
+  }
+}
 
 export async function getPropertyLots(
   params?: GetPropertyLotsParams
@@ -335,6 +367,8 @@ export async function assignPropertyClient(
         };
       }
 
+      await assertClientsActive(supabase, [targetClientId]);
+
       const { data: lot, error: lotErr } = await supabase
         .from("property_lot")
         .select("area_size, price_per_sqm")
@@ -425,6 +459,8 @@ export async function assignPropertyParties(
     handler: async (validatedData, { supabase }) => {
       const { propertyId: targetLotId, parties: validParties } = validatedData;
 
+      await assertClientsActive(supabase, validParties.map((p) => p.client_id));
+
       const { data: lot, error: lotErr } = await supabase
         .from("property_lot")
         .select("area_size, price_per_sqm")
@@ -501,6 +537,8 @@ export async function addAccountParty(
     schema: addAccountPartyActionSchema,
     input: { accountId, ...input },
     handler: async (validatedData, { supabase }) => {
+      await assertClientsActive(supabase, [validatedData.client_id]);
+
       if (validatedData.is_primary) {
         await supabase
           .from("account_party")
@@ -596,6 +634,8 @@ export async function assignPropertyFullyPaid(
     handler: async (validatedData, { supabase }) => {
       const { propertyId: targetLotId, clientId: targetClientId, title_number } = validatedData;
 
+      await assertClientsActive(supabase, [targetClientId]);
+
       // Cancel any active ledger account
       await supabase
         .from("ledger_account")
@@ -647,6 +687,8 @@ export async function createAndAssignPropertyFromSubdivision(
         const { requirePermission } = await import("@/lib/actions/auth-guard");
         await requirePermission("legal.create");
       }
+
+      await assertClientsActive(supabase, [validatedInput.client_id]);
 
       const { data: createdPropertyId, error } = await supabase.rpc(
         "create_and_assign_property_from_subdivision",

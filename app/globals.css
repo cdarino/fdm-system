@@ -54,7 +54,7 @@
        Hover is the page cream. --row-active tints the selected ROW, which acts
        as the header of an open block. The detail body below it stays on the
        card colour and is set apart from the plain rows by structure instead of
-       fill — the gold rail down its left, and --row-panel-shadow cast downward
+       fill: the gold rail down its left, and --row-panel-shadow cast downward
        so the open block reads as lifted off the list. Tinting the body as well
        made the whole block read as one flat slab.
        --row-accent-foreground is a darkened gold because the brand gold
@@ -62,7 +62,7 @@
     /* Readable foregrounds for the pale accent surfaces.
        The brand blue and gold were being used as BOTH the tint and the text on
        top of it (--sidebar-accent + --sidebar-accent-foreground, --chart-4 +
-       --secondary), which lands around 2:1 — barely legible. These are the same
+       --secondary), which lands around 2:1 and is barely legible. These are the same
        hues darkened until they clear AA.
        They behave differently across themes because their surfaces do:
        --sidebar-accent flips to dark slate, so the blue flips back to the
@@ -70,7 +70,7 @@
        while --chart-3/--chart-4 stay pale in dark mode, so the gold must stay
        dark in both.
        Derived by holding each brand hue (blue 195, gold 47) and RAISING
-       saturation while lowering lightness — NOT by mixing toward black. Mixing
+       saturation while lowering lightness, NOT by mixing toward black. Mixing
        with black drops HSL saturation once the colour passes below 50%
        lightness (the brand blue fell from 75% to 44% that way), which is what
        made earlier attempts look dull and grey rather than simply darker.

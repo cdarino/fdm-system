@@ -16,6 +16,7 @@ import {
   getClientDocumentsParamsSchema,
   clientInteractionSchema,
   createClientLogSchema,
+  getContactValueError,
 } from "@/lib/validations/client";
 import {
   type Client,
@@ -449,6 +450,19 @@ export async function updateContactInfo(
     schema: updateContactInfoSchema,
     input: { contactId, ...input },
     handler: async ({ contactId: validId, ...data }, { supabase }) => {
+      if (data.value !== undefined && data.type === undefined) {
+        const { data: stored } = await supabase
+          .from("contact_info")
+          .select("type")
+          .eq("contact_id", validId)
+          .single<{ type: string }>();
+
+        const message = stored ? getContactValueError(stored.type, data.value) : null;
+        if (message) {
+          throw new Error(message);
+        }
+      }
+
       if (data.is_primary) {
         const { data: current } = await supabase
           .from("contact_info")

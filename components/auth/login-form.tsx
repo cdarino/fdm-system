@@ -52,7 +52,7 @@ export function useLoginForm() {
  * Interactive part of the login page.
  *
  * Reads the `next` query param via `useSearchParams`, which opts this subtree
- * out of prerendering — it must stay inside a <Suspense> boundary so the rest
+ * out of prerendering. It must stay inside a <Suspense> boundary so the rest
  * of the page can still be prerendered. See app/(auth)/login/page.tsx.
  */
 export function LoginForm() {

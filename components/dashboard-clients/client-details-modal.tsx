@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
 import { getClientReportData } from '@/lib/actions/reports';
-import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import { toast } from 'sonner';
 import { ClientProfileContacts } from './client-profile-contacts';
 import { ClientProfileDocuments } from './client-profile-documents';
@@ -88,6 +87,8 @@ export function ClientDetailsModal({
     setIsExportingPdf(true);
     try {
       const data = await getClientReportData(client.client_id);
+      // Loaded on demand so jsPDF stays out of the page bundle.
+      const { generateClientPdfReport } = await import('@/lib/reports/pdf-client-report');
       generateClientPdfReport(data);
       toast.success('Client PDF report generated');
     } catch (err) {

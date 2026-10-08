@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { useSession } from '@/lib/hooks/use-session';
 import { getClientReportData } from '@/lib/actions/reports';
-import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
@@ -49,6 +48,9 @@ export interface ClientCompactRowProps {
   client: ClientListItem;
   selectable?: boolean;
   selected?: boolean;
+  /** Shown but not selectable, with `disabledReason` as its tooltip. */
+  disabled?: boolean;
+  disabledReason?: string;
   onSelect?: () => void;
   onOpenDetails?: () => void;
   onOpenEdit?: () => void;
@@ -63,6 +65,8 @@ export function ClientCompactRow({
   client,
   selectable = false,
   selected = false,
+  disabled = false,
+  disabledReason,
   onSelect,
   onOpenDetails,
   onOpenEdit,
@@ -77,10 +81,16 @@ export function ClientCompactRow({
   if (selectable) {
     return (
       <TableRow
-        onClick={onSelect}
+        onClick={disabled ? undefined : onSelect}
+        aria-disabled={disabled || undefined}
+        title={disabled ? disabledReason : undefined}
         className={cn(
-          'group cursor-pointer transition-colors duration-150',
-          selected ? 'bg-sidebar-accent hover:bg-sidebar-accent' : 'hover:bg-row-hover'
+          'group transition-colors duration-150',
+          disabled
+            ? 'cursor-not-allowed opacity-60'
+            : selected
+              ? 'cursor-pointer bg-sidebar-accent hover:bg-sidebar-accent'
+              : 'cursor-pointer hover:bg-row-hover'
         )}
       >
         <TableCell className={`w-10 py-2.5 pr-2 ${gutterL}`}>
@@ -122,6 +132,8 @@ export function ClientCompactRow({
   async function handleExportPdf() {
     try {
       const data = await getClientReportData(client.client_id);
+      // Loaded on demand so jsPDF stays out of the page bundle.
+      const { generateClientPdfReport } = await import('@/lib/reports/pdf-client-report');
       generateClientPdfReport(data);
       toast.success('Client PDF report generated');
     } catch (err) {

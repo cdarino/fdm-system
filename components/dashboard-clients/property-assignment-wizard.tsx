@@ -589,7 +589,7 @@ export function PropertyAssignmentWizard({
                       evaluatedStatus.lot.client?.full_name
                         ? ` to ${evaluatedStatus.lot.client.full_name}`
                         : ''
-                    } — double sale prevented.`}
+                    }. Double sale prevented.`}
                 </p>
               </div>
 
@@ -638,7 +638,7 @@ export function PropertyAssignmentWizard({
                     </button>
                   ) : (
                     <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
-                      {!isNaN(numericArea) && numericArea > 0 ? `${numericArea} sqm` : '—'}
+                      {!isNaN(numericArea) && numericArea > 0 ? `${numericArea} sqm` : 'Not set'}
                     </p>
                   )}
                 </div>
@@ -686,7 +686,7 @@ export function PropertyAssignmentWizard({
                     </button>
                   ) : (
                     <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
-                      {!isNaN(numericPrice) && numericPrice > 0 ? PESO.format(numericPrice) : '—'}
+                      {!isNaN(numericPrice) && numericPrice > 0 ? PESO.format(numericPrice) : 'Not set'}
                     </p>
                   )}
                 </div>
@@ -702,7 +702,7 @@ export function PropertyAssignmentWizard({
                     Total Price
                   </p>
                   <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">
-                    {computedTotalPrice !== null ? PESO.format(computedTotalPrice) : '—'}
+                    {computedTotalPrice !== null ? PESO.format(computedTotalPrice) : 'Not set'}
                   </p>
                 </div>
               </div>

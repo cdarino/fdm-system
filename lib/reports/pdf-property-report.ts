@@ -17,7 +17,7 @@ export function generatePropertyPdfReport(data: PropertyReportData): void {
   // Render header
   let yPos = drawReportHeader(doc, {
     title: `Block ${data.lot.block_number}, Lot ${data.lot.lot_number}`,
-    subtitle: `Property Lot Operational & Financial Summary — ${data.lot.location}`,
+    subtitle: `Property Lot Operational & Financial Summary for ${data.lot.location}`,
     refCode: data.lot.property_id.slice(0, 8).toUpperCase(),
   });
 
@@ -96,7 +96,7 @@ export function generatePropertyPdfReport(data: PropertyReportData): void {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8.5);
     doc.setTextColor(...PDF_COLORS.textSecondary);
-    doc.text('Unassigned — This lot is currently open inventory and available for customer allocation.', 14, yPos + 3);
+    doc.text('Unassigned. This lot is currently open inventory and available for customer allocation.', 14, yPos + 3);
     yPos += 9;
   }
 

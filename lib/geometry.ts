@@ -1,7 +1,7 @@
 /**
  * Plane geometry for the site map.
  *
- * Everything here works in the site's LOCAL coordinate space — metres from the
+ * Everything here works in the site's LOCAL coordinate space: metres from the
  * site origin, Y growing downward to match SVG. There is no projection and no
  * georeferencing; see the migration that adds `site.boundary` for the contract.
  */
@@ -27,7 +27,7 @@ export interface Bounds {
 /**
  * Validates a ring read out of JSONB.
  *
- * The database CHECK only enforces "array of length >= 3" — it cannot see
+ * The database CHECK only enforces "array of length >= 3". It cannot see
  * inside the elements, so a row could still hold `[1, 2, 3]` or a vertex with
  * a null. Returns null rather than throwing so one malformed lot cannot blank
  * the whole map.
@@ -75,7 +75,7 @@ export function mergeBounds(all: Bounds[]): Bounds | null {
 /** Visual centre of a ring, used to place its label. */
 export function ringCentroid(ring: Ring): Point {
   // The signed-area centroid is the true centroid, but it falls outside
-  // strongly concave shapes — which puts a lot's label on its neighbour. The
+  // strongly concave shapes, which puts a lot's label on its neighbour. The
   // bounding-box centre is less correct and more useful here.
   const { minX, minY, maxX, maxY } = ringBounds(ring);
   return [(minX + maxX) / 2, (minY + maxY) / 2];
@@ -86,7 +86,7 @@ export function ringCentroid(ring: Ring): Point {
  *
  * Absolute value, so winding order does not matter. Because the local space is
  * metres, this comes out in square metres and can be compared directly against
- * `property_lot.area_size` — which is how a mis-drawn lot gets caught.
+ * `property_lot.area_size`, which is how a mis-drawn lot gets caught.
  */
 export function ringArea(ring: Ring): number {
   let twiceArea = 0;
@@ -127,7 +127,7 @@ export function fitViewBox(bounds: Bounds, marginRatio = 0.04, extraTopRatio = 0
   const margin = span * marginRatio;
   // Headroom above the plan so a lot on the top row has somewhere to put its
   // detail card. The card is positioned in screen pixels and the viewBox in
-  // local units, so this cannot be exact — the card also flips below its lot
+  // local units, so this cannot be exact. The card also flips below its lot
   // when it would still overflow.
   const extraTop = span * extraTopRatio;
 

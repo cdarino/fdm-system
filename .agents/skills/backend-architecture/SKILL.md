@@ -90,7 +90,7 @@ Always use `stripUndefined` from `lib/validations/client.ts` on partial Zod sche
 - Permissions live in the `rbac` Postgres schema (not `public`).
 - **Roles**: `system_admin`, `admin_staff`, `billing_staff`, `legal_staff`, `accounting_staff`.
 - **Permission Pattern**: `<resource>.<action>` (e.g. `billing.read`, `system.create`, `clients.delete`).
-- **Resolution**: Use `hasPermission()` and `getUserPermissions()` from `lib/permissions.ts` — never query `rbac.*` tables directly in application code.
+- **Resolution**: Use `hasPermission()` and `getUserPermissions()` from `lib/permissions.ts`. Never query `rbac.*` tables directly in application code.
 
 ### Self-Protection & Guard Utilities
 Admin operations must enforce safeguards from `lib/self-protection.ts`:
@@ -102,7 +102,7 @@ Admin operations must enforce safeguards from `lib/self-protection.ts`:
 
 ## 3. Supabase Clients & Data Access
 
-Three distinct client factories exist — choose the right one for the execution context:
+Three distinct client factories exist. Choose the right one for the execution context:
 
 | Client | File | Purpose & Lifecycle |
 |---|---|---|
@@ -119,7 +119,7 @@ Three distinct client factories exist — choose the right one for the execution
 ### Migration Standards
 - **Location**: `supabase/migrations/`
 - **Naming**: Must follow `YYYYMMDDHHMMSS_description.sql`.
-- **Immutability**: Never edit an already-applied migration — create a new forward migration instead.
+- **Immutability**: Never edit an already-applied migration. Create a new forward migration instead.
 - **Row Level Security**: Every table in the `public` and `rbac` schemas must enable RLS (`alter table <name> enable row level security;`) with explicit policies for authenticated and service-role access.
 - **Multi-Schema Scope**: Tables and functions span both `public` and `rbac` schemas. Ensure both schemas are targeted in migrations, diffs, and CLI operations.
 

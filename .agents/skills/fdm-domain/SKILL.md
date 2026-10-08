@@ -34,7 +34,7 @@ This skill defines the operational realities, legal constraints, billing algorit
    * Original Transfer Certificate of Title (individual title).
    * Original notarized Deed of Absolute Sale (DOAS).
    * Official receipts and clearance certificate.
-5. **Buyer's Responsibility**: All downstream processing—payment of Capital Gains Tax, Documentary Stamp Tax, BIR Electronic Certificate Authorizing Registration (eCAR), and Registry of Deeds (Tagum City) registration fees—is shouldered directly by the buyer.
+5. **Buyer's Responsibility**: All downstream processing (payment of Capital Gains Tax, Documentary Stamp Tax, BIR Electronic Certificate Authorizing Registration (eCAR), and Registry of Deeds (Tagum City) registration fees) is shouldered directly by the buyer.
 
 ---
 

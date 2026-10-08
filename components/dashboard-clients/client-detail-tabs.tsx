@@ -21,11 +21,13 @@ export function ClientDetailTabs({
   onClientChange,
   assignPropertyId,
 }: ClientDetailTabsProps) {
+  // Inactive and archived clients keep their records but cannot take new lots.
+  const canAssign = client.status === 'Active';
   const [activeTab, setActiveTab] = useState<string>(
-    assignPropertyId ? 'assign-property' : 'properties'
+    assignPropertyId && canAssign ? 'assign-property' : 'properties'
   );
   const [isAssignTabRevealed, setIsAssignTabRevealed] = useState<boolean>(
-    Boolean(assignPropertyId)
+    Boolean(assignPropertyId) && canAssign
   );
 
   function handleOpenAssign() {
@@ -86,6 +88,7 @@ export function ClientDetailTabs({
               client={client}
               onClientChange={onClientChange}
               onOpenAssignProperty={handleOpenAssign}
+              canAssign={canAssign}
             />
           </TabsContent>
 
@@ -93,7 +96,7 @@ export function ClientDetailTabs({
             <ClientDetailDocuments client={client} onClientChange={onClientChange} />
           </TabsContent>
 
-          {isAssignTabRevealed && (
+          {isAssignTabRevealed && canAssign && (
             <TabsContent value="assign-property" className="mt-0 space-y-4">
               <div className="flex items-center justify-between pb-1">
                 <Button

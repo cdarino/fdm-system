@@ -26,6 +26,11 @@ import type {
 
 export type StatusFilter = 'all' | PropertyStatus;
 
+export type LotSortKey = 'lot' | 'area' | 'price' | 'client' | 'status';
+export type SortDirection = 'asc' | 'desc';
+/** `null` keeps the server order: newest lots first. */
+export type LotSort = { key: LotSortKey; direction: SortDirection } | null;
+
 export type PropertyDialog =
   | { type: 'create' }
   | { type: 'assign'; lot: PropertyLotWithClient }
@@ -46,6 +51,9 @@ interface PropertyLotsContextValue {
   setSearch: (query: string) => void;
   statusFilter: StatusFilter;
   setStatusFilter: (status: StatusFilter) => void;
+  sort: LotSort;
+  /** Cycles a column through ascending, descending, then back to the default order. */
+  toggleSort: (key: LotSortKey) => void;
   openDialog: (dialog: PropertyDialog) => void;
   closeDialog: () => void;
   createLot: (input: CreatePropertyLotInput) => Promise<ActionResult<PropertyLot>>;
@@ -74,6 +82,40 @@ export function lotLabel(lot: PropertyLotWithClient): string {
 
 export function totalPrice(lot: PropertyLotWithClient): number {
   return lot.area_size * lot.price_per_sqm;
+}
+
+const nameCollator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
+
+function compareLots(a: PropertyLotWithClient, b: PropertyLotWithClient, key: LotSortKey): number {
+  switch (key) {
+    case 'lot':
+      return (
+        nameCollator.compare(a.location, b.location) ||
+        a.block_number - b.block_number ||
+        a.lot_number - b.lot_number
+      );
+    case 'area':
+      return a.area_size - b.area_size;
+    case 'price':
+      return totalPrice(a) - totalPrice(b);
+    case 'client':
+      return nameCollator.compare(a.client?.full_name ?? '', b.client?.full_name ?? '');
+    case 'status':
+      return nameCollator.compare(a.status, b.status);
+  }
+}
+
+function sortLots(lots: PropertyLotWithClient[], sort: LotSort): PropertyLotWithClient[] {
+  if (!sort) return lots;
+
+  const factor = sort.direction === 'asc' ? 1 : -1;
+  return [...lots].sort((a, b) => {
+    // Unassigned lots stay at the bottom whichever way clients are sorted.
+    if (sort.key === 'client' && Boolean(a.client) !== Boolean(b.client)) {
+      return a.client ? -1 : 1;
+    }
+    return compareLots(a, b, sort.key) * factor;
+  });
 }
 
 function matchesSearch(lot: PropertyLotWithClient, query: string): boolean {
@@ -107,13 +149,23 @@ export function PropertyLotsProvider({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useStatusFilter<StatusFilter>(['all', 'Open', 'Reserved', 'Sold', 'Forfeited'], 'all');
 
+  const [sort, setSort] = useState<LotSort>(null);
+
+  const toggleSort = useCallback((key: LotSortKey) => {
+    setSort((current) => {
+      if (current?.key !== key) return { key, direction: 'asc' };
+      return current.direction === 'asc' ? { key, direction: 'desc' } : null;
+    });
+  }, []);
+
   const visibleLots = useMemo(() => {
-    return lots.filter((lot) => {
+    const filtered = lots.filter((lot) => {
       if (!matchesSearch(lot, search)) return false;
       if (statusFilter !== 'all' && lot.status !== statusFilter) return false;
       return true;
     });
-  }, [lots, search, statusFilter]);
+    return sortLots(filtered, sort);
+  }, [lots, search, statusFilter, sort]);
 
   useEffect(() => {
     getPropertyLots({ limit: 200, sortBy: 'created_at', sortOrder: 'desc' })
@@ -238,6 +290,8 @@ export function PropertyLotsProvider({
     setSearch,
     statusFilter,
     setStatusFilter,
+    sort,
+    toggleSort,
     openDialog,
     closeDialog,
     createLot,

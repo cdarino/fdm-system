@@ -20,6 +20,7 @@ import {
   getTestAdminClient,
 } from "../framework/session";
 import { unwrap } from "../framework/action-helper";
+import { uniqueNameSuffix } from "../framework/fake-data";
 
 describe("Property Lifecycle & Subdivision Transitions", () => {
   const testPropertyIds: string[] = [];
@@ -96,7 +97,7 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
   it("assignPropertyFullyPaid transitions lot to Sold and records land_title", async () => {
     const client = unwrap(
       await createClient({
-        full_name: `Fully Paid Owner ${Date.now()}`,
+        full_name: `Fully Paid Owner ${uniqueNameSuffix()}`,
       })
     );
     testClientIds.push(client.client_id);
@@ -156,14 +157,14 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
 
     const installmentClient = unwrap(
       await createClient({
-        full_name: `Installment Buyer ${Date.now()}`,
+        full_name: `Installment Buyer ${uniqueNameSuffix()}`,
       })
     );
     testClientIds.push(installmentClient.client_id);
 
     const paidClient = unwrap(
       await createClient({
-        full_name: `Outright Owner ${Date.now()}`,
+        full_name: `Outright Owner ${uniqueNameSuffix()}`,
       })
     );
     testClientIds.push(paidClient.client_id);
@@ -261,7 +262,7 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
     // 3. Assign to Client A as Reserved
     const clientA = unwrap(
       await createClient({
-        full_name: `Buyer A ${Date.now()}`,
+        full_name: `Buyer A ${uniqueNameSuffix()}`,
       })
     );
     testClientIds.push(clientA.client_id);

@@ -5,7 +5,7 @@ import { LoginForm, LoginFormFallback } from '@/components/auth/login-form';
 /**
  * The form reads the `next` query param with `useSearchParams`, which opts its
  * subtree out of prerendering. Keeping it behind <Suspense> lets the branding
- * above still be prerendered — without the boundary the production build fails
+ * above still be prerendered. Without the boundary the production build fails
  * to prerender this route entirely.
  */
 export default function LoginPage() {

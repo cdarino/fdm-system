@@ -17,8 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Pencil, X, Loader2 } from 'lucide-react';
-
-const CONTACT_TYPES = ['Phone', 'Mobile', 'Email', 'Other'];
+import { CONTACT_TYPES, getContactValueError } from '@/lib/validations/client';
 
 interface TextModeProps {
   mode: 'text';
@@ -64,12 +63,14 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
 
   const [value, setValue] = useState(initialVal);
   const [type, setType] = useState(initialTyp);
+  const [error, setError] = useState<string | null>(null);
 
   // Synchronize field inputs whenever the popover opens.
   function handleOpenChange(open: boolean) {
     if (open) {
       setValue(initialVal);
       setType(initialTyp);
+      setError(null);
     }
     setIsOpen(open);
   }
@@ -77,6 +78,14 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (isSaving) return;
+
+    if (props.mode !== 'text') {
+      const message = getContactValueError(type, value);
+      if (message) {
+        setError(message);
+        return;
+      }
+    }
 
     setIsSaving(true);
     try {
@@ -137,7 +146,13 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
               <label className="text-[11px] font-medium text-muted-foreground">
                 Type
               </label>
-              <Select value={type} onValueChange={setType}>
+              <Select
+                value={type}
+                onValueChange={(next) => {
+                  setType(next);
+                  setError(null);
+                }}
+              >
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue />
                 </SelectTrigger>
@@ -159,9 +174,17 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
             <Input
               autoFocus
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={(e) => {
+                setValue(e.target.value);
+                setError(null);
+              }}
               placeholder={props.placeholder ?? 'Enter value...'}
               className="h-8 text-xs"
+              maxLength={200}
+              inputMode={
+                type === 'Email' ? 'email' : type === 'Phone' || type === 'Mobile' ? 'tel' : undefined
+              }
+              aria-invalid={Boolean(error)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -169,6 +192,7 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
                 }
               }}
             />
+            {error && <p className="text-[11px] text-destructive">{error}</p>}
           </div>
 
           <div className="flex justify-end gap-2 pt-1">

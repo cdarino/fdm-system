@@ -22,7 +22,7 @@ type SettingsData =
   | { status: 'error' };
 
 /**
- * Returns a status rather than redirecting — `redirect()` throws, so calling it
+ * Returns a status rather than redirecting, because `redirect()` throws and calling it
  * inside the try block would let the catch swallow it. See the admin page.
  */
 async function resolveSettings(): Promise<SettingsData> {
@@ -30,7 +30,7 @@ async function resolveSettings(): Promise<SettingsData> {
     const user = await getUserInfo();
     if (!user) return { status: 'unauthenticated' };
 
-    // The user's actual assigned roles — not the sidebar sections, which for a
+    // The user's actual assigned roles, not the sidebar sections, which for a
     // system administrator deliberately include every department.
     const roleNames = await getCurrentUserRoleNames();
 
@@ -84,13 +84,13 @@ async function SettingsContent() {
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
               Name
             </p>
-            <p className="text-sm text-foreground">{fullName || '—'}</p>
+            <p className="text-sm text-foreground">{fullName || 'Not provided'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
               Email
             </p>
-            <p className="text-sm text-foreground break-all">{data.email || '—'}</p>
+            <p className="text-sm text-foreground break-all">{data.email || 'Not provided'}</p>
           </div>
           <div className="sm:col-span-2">
             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">

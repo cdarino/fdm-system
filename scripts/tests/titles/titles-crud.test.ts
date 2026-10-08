@@ -17,6 +17,7 @@ import {
   hardDeleteTestClient,
 } from "../framework/session";
 import { unwrap } from "../framework/action-helper";
+import { uniqueNameSuffix } from "../framework/fake-data";
 
 describe("Land Title Management Actions", () => {
   const testPropertyIds: string[] = [];
@@ -46,7 +47,7 @@ describe("Land Title Management Actions", () => {
   it("createLandTitle creates a land title record linked to property and client", async () => {
     const client = unwrap(
       await createClient({
-        full_name: `Title Test Buyer ${Date.now()}`,
+        full_name: `Title Test Buyer ${uniqueNameSuffix()}`,
       })
     );
     testClientIds.push(client.client_id);
@@ -108,7 +109,7 @@ describe("Land Title Management Actions", () => {
   it("enforces unique constraint on property_id for land_title", async () => {
     const client = unwrap(
       await createClient({
-        full_name: `Duplicate Title Buyer ${Date.now()}`,
+        full_name: `Duplicate Title Buyer ${uniqueNameSuffix()}`,
       })
     );
     testClientIds.push(client.client_id);

@@ -20,7 +20,11 @@ import { usePropertyLots } from '@/lib/hooks/use-property-lots';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import type { Site } from '@/lib/types/property';
-import { createPropertyLotSchema, type CreatePropertyLotFormData } from '@/lib/validations/property';
+import {
+  createPropertyLotSchema,
+  LOT_LIMITS,
+  type CreatePropertyLotFormData,
+} from '@/lib/validations/property';
 
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -114,7 +118,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
           <DialogTitle>New Property Lot</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} noValidate className="space-y-4">
           {serverError && (
             <Alert variant="destructive">
               <AlertDescription>{serverError}</AlertDescription>
@@ -153,6 +157,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
               label="Block No."
               type="number"
               min={1}
+              max={LOT_LIMITS.blockOrLotNumber}
               step={1}
               placeholder="1"
               disabled={isPending}
@@ -164,6 +169,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
               label="Lot No."
               type="number"
               min={1}
+              max={LOT_LIMITS.blockOrLotNumber}
               step={1}
               placeholder="1"
               disabled={isPending}
@@ -178,6 +184,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
               label="Area (sqm)"
               type="number"
               min={0}
+              max={LOT_LIMITS.areaSqm}
               step="0.01"
               placeholder="250.00"
               disabled={isPending}
@@ -189,6 +196,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
               label="Price / sqm"
               type="number"
               min={0}
+              max={LOT_LIMITS.pricePerSqm}
               step="0.01"
               placeholder="3500.00"
               disabled={isPending}
@@ -197,12 +205,12 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg bg-row-hover px-3 py-2.5">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-row-hover px-3 py-2.5">
+            <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Total contract price
             </span>
-            <span className="text-sm font-semibold text-foreground">
-              {total === null ? '—' : PESO.format(total)}
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+              {total === null ? 'Not set' : PESO.format(total)}
             </span>
           </div>
 

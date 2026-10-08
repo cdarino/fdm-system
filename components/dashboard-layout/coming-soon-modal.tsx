@@ -19,7 +19,7 @@ interface ComingSoonModalProps {
  * Built on the shadcn/Radix Dialog rather than a hand-rolled `createPortal`
  * overlay. The previous version opened a bare portal while a Radix dropdown was
  * closing, which could leave `pointer-events: none` on <body> and make the
- * whole page unclickable — testers reported the UI "crashing" after opening
+ * whole page unclickable. Testers reported the UI "crashing" after opening
  * Profile/Settings or the notification bell. Radix owns that lock and releases
  * it correctly.
  *

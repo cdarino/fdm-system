@@ -140,8 +140,8 @@ export function generateClientPdfReport(data: ClientReportData): void {
       [
         'Documentation Status',
         isComplete
-          ? 'VERIFIED COMPLETE — Ready for Deed of Absolute Sale & Title processing'
-          : `PENDING REQUIREMENTS — Missing mandatory documents: ${missingList}`,
+          ? 'VERIFIED COMPLETE: Ready for Deed of Absolute Sale & Title processing'
+          : `PENDING REQUIREMENTS. Missing mandatory documents: ${missingList}`,
       ],
       ['Submitted Documents', presentList],
       ['Total Portfolio Value', formatCurrency(data.financials.totalPortfolioValue)],

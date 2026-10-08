@@ -1,17 +1,17 @@
 import { z } from "zod";
-import { uuidSchema } from "@/lib/validations/client";
+import { uuidSchema, personNameSchema } from "@/lib/validations/client";
 
 export const createUserSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required"),
-  lastName: z.string().trim().min(1, "Last name is required"),
+  firstName: personNameSchema("First name"),
+  lastName: personNameSchema("Last name"),
   email: z.string().trim().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   roleIds: z.array(z.string().uuid("Invalid role ID")).default([]),
 });
 
 export const updateUserProfileSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required"),
-  lastName: z.string().trim().min(1, "Last name is required"),
+  firstName: personNameSchema("First name"),
+  lastName: personNameSchema("Last name"),
 });
 
 export const updateUserProfileActionSchema = updateUserProfileSchema.extend({

@@ -23,6 +23,7 @@ import {
   runTrackedCleanups,
 } from "../framework/session";
 import { unwrap } from "../framework/action-helper";
+import { fakePhMobile, uniqueNameSuffix } from "../framework/fake-data";
 
 function fakeTin(): string {
   const d = faker.string.numeric(9);
@@ -57,7 +58,7 @@ describe("Client Management Actions", () => {
   it("createClient creates client with contact records", async () => {
     const fullName = faker.person.fullName();
     const email = faker.internet.email();
-    const phone = faker.phone.number();
+    const phone = fakePhMobile();
     const address = `${faker.location.streetAddress()}, ${faker.location.city()}`;
     const tinNumber = fakeTin();
 
@@ -102,7 +103,7 @@ describe("Client Management Actions", () => {
   });
 
   it("getClients filters by search term across name and TIN", async () => {
-    const uniqueTag = `FakerTag-${Date.now()}`;
+    const uniqueTag = `FakerTag-${uniqueNameSuffix()}`;
     const fullName = `${faker.person.fullName()} ${uniqueTag}`;
     const tinNumber = fakeTin();
 
@@ -123,7 +124,7 @@ describe("Client Management Actions", () => {
   });
 
   it("getClients filters by status and supports pagination", async () => {
-    const uniqueSuffix = Date.now();
+    const uniqueSuffix = uniqueNameSuffix();
     const activeClient = unwrap(await createClient({
       full_name: `${faker.person.fullName()} Active ${uniqueSuffix}`,
       status: "Active",
@@ -170,7 +171,7 @@ describe("Client Management Actions", () => {
   it("addContactInfo enforces single primary contact exclusivity", async () => {
     const client = unwrap(await createClient({
       full_name: faker.person.fullName(),
-      contacts: [{ type: "Phone", value: faker.phone.number(), is_primary: true }],
+      contacts: [{ type: "Phone", value: fakePhMobile(), is_primary: true }],
     }));
     testClientIds.push(client.client_id);
 
@@ -193,7 +194,7 @@ describe("Client Management Actions", () => {
   it("updateContactInfo and deleteContactInfo manage contact records", async () => {
     const client = unwrap(await createClient({
       full_name: faker.person.fullName(),
-      contacts: [{ type: "Phone", value: faker.phone.number(), is_primary: false }],
+      contacts: [{ type: "Phone", value: fakePhMobile(), is_primary: false }],
     }));
     testClientIds.push(client.client_id);
 
@@ -201,7 +202,7 @@ describe("Client Management Actions", () => {
     const contactId = initialDetails.contact_info[0].contact_id;
 
     // Update contact value
-    const updatedPhone = faker.phone.number();
+    const updatedPhone = fakePhMobile();
     const updated = unwrap(await updateContactInfo(contactId, { value: updatedPhone }));
     expect(updated.value).toBe(updatedPhone);
 

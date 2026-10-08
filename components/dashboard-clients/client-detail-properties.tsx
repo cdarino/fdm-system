@@ -19,13 +19,19 @@ interface ClientDetailPropertiesProps {
   client: ClientWithDetails;
   onClientChange: (client: ClientWithDetails) => void;
   onOpenAssignProperty: () => void;
+  /** False for inactive or archived clients, which cannot take new lots. */
+  canAssign?: boolean;
 }
 
 export function ClientDetailProperties({
   client,
   onOpenAssignProperty,
+  canAssign = true,
 }: ClientDetailPropertiesProps) {
   const properties = client.properties || [];
+  const assignDisabledReason = canAssign
+    ? undefined
+    : 'Only active clients can be assigned a lot. Reactivate this client first.';
 
   return (
     <div className="space-y-6">
@@ -38,10 +44,17 @@ export function ClientDetailProperties({
           <div className="text-center">
             <p className="text-sm font-medium text-foreground">No properties assigned</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Click below to assign a property lot to this client.
+              {assignDisabledReason ?? 'Click below to assign a property lot to this client.'}
             </p>
           </div>
-          <Button variant="quiet" size="sm" onClick={onOpenAssignProperty} className="mt-2 gap-1.5">
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={onOpenAssignProperty}
+            disabled={!canAssign}
+            title={assignDisabledReason}
+            className="mt-2 gap-1.5"
+          >
             <Plus className="h-4 w-4" />
             Assign new property
           </Button>
@@ -112,16 +125,21 @@ export function ClientDetailProperties({
             })}
           </div>
 
-          <div className="flex justify-start pt-2">
+          <div className="flex flex-wrap items-center justify-start gap-3 pt-2">
             <Button
               variant="quiet"
               size="sm"
               onClick={onOpenAssignProperty}
+              disabled={!canAssign}
+              title={assignDisabledReason}
               className="gap-1.5 text-xs"
             >
               <Plus className="h-3.5 w-3.5" />
               Assign new property
             </Button>
+            {assignDisabledReason && (
+              <p className="text-xs text-muted-foreground">{assignDisabledReason}</p>
+            )}
           </div>
         </div>
       )}

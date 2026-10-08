@@ -10,7 +10,6 @@ import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { Label } from '@/components/ui/label';
 import { getPropertyReportData } from '@/lib/actions/reports';
-import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
 import {
   Tooltip,
   TooltipTrigger,
@@ -68,6 +67,8 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
     setIsExportingPdf(true);
     try {
       const data = await getPropertyReportData(lot.property_id);
+      // Loaded on demand so jsPDF stays out of the page bundle.
+      const { generatePropertyPdfReport } = await import('@/lib/reports/pdf-property-report');
       generatePropertyPdfReport(data);
       toast.success('Property PDF report generated');
     } catch (err) {

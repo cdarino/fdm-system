@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardTableFooter } from '@/components/ui/card';
 import { FilterToolbar } from '@/components/ui/filter-toolbar';
+import { SortableTableHead } from '@/components/ui/sortable-table-head';
 import Link from 'next/link';
 import {
   Plus,
@@ -15,7 +16,6 @@ import {
   FileDown,
 } from 'lucide-react';
 import { getPropertyReportData } from '@/lib/actions/reports';
-import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
 import {
   Table,
   TableBody,
@@ -42,6 +42,7 @@ import {
   lotLabel,
   totalPrice,
   type StatusFilter,
+  type LotSortKey,
 } from '@/lib/hooks/use-property-lots';
 import type { PropertyLotWithClient, PropertyStatus, Site } from '@/lib/types/property';
 import { STATUSES, PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
@@ -75,6 +76,8 @@ function StatusPill({ status }: { status: PropertyStatus }) {
 async function handleExportLotPdf(lot: PropertyLotWithClient) {
   try {
     const data = await getPropertyReportData(lot.property_id);
+    // Loaded on demand so jsPDF stays out of the page bundle.
+    const { generatePropertyPdfReport } = await import('@/lib/reports/pdf-property-report');
     generatePropertyPdfReport(data);
     toast.success('Property PDF report generated');
   } catch (err) {
@@ -190,8 +193,12 @@ function PropertyLotsContent() {
     setSearch,
     statusFilter,
     setStatusFilter,
+    sort,
+    toggleSort,
     sites,
   } = usePropertyLots();
+
+  const directionOf = (key: LotSortKey) => (sort?.key === key ? sort.direction : null);
 
   // TODO: could use a refactor; or move it for the hook to manage
   const [renderedDialog, setRenderedDialog] = useState(activeDialog);
@@ -293,21 +300,41 @@ function PropertyLotsContent() {
             <Table>
               <TableHeader className="sticky top-0 z-10">
                 <TableRow className="bg-card hover:bg-card">
-                  <TableHead className={`h-11 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
+                  <SortableTableHead
+                    direction={directionOf('lot')}
+                    onSort={() => toggleSort('lot')}
+                    className={`h-11 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}
+                  >
                     Lot
-                  </TableHead>
-                  <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:table-cell">
+                  </SortableTableHead>
+                  <SortableTableHead
+                    direction={directionOf('area')}
+                    onSort={() => toggleSort('area')}
+                    className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground md:table-cell"
+                  >
                     Area
-                  </TableHead>
-                  <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground lg:table-cell">
+                  </SortableTableHead>
+                  <SortableTableHead
+                    direction={directionOf('price')}
+                    onSort={() => toggleSort('price')}
+                    className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground lg:table-cell"
+                  >
                     Contract Price
-                  </TableHead>
-                  <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground lg:table-cell">
+                  </SortableTableHead>
+                  <SortableTableHead
+                    direction={directionOf('client')}
+                    onSort={() => toggleSort('client')}
+                    className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground lg:table-cell"
+                  >
                     Client
-                  </TableHead>
-                  <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  </SortableTableHead>
+                  <SortableTableHead
+                    direction={directionOf('status')}
+                    onSort={() => toggleSort('status')}
+                    className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                  >
                     Status
-                  </TableHead>
+                  </SortableTableHead>
                   <TableHead className={`h-11 pl-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R}`}>
                     Actions
                   </TableHead>

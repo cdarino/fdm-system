@@ -33,7 +33,6 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { getClientReportData } from '@/lib/actions/reports';
-import { generateClientPdfReport } from '@/lib/reports/pdf-client-report';
 import {
   Table,
   TableBody,
@@ -339,6 +338,8 @@ function ClientRow({ client }: { client: ClientListItem }) {
               onSelect={async () => {
                 try {
                   const data = await getClientReportData(client.client_id);
+                  // Loaded on demand so jsPDF stays out of the page bundle.
+                  const { generateClientPdfReport } = await import('@/lib/reports/pdf-client-report');
                   generateClientPdfReport(data);
                   toast.success('Client PDF report generated');
                 } catch (err) {

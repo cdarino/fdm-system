@@ -126,7 +126,7 @@ export function drawReportFooter(doc: jsPDF, reportType: string): void {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...PDF_COLORS.textSecondary);
-    doc.text(`FDM System — ${reportType} (Strictly Confidential)`, 14, pageHeight - 7);
+    doc.text(`FDM System: ${reportType} (Strictly Confidential)`, 14, pageHeight - 7);
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
   }
 }

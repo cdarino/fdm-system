@@ -218,6 +218,32 @@ describe("Property Lot Management Actions", () => {
     expect(detail.client?.full_name).toBe(clientName);
   });
 
+  it("rejects assigning a lot to an inactive client", async () => {
+    const client = unwrap(await createClient({ full_name: faker.person.fullName(), status: "Inactive" }));
+    testClientIds.push(client.client_id);
+
+    const blockNum = faker.number.int({ min: 100, max: 999 });
+    const lot = unwrap(await createPropertyLot({
+      location: "Inactive Guard Palms",
+      block_number: blockNum,
+      lot_number: 5,
+      area_size: 160,
+      price_per_sqm: 11000,
+    }));
+    testPropertyIds.push(lot.property_id);
+
+    const reserved = await assignPropertyClient(lot.property_id, client.client_id);
+    expect(reserved.success).toBe(false);
+    if (!reserved.success) expect(reserved.error).toMatch(/not active/i);
+
+    const fullyPaid = await assignPropertyFullyPaid(lot.property_id, client.client_id);
+    expect(fullyPaid.success).toBe(false);
+
+    const detail = await getPropertyLotById(lot.property_id);
+    expect(detail.status).toBe("Open");
+    expect(detail.client).toBeNull();
+  });
+
   it("assignPropertyFullyPaid assigns fully-paid client and derives Sold status via land title", async () => {
     const client = unwrap(await createClient({ full_name: faker.person.fullName() }));
     testClientIds.push(client.client_id);

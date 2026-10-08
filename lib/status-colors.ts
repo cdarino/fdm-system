@@ -3,8 +3,8 @@ import type { PropertyStatus } from '@/lib/types/property';
 /**
  * One source of truth for how a lot's status is coloured.
  *
- * The lot table and the site map have to agree — a lot shown green in the list
- * and gold on the plan is worse than no colour at all — but they need the
+ * The lot table and the site map have to agree (a lot shown green in the list
+ * and gold on the plan is worse than no colour at all), but they need the
  * colour in two different forms. Tailwind utilities cannot be used on SVG
  * presentation attributes, and CSS variable strings cannot be used as Tailwind
  * classes, so each status carries both.

@@ -60,7 +60,7 @@ export async function seedBaseline(options: SeedBaselineOptions = {}): Promise<{
 
   if (createError) {
     if (createError.message.toLowerCase().includes("already been registered")) {
-      console.log("ℹ️   User already exists — fetching existing user...");
+      console.log("ℹ️   User already exists, fetching existing user...");
 
       const { data: listData, error: listError } =
         await supabase.auth.admin.listUsers();

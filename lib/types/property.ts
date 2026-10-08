@@ -30,7 +30,7 @@ export interface LedgerAccountWithParties extends LedgerAccount {
 }
 
 /**
- * Site geometry comes back from JSONB as `unknown` — the database CHECK only
+ * Site geometry comes back from JSONB as `unknown`. The database CHECK only
  * proves it is an array of length >= 3, not that its elements are vertex
  * pairs. Run it through `parseRing()` in lib/geometry.ts before use.
  */
@@ -86,7 +86,7 @@ export interface SiteWithLots extends Site {
 
 export interface CreatePropertyLotInput {
   location: string;
-  /** Required via the UI — every lot must link to a pre-existing site. Optional here for direct action callers (e.g. tests). */
+  /** Required via the UI: every lot must link to a pre-existing site. Optional here for direct action callers (e.g. tests). */
   site_id?: string | null;
   block_number: number;
   lot_number: number;
