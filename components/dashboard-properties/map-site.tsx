@@ -27,7 +27,13 @@ export interface SiteMapProps {
   onSelectLot?: (lotId: string | null) => void;
   hoveredLotKey?: string | null;
   onSelectLotProperty?: (lot: PropertyLotWithClient) => void;
-  onSelectUnregistered?: (data: { siteId: string; block: number; lot: number }) => void;
+  onSelectUnregistered?: (data: {
+    siteId: string;
+    block: number;
+    lot: number;
+    areaSize?: number;
+    pricePerSqm?: number;
+  }) => void;
   isSidebarOpen?: boolean;
   className?: string;
   initialCenter?: [number, number]; // [lng, lat]
@@ -341,14 +347,15 @@ export function SiteMap({
     onSelectLot?.(null);
   }, [onSelectLot]);
 
-  // Navigate to property details for registered lots
+  // Navigate to property details for registered or closed lots
   const handleViewDetails = useCallback(
     (p: LotPlotProperties) => {
       handleClosePopup();
       const lotObj =
-        registeredLotsMapRef.current.get(p.propertyId) ??
-        registeredLotsMapRef.current.get(`${p.siteId}:${p.block}-${p.lot}`) ??
-        registeredLotsMapRef.current.get(`${p.block}-${p.lot}`) ??
+        (p.propertyId ? registeredLotsMapRef.current.get(p.propertyId) : undefined) ??
+        (p.siteId
+          ? registeredLotsMapRef.current.get(`${p.siteId}:${p.block}-${p.lot}`)
+          : registeredLotsMapRef.current.get(`${p.block}-${p.lot}`)) ??
         ({
           property_id: p.propertyId,
           site_id: p.siteId,
@@ -357,11 +364,13 @@ export function SiteMap({
           location: p.siteName,
           area_size: p.areaSize,
           price_per_sqm: p.pricePerSqm,
-          status: p.status as PropertyStatus,
+          status: (p.isRegistered ? p.status : 'Open') as PropertyStatus,
           boundary: null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          client: p.clientName ? { client_id: '', full_name: p.clientName, status: 'Active' } : null,
+          is_archived: false,
+          archived_at: null,
+          client: p.clientName ? { client_id: '', full_name: p.clientName, status: 'Active', address: null } : null,
         } as PropertyLotWithClient);
       onSelectLotPropertyRef.current?.(lotObj);
     },
@@ -376,6 +385,8 @@ export function SiteMap({
         siteId: p.siteId,
         block: p.block,
         lot: p.lot,
+        areaSize: p.areaSize,
+        pricePerSqm: p.pricePerSqm,
       });
     },
     [handleClosePopup]

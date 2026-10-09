@@ -1,19 +1,39 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
-
-/**
- * Object storage for client paperwork, backing `client_document.file_path`.
- *
- * Every call goes through the request-scoped (cookie-bound) Supabase client, so
- * the policies added in 20260920200000 are enforced as the signed-in user. Do
- * not swap in the admin client here: it bypasses RLS and would silently undo
- * the permission gating on the bucket.
- */
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const CLIENT_DOCUMENTS_BUCKET = "client-documents";
 
 export { MAX_DOCUMENT_BYTES, ALLOWED_DOCUMENT_TYPES } from "@/lib/validations/document";
+
+export function getStorageClient(): S3Client {
+  const endpoint = process.env.S3_ENDPOINT;
+  const region = process.env.S3_REGION;
+  const accessKeyId = process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+
+  if (!endpoint || !region || !accessKeyId || !secretAccessKey) {
+    throw new Error(
+      "Missing S3 storage configuration (S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY)"
+    );
+  }
+
+  // Path-style addressing and on-demand checksums ensure compatibility across Supabase S3 and Backblaze B2
+  return new S3Client({
+    endpoint,
+    region,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
+}
 
 /**
  * `{client_id}/{uuid}-{sanitized-filename}`.
@@ -36,15 +56,23 @@ export async function uploadClientDocumentObject(
   clientId: string,
   file: File
 ): Promise<string> {
-  const supabase = await createClient();
+  const client = getStorageClient();
   const path = buildObjectPath(clientId, file.name);
+  const body = Buffer.from(await file.arrayBuffer());
 
-  const { error } = await supabase.storage
-    .from(CLIENT_DOCUMENTS_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-
-  if (error) {
-    throw new Error(`Failed to upload document: ${error.message}`);
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: CLIENT_DOCUMENTS_BUCKET,
+        Key: path,
+        Body: body,
+        ContentType: file.type,
+        ContentLength: body.byteLength,
+      })
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    throw new Error(`Failed to upload document: ${message}`);
   }
 
   return path;
@@ -61,27 +89,29 @@ export async function createClientDocumentUrl(
   path: string,
   expiresInSeconds = 60
 ): Promise<string> {
-  const supabase = await createClient();
+  const client = getStorageClient();
 
-  const { data, error } = await supabase.storage
-    .from(CLIENT_DOCUMENTS_BUCKET)
-    .createSignedUrl(path, expiresInSeconds);
-
-  if (error || !data?.signedUrl) {
-    throw new Error(`Failed to open document: ${error?.message ?? "No URL returned"}`);
+  try {
+    return await getSignedUrl(
+      client,
+      new GetObjectCommand({ Bucket: CLIENT_DOCUMENTS_BUCKET, Key: path }),
+      { expiresIn: expiresInSeconds }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "No URL returned";
+    throw new Error(`Failed to open document: ${message}`);
   }
-
-  return data.signedUrl;
 }
 
 export async function removeClientDocumentObject(path: string): Promise<void> {
-  const supabase = await createClient();
+  const client = getStorageClient();
 
-  const { error } = await supabase.storage
-    .from(CLIENT_DOCUMENTS_BUCKET)
-    .remove([path]);
-
-  if (error) {
-    throw new Error(`Failed to remove stored document: ${error.message}`);
+  try {
+    await client.send(
+      new DeleteObjectCommand({ Bucket: CLIENT_DOCUMENTS_BUCKET, Key: path })
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    throw new Error(`Failed to remove stored document: ${message}`);
   }
 }

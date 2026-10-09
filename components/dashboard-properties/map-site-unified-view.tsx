@@ -34,6 +34,8 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
     site_id?: string;
     block_number?: number;
     lot_number?: number;
+    area_size?: number;
+    price_per_sqm?: number;
   } | null>(null);
 
   // Editor states
@@ -74,7 +76,13 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
   }, []);
 
   const handleSelectUnregistered = useCallback(
-    (data: { siteId: string; block: number; lot: number }) => {
+    (data: {
+      siteId: string;
+      block: number;
+      lot: number;
+      areaSize?: number;
+      pricePerSqm?: number;
+    }) => {
       if (!isEditorActive) {
         setIsSidebarOpen(true);
       }
@@ -83,6 +91,8 @@ export function SiteMapUnifiedView({ sites }: SiteMapUnifiedViewProps) {
         site_id: data.siteId,
         block_number: data.block,
         lot_number: data.lot,
+        area_size: data.areaSize,
+        price_per_sqm: data.pricePerSqm,
       });
     },
     [isEditorActive],

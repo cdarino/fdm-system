@@ -233,7 +233,13 @@ export interface PropertyLotsSidebarProps {
   onSelectLot?: (lot: PropertyLotWithClient | null) => void;
   onHoverLot?: (lotKey: string | null) => void;
   onSiteFilterChange?: (siteId: string | null) => void;
-  createInitialValues?: { site_id?: string; block_number?: number; lot_number?: number } | null;
+  createInitialValues?: {
+    site_id?: string;
+    block_number?: number;
+    lot_number?: number;
+    area_size?: number;
+    price_per_sqm?: number;
+  } | null;
   onClearCreateInitialValues?: () => void;
 }
 
@@ -262,7 +268,16 @@ function PropertyLotsSidebarContent({
 
   const activeSelectedLot = useMemo(() => {
     if (!selectedLot) return null;
-    return lots.find((l) => l.property_id === selectedLot.property_id) ?? selectedLot;
+    return (
+      lots.find(
+        (l) =>
+          (selectedLot.property_id && l.property_id === selectedLot.property_id) ||
+          (selectedLot.site_id &&
+            l.site_id === selectedLot.site_id &&
+            l.block_number === selectedLot.block_number &&
+            l.lot_number === selectedLot.lot_number)
+      ) ?? selectedLot
+    );
   }, [lots, selectedLot]);
 
   // Close dialog when a lot is selected for inspection

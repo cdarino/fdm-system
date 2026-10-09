@@ -21,10 +21,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Search, X, Users, SearchX, UserCheck, UserX, UserPlus, Loader2 } from 'lucide-react';
+import { Search, X, Users, SearchX, UserCheck, UserPlus, Loader2 } from 'lucide-react';
 import { ClientCompactRow } from '@/components/dashboard-clients/client-compact-row';
 import { usePropertyLots, lotLabel } from '@/lib/hooks/use-property-lots';
-import { useMutation } from '@/lib/hooks/use-mutation';
 import { getClients, createClient } from '@/lib/actions/clients';
 import { toast } from 'sonner';
 import type { ClientListItem } from '@/lib/types/client';
@@ -34,6 +33,7 @@ export interface ClientAssignModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lot: PropertyLotWithClient;
+  onEnsureRegistered?: () => Promise<string | null>;
 }
 
 type StatusFilter = 'all' | 'Active' | 'Inactive';
@@ -57,9 +57,10 @@ export function ClientAssignModal({
   open,
   onOpenChange,
   lot,
+  onEnsureRegistered,
 }: ClientAssignModalProps) {
   const router = useRouter();
-  const { assignClient } = usePropertyLots();
+  const { createLot } = usePropertyLots();
   const [clients, setClients] = useState<ClientListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -69,10 +70,9 @@ export function ClientAssignModal({
     lot.client?.client_id ?? null
   );
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [isEnsuringLot, setIsEnsuringLot] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [newClientName, setNewClientName] = useState('');
-
-  const { state: assignState, execute: executeAssign } = useMutation(assignClient);
 
   // Sync selected client and fetch list when dialog opens
   useEffect(() => {
@@ -106,14 +106,42 @@ export function ClientAssignModal({
     Inactive: clients.filter((c) => c.status.toLowerCase() === 'inactive').length,
   };
 
-  const isPending = assignState.status === 'pending';
-  const isSelectedSame = selectedClientId === (lot.client?.client_id ?? null);
+  const isPending = isEnsuringLot;
+  const isSelectedSame = Boolean(lot.client?.client_id) && selectedClientId === lot.client?.client_id;
+
+  // Ensure the lot is registered in property_lot before redirecting to the assignment wizard
+  async function resolvePropertyId(): Promise<string | null> {
+    if (lot.property_id) return lot.property_id;
+    if (onEnsureRegistered) return onEnsureRegistered();
+
+    const res = await createLot({
+      site_id: lot.site_id,
+      location: lot.location,
+      block_number: lot.block_number,
+      lot_number: lot.lot_number,
+      area_size: lot.area_size,
+      price_per_sqm: lot.price_per_sqm,
+      status: 'Open',
+    });
+
+    if (!res.success) {
+      toast.error(res.error || 'Failed to open property lot for assignment');
+      return null;
+    }
+    return res.data.property_id;
+  }
 
   async function handleAssign() {
     if (!selectedClientId) return;
-    // Navigate to client page with property pre-selected in URL
-    onOpenChange(false);
-    router.push(`/dashboard/clients/${selectedClientId}?assignProperty=${lot.property_id}`);
+    setIsEnsuringLot(true);
+    try {
+      const targetPropertyId = await resolvePropertyId();
+      if (!targetPropertyId) return;
+      onOpenChange(false);
+      router.push(`/dashboard/clients/${selectedClientId}?assignProperty=${targetPropertyId}`);
+    } finally {
+      setIsEnsuringLot(false);
+    }
   }
 
   async function handleCreateAndAssign(nameToCreate?: string) {
@@ -125,6 +153,9 @@ export function ClientAssignModal({
 
     setIsCreatingClient(true);
     try {
+      const targetPropertyId = await resolvePropertyId();
+      if (!targetPropertyId) return;
+
       const result = await createClient({ full_name: targetName });
 
       if (!result.success) {
@@ -134,19 +165,11 @@ export function ClientAssignModal({
       toast.success(`Client "${targetName}" created`);
       setIsQuickCreateOpen(false);
       onOpenChange(false);
-      router.push(`/dashboard/clients/${result.data.client_id}?assignProperty=${lot.property_id}`);
+      router.push(`/dashboard/clients/${result.data.client_id}?assignProperty=${targetPropertyId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create client');
     } finally {
       setIsCreatingClient(false);
-    }
-  }
-
-  async function handleUnassign() {
-    const ok = await executeAssign(lot.property_id, null, 'Open');
-    if (ok) {
-      toast.success(`Client removed from ${lotLabel(lot)}`);
-      onOpenChange(false);
     }
   }
 
@@ -326,23 +349,7 @@ export function ClientAssignModal({
         </div>
 
         {/* Dialog Footer Actions */}
-        <DialogFooter className="flex items-center justify-between gap-2 border-t border-border p-3.5 bg-card sm:justify-between">
-          <div>
-            {lot.client && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isPending}
-                onClick={handleUnassign}
-                className="gap-1.5 border-destructive/30 text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_10%,white)] hover:text-destructive text-xs h-8"
-              >
-                <UserX className="h-3.5 w-3.5" />
-                Unassign Client
-              </Button>
-            )}
-          </div>
-
+        <DialogFooter className="flex items-center justify-end gap-2 border-t border-border p-3.5 bg-card">
           <div className="flex items-center gap-2">
             <Button
               type="button"

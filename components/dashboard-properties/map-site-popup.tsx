@@ -107,16 +107,27 @@ export function MapSitePopup({
           <ArrowRight className="h-3.5 w-3.5" />
         </Button>
       ) : (
-        <Button
-          size="sm"
-          disabled={plot.isSiteArchived}
-          title={plot.isSiteArchived ? 'Restore site before registering lots' : undefined}
-          className="mt-3 w-full cursor-pointer gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={plot.isSiteArchived ? undefined : onRegisterLot}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span>Open for Sale</span>
-        </Button>
+        <div className="mt-3 flex flex-col gap-1.5">
+          <Button
+            size="sm"
+            variant="quiet"
+            className="w-full cursor-pointer gap-1.5"
+            onClick={onViewDetails}
+          >
+            <span>View Details</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            disabled={plot.isSiteArchived}
+            title={plot.isSiteArchived ? 'Restore site before registering lots' : undefined}
+            className="w-full cursor-pointer gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={plot.isSiteArchived ? undefined : onRegisterLot}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Open Lot for Sale</span>
+          </Button>
+        </div>
       )}
 
       {!plot.isRegistered && isEditorMode && isSystemAdmin && (

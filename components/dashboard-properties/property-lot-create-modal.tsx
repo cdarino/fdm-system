@@ -34,6 +34,7 @@ const PESO = new Intl.NumberFormat('en-PH', {
 
 export interface CreatePropertyLotModalProps {
   open: boolean;
+  onOpenChange?: (open: boolean) => void;
   sites: Site[];
   initialValues?: {
     site_id?: string;
@@ -44,8 +45,18 @@ export interface CreatePropertyLotModalProps {
   };
 }
 
-export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePropertyLotModalProps) {
+export function CreatePropertyLotModal({
+  open,
+  onOpenChange,
+  sites,
+  initialValues,
+}: CreatePropertyLotModalProps) {
   const { createLot, closeDialog } = usePropertyLots();
+
+  function handleDismiss() {
+    onOpenChange?.(false);
+    closeDialog();
+  }
 
   const siteOptions = useMemo(
     () =>
@@ -71,7 +82,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
   const { state, execute } = useMutation(createLot, {
     setError: form.setError,
     onSuccess: () => {
-      closeDialog();
+      handleDismiss();
       toast.success('Property lot created successfully');
     },
   });
@@ -112,7 +123,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
   const serverError = state.status === 'error' ? state.error : null;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && closeDialog()}>
+    <Dialog open={open} onOpenChange={(next) => !next && handleDismiss()}>
       <DialogContent className="max-w-md bg-card">
         <DialogHeader>
           <DialogTitle>New Property Lot</DialogTitle>
@@ -223,7 +234,7 @@ export function CreatePropertyLotModal({ open, sites, initialValues }: CreatePro
             <Button
               type="button"
               variant="outline"
-              onClick={closeDialog}
+              onClick={handleDismiss}
               disabled={isPending}
               className="border-border bg-card text-foreground hover:bg-row-hover hover:text-foreground"
             >

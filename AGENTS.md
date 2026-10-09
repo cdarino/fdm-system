@@ -114,6 +114,11 @@ All required vars must be set in `.env.local`. See `.env.example` for the full l
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Anon/publishable key (safe for client) |
 | `SUPABASE_SECRET_KEY` | Service role key. Server only, never expose to client |
+| `S3_ENDPOINT` | S3-compatible endpoint (Supabase S3 in dev, Backblaze B2 in prod) |
+| `S3_REGION` | Storage bucket region (e.g. `ap-southeast-1` or `us-west-004`) |
+| `S3_BUCKET` | Storage bucket name (defaults to `client-documents`) |
+| `S3_ACCESS_KEY_ID` | S3 Access Key ID / Backblaze B2 `keyID` — server only |
+| `S3_SECRET_ACCESS_KEY` | S3 Secret Access Key / Backblaze B2 `applicationKey` — server only |
 
 ## Database Migrations & Pre-Flight Introspection
 
