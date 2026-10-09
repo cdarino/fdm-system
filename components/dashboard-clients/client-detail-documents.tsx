@@ -28,16 +28,21 @@ import { toast } from 'sonner';
 import { formatActivityTime } from '@/lib/format-activity-time';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
 import {
+  DOC_TYPES,
+  DOC_TYPE_LABEL,
   REQUIRED_CLIENT_DOCUMENTS,
   type DocType,
 } from '@/lib/types/client';
+import { DOCUMENT_FILE_ACCEPT } from '@/lib/validations/document';
 
-const DOCUMENT_TYPES: DocType[] = ['Valid ID', 'Contract', 'Deed of Sale', 'eCAR', 'Other'];
+const DOCUMENT_TYPES = DOC_TYPES;
+const ALL_LOTS = 'all-lots';
 
 export function ClientDetailDocuments() {
   const { client, uploadDocument, deleteDocument, getDocumentUrl } = useClientDetail();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [documentType, setDocumentType] = useState<DocType>('Valid ID');
+  const [lotId, setLotId] = useState<string>(ALL_LOTS);
   const [categoryFilter, setCategoryFilter] = useState<DocType | 'all'>('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -46,6 +51,11 @@ export function ClientDetailDocuments() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const allDocuments = client.client_document || [];
+  const lots = client.properties ?? [];
+  const lotName = (propertyId: string | null | undefined) => {
+    const lot = lots.find((p) => p.property_id === propertyId);
+    return lot ? `Block ${lot.block_number} Lot ${lot.lot_number}` : null;
+  };
 
   const counts = DOCUMENT_TYPES.reduce(
     (acc, type) => {
@@ -72,10 +82,12 @@ export function ClientDetailDocuments() {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('document_type', documentType);
+      if (lotId !== ALL_LOTS) formData.append('property_id', lotId);
 
       await uploadDocument(formData);
 
       setSelectedFile(null);
+      setLotId(ALL_LOTS);
       setIsUploadOpen(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
       toast.success('Document uploaded');
@@ -141,7 +153,7 @@ export function ClientDetailDocuments() {
                   <Circle className="h-3.5 w-3.5 shrink-0 text-destructive" />
                 )}
                 <span className={isPresent ? 'text-foreground' : 'text-destructive'}>
-                  {type}
+                  {DOC_TYPE_LABEL[type]}
                 </span>
               </li>
             );
@@ -179,16 +191,32 @@ export function ClientDetailDocuments() {
             <SelectContent>
               {DOCUMENT_TYPES.map((type) => (
                 <SelectItem key={type} value={type}>
-                  {type}
+                  {DOC_TYPE_LABEL[type]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
+          {lots.length > 0 && (
+            <Select value={lotId} onValueChange={setLotId}>
+              <SelectTrigger className="h-9" aria-label="Lot this document belongs to">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_LOTS}>All of this client&apos;s lots</SelectItem>
+                {lots.map((lot) => (
+                  <SelectItem key={lot.property_id} value={lot.property_id}>
+                    Block {lot.block_number} Lot {lot.lot_number}, {lot.location}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           <Input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
+            accept={DOCUMENT_FILE_ACCEPT}
             onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
             className="h-9"
           />
@@ -228,7 +256,7 @@ export function ClientDetailDocuments() {
               onClick={() => setCategoryFilter(type)}
               className="h-8 text-xs"
             >
-              {type} ({counts[type]})
+              {DOC_TYPE_LABEL[type]} ({counts[type]})
             </Button>
           ))}
         </div>
@@ -263,8 +291,9 @@ export function ClientDetailDocuments() {
               </IconBox>
 
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">{doc.document_type}</p>
+                <p className="text-sm font-medium text-foreground">{DOC_TYPE_LABEL[doc.document_type]}</p>
                 <p className="text-xs text-muted-foreground">
+                  {lotName(doc.property_id) ? `${lotName(doc.property_id)}. ` : ''}
                   Uploaded {formatActivityTime(doc.uploaded_at)}
                 </p>
               </div>

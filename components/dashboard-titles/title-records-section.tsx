@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FileCheck, FilePlus, PenLine, SearchX, X } from 'lucide-react';
+import { FileCheck, FilePlus, FolderOpen, PenLine, SearchX, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardTableFooter } from '@/components/ui/card';
@@ -16,9 +16,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { TitleRecordDialog } from './title-record-dialog';
+import { TitleDocumentsDialog } from './title-documents-dialog';
 import { useLandTitles, lotRefLabel } from '@/lib/hooks/use-land-titles';
 import { useSession } from '@/lib/hooks/use-session';
 import { TITLE_STATUS_VARIANT } from '@/lib/status-colors';
+import {
+  documentsForLot,
+  getMissingReleaseDocuments,
+  getRequiredReleaseDocuments,
+} from '@/lib/utils/release-requirements';
 import {
   TITLE_HOLDER_LABEL,
   type AccountAwaitingTitle,
@@ -83,6 +89,23 @@ function ClientCell({ name, detail }: { name: string | undefined; detail: string
   );
 }
 
+function ReleasePacketProgress({ title }: { title: LandTitle }) {
+  const uploaded = documentsForLot(title.client?.documents ?? [], title.property_id).map(
+    (d) => d.document_type
+  );
+  const required = getRequiredReleaseDocuments(title.title_holder).length;
+  const missing = getMissingReleaseDocuments(title.title_holder, uploaded).length;
+  const done = required - missing;
+
+  return missing === 0 ? (
+    <span className="text-success">Complete</span>
+  ) : (
+    <span className="text-muted-foreground">
+      {done} of {required} uploaded
+    </span>
+  );
+}
+
 export function TitleRecordsSection({
   initialTitles,
   initialAwaiting,
@@ -105,7 +128,15 @@ export function TitleRecordsSection({
     setTab,
     createTitle,
     editTitle,
+    loadDocuments,
+    uploadDocument,
+    removeDocument,
+    getDocumentUrl,
   } = useLandTitles(initialTitles, initialAwaiting);
+
+  // Kept as an id so the dialog always reads the latest copy of the title.
+  const [documentsTitleId, setDocumentsTitleId] = useState<string | null>(null);
+  const documentsTitle = titles.find((t) => t.title_id === documentsTitleId) ?? null;
 
   // The dialog state is kept as one object so its `defaults` stay stable while
   // the dialog is open, and typing is not reset on re-render.
@@ -226,6 +257,7 @@ export function TitleRecordsSection({
                   <TableHead className={`${HEAD} hidden px-3 lg:table-cell`}>Title number</TableHead>
                   <TableHead className={`${HEAD} hidden px-3 lg:table-cell`}>Name on title</TableHead>
                   <TableHead className={`${HEAD} px-3`}>Status</TableHead>
+                  <TableHead className={`${HEAD} hidden px-3 md:table-cell`}>Release packet</TableHead>
                   <TableHead className={`${HEAD} pl-3 text-right ${GUTTER_R}`}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -258,28 +290,42 @@ export function TitleRecordsSection({
                           {title.status}
                         </Badge>
                       </TableCell>
+                      <TableCell className="hidden px-3 py-4 text-sm md:table-cell">
+                        <ReleasePacketProgress title={title} />
+                      </TableCell>
                       <TableCell className={`py-4 pl-3 text-right ${GUTTER_R}`}>
-                        {canEdit && (
+                        <div className="flex items-center justify-end gap-2">
                           <Button
                             size="sm"
                             variant="quiet"
                             className="gap-1.5"
-                            onClick={() =>
-                              openDialog({
-                                mode: 'edit',
-                                title,
-                                subject,
-                                defaults: {
-                                  title_holder: title.title_holder ?? undefined,
-                                  title_number: title.title_number ?? '',
-                                },
-                              })
-                            }
+                            onClick={() => setDocumentsTitleId(title.title_id)}
                           >
-                            <PenLine className="h-3.5 w-3.5" />
-                            Edit
+                            <FolderOpen className="h-3.5 w-3.5" />
+                            Documents
                           </Button>
-                        )}
+                          {canEdit && (
+                            <Button
+                              size="sm"
+                              variant="quiet"
+                              className="gap-1.5"
+                              onClick={() =>
+                                openDialog({
+                                  mode: 'edit',
+                                  title,
+                                  subject,
+                                  defaults: {
+                                    title_holder: title.title_holder ?? undefined,
+                                    title_number: title.title_number ?? '',
+                                  },
+                                })
+                              }
+                            >
+                              <PenLine className="h-3.5 w-3.5" />
+                              Edit
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -295,6 +341,17 @@ export function TitleRecordsSection({
           </p>
         </CardTableFooter>
       </Card>
+
+      <TitleDocumentsDialog
+        title={documentsTitle}
+        open={documentsTitleId !== null}
+        onOpenChange={(open: boolean) => !open && setDocumentsTitleId(null)}
+        canUpload={canEdit}
+        loadDocuments={loadDocuments}
+        uploadDocument={uploadDocument}
+        removeDocument={removeDocument}
+        getDocumentUrl={getDocumentUrl}
+      />
 
       <TitleRecordDialog
         mode={dialog?.mode ?? 'create'}

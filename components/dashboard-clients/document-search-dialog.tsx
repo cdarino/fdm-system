@@ -1,5 +1,6 @@
 'use client';
 
+import { DOC_TYPE_LABEL, type DocType } from '@/lib/types/client';
 import { useEffect, useState } from 'react';
 import {
   Dialog,
@@ -181,7 +182,7 @@ export function DocumentSearchDialog({
                           {humanizeDocumentName(hit.file_path)}
                         </p>
                         <Badge variant="secondary" className="text-[10px]">
-                          {hit.document_type}
+                          {DOC_TYPE_LABEL[hit.document_type as DocType] ?? hit.document_type}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">{hit.client_name}</p>

@@ -12,8 +12,9 @@ import {
 import type { AccountAwaitingTitle, CreateLandTitleInput, LandTitle } from "@/lib/types/title";
 import type { PaginatedResult } from "@/lib/types/client";
 
+// The client's documents ride along so title lists can show release packet progress.
 const TITLE_SELECT =
-  "*, client:client_id(client_id, full_name, status, address), property:property_id(property_id, location, block_number, lot_number)";
+  "*, client:client_id(client_id, full_name, status, address, documents:client_document(document_type, property_id)), property:property_id(property_id, location, block_number, lot_number)";
 
 const titleBase = createScope();
 const titleCreate = createScope(["legal.create"]);

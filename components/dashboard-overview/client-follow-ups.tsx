@@ -6,6 +6,7 @@ import { ArrowUpRight, FileWarning, Phone, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { DOC_TYPE_LABEL } from '@/lib/types/client';
 import type { ClientFollowUp } from '@/lib/client-record-review';
 
 export function ClientFollowUps({ items }: { items: ClientFollowUp[] | null }) {
@@ -43,7 +44,7 @@ export function ClientFollowUps({ items }: { items: ClientFollowUp[] | null }) {
               <ul className="divide-y divide-border">
                 {current.slice(0, limit).map(item => <li key={item.clientId}>
                   <Link href={`/dashboard/clients/${item.clientId}`} className="flex items-center justify-between gap-3 rounded-md py-3 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    <span className="min-w-0"><span className="block break-words text-sm font-medium">{item.name}</span><span className="mt-1 block text-xs text-muted-foreground">{view === 'documents' ? `Missing: ${item.missingDocuments.join(', ')}` : 'Open profile to review contact details'}</span></span>
+                    <span className="min-w-0"><span className="block break-words text-sm font-medium">{item.name}</span><span className="mt-1 block text-xs text-muted-foreground">{view === 'documents' ? `Missing: ${item.missingDocuments.map((type) => DOC_TYPE_LABEL[type]).join(', ')}` : 'Open profile to review contact details'}</span></span>
                     <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0" />
                   </Link>
                 </li>)}

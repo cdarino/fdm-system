@@ -1,3 +1,5 @@
+import type { ClientDocument, DocType } from '@/lib/types/client';
+
 /** The internal release steps, in order. A new title starts at the first one. */
 export const TITLE_STATUSES = [
   'Cleared by Billing',
@@ -35,6 +37,8 @@ export interface LandTitle {
     full_name: string;
     status: string;
     address: string | null;
+    /** The client's documents, used for the release packet progress on title lists. */
+    documents?: Pick<ClientDocument, 'document_type' | 'property_id'>[];
   } | null;
   property?: {
     property_id: string;
@@ -75,3 +79,19 @@ export interface UpdateLandTitleInput {
   title_holder?: TitleHolder;
   status?: TitleStatus;
 }
+
+/**
+ * The release packet, in checklist order. These are client document types, so
+ * a file uploaded on the client's profile and one uploaded from the Legal page
+ * are the same document. There is no e-CAR.
+ */
+export const RELEASE_DOCUMENT_TYPES = [
+  'SOA',
+  'Payment History',
+  'Certificate of Ownership',
+  'Contract',
+  'Deed of Sale',
+  'Title Copy',
+] as const satisfies readonly DocType[];
+
+export type ReleaseDocumentType = (typeof RELEASE_DOCUMENT_TYPES)[number];

@@ -13,13 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const CLIENT_DOCUMENTS_BUCKET = "client-documents";
 
-/** Matches the bucket's own limits, declared in the migration. */
-export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
-export const ALLOWED_DOCUMENT_TYPES = [
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-] as const;
+export { MAX_DOCUMENT_BYTES, ALLOWED_DOCUMENT_TYPES } from "@/lib/validations/document";
 
 /**
  * `{client_id}/{uuid}-{sanitized-filename}`.

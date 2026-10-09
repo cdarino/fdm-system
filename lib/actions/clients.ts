@@ -45,9 +45,8 @@ import {
   uploadClientDocumentObject,
   createClientDocumentUrl,
   removeClientDocumentObject,
-  MAX_DOCUMENT_BYTES,
-  ALLOWED_DOCUMENT_TYPES,
 } from "@/lib/storage/client-documents";
+import { documentFileSchema } from "@/lib/validations/document";
 
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
@@ -58,13 +57,9 @@ const clientDelete = client.extend(["clients.delete"]);
 const uploadClientDocumentSchema = z.object({
   clientId: uuidSchema,
   document_type: docTypeSchema,
-  file: z
-    .custom<File>((val) => val instanceof File && val.size > 0, "No file was provided.")
-    .refine((file) => file.size <= MAX_DOCUMENT_BYTES, "File is larger than the 10MB limit.")
-    .refine(
-      (file) => ALLOWED_DOCUMENT_TYPES.includes(file.type as (typeof ALLOWED_DOCUMENT_TYPES)[number]),
-      "Only PDF, JPEG and PNG files are accepted."
-    ),
+  file: documentFileSchema,
+  // Optional lot the document belongs to. FormData gives null when absent.
+  property_id: uuidSchema.nullish().transform((v) => v ?? null),
 });
 
 async function resolveUserNames(
@@ -542,8 +537,9 @@ export async function uploadClientDocument(
       clientId,
       file: formData.get("file"),
       document_type: formData.get("document_type"),
+      property_id: formData.get("property_id") || null,
     },
-    handler: async ({ clientId: validId, file, document_type }, { supabase, userId }) => {
+    handler: async ({ clientId: validId, file, document_type, property_id }, { supabase, userId }) => {
       const filePath = await uploadClientDocumentObject(validId, file);
 
       const { data, error } = await supabase
@@ -551,6 +547,7 @@ export async function uploadClientDocument(
         .insert({
           client_id: validId,
           document_type,
+          property_id,
           file_path: filePath,
           uploaded_by: userId,
         })

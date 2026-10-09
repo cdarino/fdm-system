@@ -1,4 +1,10 @@
-import { REQUIRED_CLIENT_DOCUMENTS, type Client, type ClientDocument, type DocType } from '@/lib/types/client';
+import {
+  DOC_TYPE_LABEL,
+  REQUIRED_CLIENT_DOCUMENTS,
+  type Client,
+  type ClientDocument,
+  type DocType,
+} from '@/lib/types/client';
 
 export interface ClientRequirements {
   /** Whether profile fields (full_name, address, tin_number) are all present */
@@ -104,7 +110,7 @@ export function formatMissingRequirements(requirements: ClientRequirements): str
   }
   
   if (requirements.missingDocuments.length > 0) {
-    missing.push(...requirements.missingDocuments);
+    missing.push(...requirements.missingDocuments.map((type) => DOC_TYPE_LABEL[type]));
   }
   
   return missing.join(', ');

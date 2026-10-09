@@ -1,5 +1,6 @@
 'use client';
 
+import { DOC_TYPE_LABEL } from '@/lib/types/client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -260,10 +261,10 @@ function ClientRow({ client }: { client: ClientListItem }) {
                   className="shrink-0 text-[10px]"
                   title={
                     isProfileIncomplete && hasDocIssues
-                      ? `Missing profile fields and documents: ${missingDocs.missing_documents.join(', ')}`
+                      ? `Missing profile fields and documents: ${missingDocs.missing_documents.map((t) => DOC_TYPE_LABEL[t]).join(', ')}`
                       : isProfileIncomplete
                         ? 'Incomplete profile (missing address or TIN)'
-                        : `Missing documents: ${missingDocs?.missing_documents.join(', ')}`
+                        : `Missing documents: ${missingDocs?.missing_documents.map((t) => DOC_TYPE_LABEL[t]).join(', ')}`
                   }
                 >
                   <ShieldAlert className="mr-1 h-2.5 w-2.5" />

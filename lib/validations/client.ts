@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DOC_TYPES } from "@/lib/types/client";
 
 export function stripUndefined<T extends Record<string, unknown>>(data: T): Partial<T> {
   return Object.fromEntries(
@@ -8,13 +9,7 @@ export function stripUndefined<T extends Record<string, unknown>>(data: T): Part
 
 export const uuidSchema = z.string().uuid("Invalid UUID format");
 
-export const docTypeSchema = z.enum([
-  "Valid ID",
-  "Deed of Sale",
-  "Contract",
-  "eCAR",
-  "Other",
-]);
+export const docTypeSchema = z.enum(DOC_TYPES);
 
 // Letters (including ñ and accented letters), spaces, and the punctuation that
 // appears in names: "Ma. Teresa", "O'Neil", "Santos-Reyes", "dela Cruz, Jr.".

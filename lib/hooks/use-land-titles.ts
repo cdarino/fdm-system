@@ -4,8 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStatusFilter } from '@/lib/hooks/use-status-filter';
 import { createLandTitle, updateLandTitle } from '@/lib/actions/titles';
+import {
+  deleteReleaseDocument,
+  getReleaseDocumentUrl,
+  getReleaseDocuments,
+  uploadReleaseDocument,
+} from '@/lib/actions/release-documents';
 import type { ActionResult } from '@/lib/actions/action-result';
-import type { AccountAwaitingTitle, LandTitle } from '@/lib/types/title';
+import type { AccountAwaitingTitle, LandTitle, ReleaseDocumentType } from '@/lib/types/title';
+import type { ClientDocument } from '@/lib/types/client';
 import type { TitleRecordFormData } from '@/lib/validations/title';
 
 /** 'awaiting': accounts cleared by Billing with no title yet. 'titles': title records. */
@@ -100,6 +107,37 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
     [router]
   );
 
+  // Release documents are the client's documents. After a change, refresh the
+  // page data so the release packet progress on each title row stays exact.
+  const loadDocuments = useCallback((titleId: string) => getReleaseDocuments(titleId), []);
+
+  const uploadDocument = useCallback(
+    async (titleId: string, documentType: ReleaseDocumentType, file: File): Promise<ClientDocument> => {
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('document_type', documentType);
+
+      const result = await uploadReleaseDocument(titleId, formData);
+      if (!result.success) throw new Error(result.error);
+
+      router.refresh();
+      return result.data;
+    },
+    [router]
+  );
+
+  const removeDocument = useCallback(
+    async (document: ClientDocument): Promise<void> => {
+      const result = await deleteReleaseDocument(document.document_id);
+      if (!result.success) throw new Error(result.error);
+
+      router.refresh();
+    },
+    [router]
+  );
+
+  const getDocumentUrl = useCallback((documentId: string) => getReleaseDocumentUrl(documentId), []);
+
   return {
     titles,
     awaiting,
@@ -111,5 +149,9 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
     setTab,
     createTitle,
     editTitle,
+    loadDocuments,
+    uploadDocument,
+    removeDocument,
+    getDocumentUrl,
   };
 }
