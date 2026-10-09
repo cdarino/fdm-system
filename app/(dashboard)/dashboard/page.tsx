@@ -323,8 +323,8 @@ function DepartmentToolsCard({ departments }: { departments: RoleSection[] }) {
       <CardHeader>
         <CardTitle size="sm">Department tools</CardTitle>
         <CardDescription className="text-xs leading-relaxed">
-          Title tracking, billing, and payment workflows are not available yet. Use
-          client profiles for supporting records in the meantime.
+          Billing and payment workflows are not available yet. Use client profiles
+          for supporting records in the meantime.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -21,6 +21,9 @@ export interface LedgerAccount {
   status: AccountStatus;
   total_contract_price: number;
   remaining_balance: number;
+  /** When Billing cleared the account as fully paid. Null while payments are ongoing. */
+  cleared_at?: string | null;
+  cleared_by?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -21,6 +21,7 @@ import {
 } from "../framework/session";
 import { unwrap } from "../framework/action-helper";
 import { uniqueNameSuffix } from "../framework/fake-data";
+import { undoBillingClearance } from "@/lib/actions/billing";
 
 describe("Property Lifecycle & Subdivision Transitions", () => {
   const testPropertyIds: string[] = [];
@@ -116,13 +117,17 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
 
     const titleNumber = `TCT-PAID-${Date.now()}`;
     const assigned = unwrap(
-      await assignPropertyFullyPaid(lot.property_id, client.client_id, titleNumber)
+      await assignPropertyFullyPaid(lot.property_id, client.client_id, {
+        title_number: titleNumber,
+        title_holder: "client",
+      })
     );
 
     expect(assigned.status).toBe("Sold");
     expect(assigned.client?.client_id).toBe(client.client_id);
     expect(assigned.title?.title_number).toBe(titleNumber);
-    expect(assigned.active_account).toBeNull();
+    expect(assigned.title?.status).toBe("Ready for Claim");
+    expect(assigned.active_account?.cleared_at).toBeTruthy();
 
     // Verify client details include this owned property
     const clientDetails = await getClientById(client.client_id);
@@ -140,6 +145,12 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
     }
 
     unwrap(await deleteLandTitle(assigned.title!.title_id));
+
+    // Still cleared by Billing, so unassigning stays blocked until that is undone
+    const blockedCleared = await assignPropertyClient(lot.property_id, null);
+    expect(blockedCleared.success).toBe(false);
+    unwrap(await undoBillingClearance(assigned.active_account!.account_id));
+
     const cleared = unwrap(await assignPropertyClient(lot.property_id, null));
     expect(cleared.status).toBe("Open");
     expect(cleared.client).toBeNull();
@@ -200,15 +211,16 @@ describe("Property Lifecycle & Subdivision Transitions", () => {
         price_per_sqm: 12000,
         client_id: paidClient.client_id,
         ownership_type: "fully_paid",
-        title_number: `TCT-DIRECT-${Date.now()}`,
       })
     );
     testPropertyIds.push(paidLot.property_id);
 
+    // A fully paid sale is an account already cleared by Billing, with no title yet
     expect(paidLot.status).toBe("Sold");
     expect(paidLot.client?.client_id).toBe(paidClient.client_id);
-    expect(paidLot.title).not.toBeNull();
-    expect(paidLot.active_account).toBeNull();
+    expect(paidLot.title).toBeNull();
+    expect(paidLot.active_account?.cleared_at).toBeTruthy();
+    expect(Number(paidLot.active_account?.remaining_balance)).toBe(0);
 
     // Verify both clients resolve their respective properties
     const [instDetails, paidDetails] = await Promise.all([

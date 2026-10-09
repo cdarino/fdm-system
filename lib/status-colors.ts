@@ -1,4 +1,5 @@
 import type { PropertyStatus } from '@/lib/types/property';
+import type { TitleStatus } from '@/lib/types/title';
 
 /**
  * One source of truth for how a lot's status is coloured.
@@ -52,3 +53,17 @@ export const PROPERTY_STATUS_VARIANT: Record<
 export const PROPERTY_STATUS_COLOR = PROPERTY_STATUS_VARIANT;
 
 
+
+/** Badge colour for each title release step, used by the Legal page. */
+export const TITLE_STATUS_VARIANT: Record<
+  TitleStatus,
+  'info' | 'muted' | 'warning' | 'success'
+> = {
+  'Cleared by Billing': 'info',
+  'Legal Processing': 'muted',
+  'Legal Review': 'muted',
+  'Management Approval': 'muted',
+  '30-Day Clearance': 'muted',
+  'Ready for Claim': 'warning',
+  Released: 'success',
+};

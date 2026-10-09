@@ -47,7 +47,17 @@ export interface ClientWithDetails extends Client {
   contact_info: ContactInfo[];
   client_document: ClientDocument[];
   client_log: ClientLog[];
-  properties?: PropertyLot[];
+  properties?: ClientProperty[];
+}
+
+/** A lot on a client's profile, with where its sale stands. */
+export interface ClientProperty extends PropertyLot {
+  /** The client's active account for this lot, if any. */
+  account_id?: string | null;
+  /** When Billing cleared that account as fully paid. */
+  cleared_at?: string | null;
+  /** Whether Legal has created the land title for this lot. */
+  has_title?: boolean;
 }
 
 export interface ClientActivitySummary {

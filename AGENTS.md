@@ -46,6 +46,7 @@ fdm-system/
 │   ├── dashboard-overview/     # Role-aware overview, record follow-ups, portfolio charts & quick links
 │   ├── dashboard-properties/   # Property lots table & subdivision map components
 │   ├── dashboard-settings/     # Dashboard settings forms
+│   ├── dashboard-titles/       # Land title records (Legal page)
 │   ├── landing/                # Landing page components (navbar, hero, features)
 │   ├── shared/                 # Global cross-cutting shared brand & utility components
 │   └── ui/                     # shadcn/ui primitives and custom base components

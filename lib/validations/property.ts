@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { stripUndefined, uuidSchema } from "@/lib/validations/client";
+import { titleRecordFormSchema } from "@/lib/validations/title";
 
 export const propertyStatusEnum = z.enum(["Open", "Reserved", "Sold", "Forfeited"] as const);
 
@@ -164,7 +165,8 @@ export const openSubdivisionForSaleSchema = z.object({
 export const assignPropertyFullyPaidActionSchema = z.object({
   propertyId: uuidSchema,
   clientId: uuidSchema,
-  title_number: z.string().trim().max(100).optional().nullable(),
+  // Legacy accounts whose title was already processed come with it.
+  existing_title: titleRecordFormSchema.optional(),
 });
 
 export const createAndAssignPropertyFromSubdivisionSchema = z.object({
@@ -177,7 +179,6 @@ export const createAndAssignPropertyFromSubdivisionSchema = z.object({
   ownership_type: z.enum(["installment", "fully_paid"]),
   total_contract_price: contractPriceSchema.optional(),
   remaining_balance: z.number().min(0).max(LOT_LIMITS.contractPrice).optional(),
-  title_number: z.string().trim().max(100).optional().nullable(),
 });
 
 export type CreatePropertyLotFormData = z.infer<typeof createPropertyLotSchema>;

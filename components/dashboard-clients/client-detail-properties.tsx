@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { IconBox } from '@/components/ui/icon-box';
 import { PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
+import { ClientPropertyClearance } from './client-property-clearance';
 
 const PESO = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -118,6 +119,12 @@ export function ClientDetailProperties({
                       {PESO.format(totalPrice)}
                     </span>
                   </div>
+
+                  {(property.account_id || property.has_title) && (
+                    <div className="border-t border-border pt-3">
+                      <ClientPropertyClearance property={property} />
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -218,6 +218,42 @@ describe("Property Lot Management Actions", () => {
     expect(detail.client?.full_name).toBe(clientName);
   });
 
+  it("refuses to give a reserved lot to a second client on every assignment path", async () => {
+    const first = unwrap(await createClient({ full_name: faker.person.fullName() }));
+    const second = unwrap(await createClient({ full_name: faker.person.fullName() }));
+    testClientIds.push(first.client_id, second.client_id);
+
+    const lot = unwrap(await createPropertyLot({
+      location: "Double Sale Guard Palms",
+      block_number: faker.number.int({ min: 100, max: 999 }),
+      lot_number: 6,
+      area_size: 160,
+      price_per_sqm: 11000,
+    }));
+    testPropertyIds.push(lot.property_id);
+
+    unwrap(await assignPropertyClient(lot.property_id, first.client_id));
+
+    const viaClient = await assignPropertyClient(lot.property_id, second.client_id);
+    expect(viaClient.success).toBe(false);
+    if (!viaClient.success) expect(viaClient.error).toMatch(/already reserved/i);
+
+    await expect(
+      assignPropertyParties(lot.property_id, [{ client_id: second.client_id, is_primary: true }])
+    ).rejects.toThrow(/already reserved/i);
+
+    const viaFullyPaid = await assignPropertyFullyPaid(lot.property_id, second.client_id);
+    expect(viaFullyPaid.success).toBe(false);
+
+    // The first buyer keeps the lot, alone on its account
+    const detail = await getPropertyLotById(lot.property_id);
+    expect(detail.client?.client_id).toBe(first.client_id);
+    expect(detail.active_account?.parties.map((p) => p.client_id)).toEqual([first.client_id]);
+
+    // Assigning to the same buyer again is still allowed
+    unwrap(await assignPropertyClient(lot.property_id, first.client_id));
+  });
+
   it("rejects assigning a lot to an inactive client", async () => {
     const client = unwrap(await createClient({ full_name: faker.person.fullName(), status: "Inactive" }));
     testClientIds.push(client.client_id);
@@ -258,10 +294,12 @@ describe("Property Lot Management Actions", () => {
     }));
     testPropertyIds.push(lot.property_id);
 
-    const soldLot = unwrap(await assignPropertyFullyPaid(lot.property_id, client.client_id, "T-998877"));
+    // Fully paid means cleared by Billing. Legal creates the title afterwards.
+    const soldLot = unwrap(await assignPropertyFullyPaid(lot.property_id, client.client_id));
     expect(soldLot.client?.client_id).toBe(client.client_id);
     expect(soldLot.status).toBe("Sold");
-    expect(soldLot.title?.title_number).toBe("T-998877");
+    expect(soldLot.active_account?.cleared_at).toBeTruthy();
+    expect(soldLot.title).toBeNull();
   });
 
   it("assignPropertyClient clears client and resets status to Open", async () => {

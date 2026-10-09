@@ -20,6 +20,7 @@ import {
 } from "@/lib/validations/client";
 import {
   type Client,
+  type ClientProperty,
   type ClientListItem,
   type ClientWithDetails,
   type ContactInfo,
@@ -185,11 +186,11 @@ export async function getClients(
 async function resolveClientProperties(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   clientId: string
-): Promise<PropertyLot[]> {
+): Promise<ClientProperty[]> {
   const [partyResult, titleResult] = await Promise.all([
     supabase
       .from("account_party")
-      .select("ledger_account!inner(property_id, status)")
+      .select("ledger_account!inner(account_id, property_id, status, cleared_at)")
       .eq("client_id", clientId)
       .eq("ledger_account.status", "Active"),
     supabase
@@ -205,14 +206,21 @@ async function resolveClientProperties(
     console.error(`Failed to resolve titles for client ${clientId}:`, titleResult.error.message);
   }
 
-  const partyPropertyIds = (partyResult.data ?? [])
-    .map((row) => (row.ledger_account as { property_id?: string } | null)?.property_id)
-    .filter((id): id is string => Boolean(id));
-  const titlePropertyIds = (titleResult.data ?? [])
-    .map((row) => row.property_id)
-    .filter((id): id is string => Boolean(id));
+  type AccountRef = { account_id: string; property_id: string; cleared_at: string | null };
+  const accounts = new Map<string, AccountRef>();
+  for (const row of partyResult.data ?? []) {
+    // A many-to-one embed is one object at runtime, but untyped clients see an array.
+    const embedded = row.ledger_account as unknown as AccountRef | AccountRef[] | null;
+    const account = Array.isArray(embedded) ? embedded[0] : embedded;
+    if (account?.property_id) accounts.set(account.property_id, account);
+  }
+  const titlePropertyIds = new Set(
+    (titleResult.data ?? [])
+      .map((row) => row.property_id)
+      .filter((id): id is string => Boolean(id))
+  );
 
-  const propertyIds = Array.from(new Set([...partyPropertyIds, ...titlePropertyIds]));
+  const propertyIds = Array.from(new Set([...accounts.keys(), ...titlePropertyIds]));
 
   if (propertyIds.length === 0) return [];
 
@@ -227,7 +235,15 @@ async function resolveClientProperties(
     return [];
   }
 
-  return data ?? [];
+  return (data ?? []).map((lot) => {
+    const account = accounts.get(lot.property_id);
+    return {
+      ...lot,
+      account_id: account?.account_id ?? null,
+      cleared_at: account?.cleared_at ?? null,
+      has_title: titlePropertyIds.has(lot.property_id),
+    };
+  });
 }
 
 export async function getClientById(clientId: string): Promise<ClientWithDetails> {
