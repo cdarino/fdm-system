@@ -54,7 +54,8 @@ export function AssignLotClientDialog({
     if (!open) return;
     setIsLoading(true);
     setLoadError(null);
-    getClients({ limit: 200, sortBy: 'full_name', sortOrder: 'asc' })
+    // Only active clients can be assigned a lot. The server rejects the rest.
+    getClients({ limit: 200, sortBy: 'full_name', sortOrder: 'asc', status: 'Active' })
       .then((result) => setClients(result.data))
       .catch((err) =>
         setLoadError(err instanceof Error ? err.message : 'Failed to load clients')

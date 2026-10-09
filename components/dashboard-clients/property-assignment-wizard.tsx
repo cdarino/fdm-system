@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
+import { RadioCard } from '@/components/ui/radio-card';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   CheckCircle2,
@@ -37,6 +38,7 @@ import {
   type SelectedLotDetails,
 } from './block-lot-popup';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
+import { TITLE_HOLDER_LABEL, type TitleHolder } from '@/lib/types/title';
 import type { Site, SiteWithLots } from '@/lib/types/property';
 
 const PESO = new Intl.NumberFormat('en-PH', {
@@ -66,7 +68,7 @@ const STAGE_OPTIONS: StageOption[] = [
   {
     id: 'title-in-process',
     title: 'Title in Process',
-    description: 'Client is fully paid and title processing has started',
+    description: 'Client is fully paid. Billing clears the account and Legal creates the title',
     icon: FileText,
     requiresComplete: true,
   },
@@ -111,6 +113,7 @@ export function PropertyAssignmentWizard({
 
   // To Claim stage state
   const [titleNumber, setTitleNumber] = useState<string>('');
+  const [titleHolder, setTitleHolder] = useState<TitleHolder | null>(null);
 
   const [sites, setSites] = useState<Site[]>([]);
   const [isLoadingPreSelected, setIsLoadingPreSelected] = useState(false);
@@ -309,6 +312,7 @@ export function PropertyAssignmentWizard({
   function handleStageSelect(stage: AssignmentStage) {
     setSelectedStage((current) => (current === stage ? null : stage));
     setTitleNumber('');
+    setTitleHolder(null);
   }
 
   async function handleSubmit() {
@@ -374,23 +378,26 @@ export function PropertyAssignmentWizard({
           : `Property assigned as Reserved with installment plan`;
         toast.success(actionText);
       } else if (selectedStage === 'title-in-process') {
-        const result = await assignPropertyFullyPaid(targetPropertyId, client.client_id, null);
+        const result = await assignPropertyFullyPaid(targetPropertyId, client.client_id);
 
         if (!result.success) {
           throw new Error(result.error || 'Failed to assign property');
         }
 
         const actionText = selectedLotDetails.isUnopenedPlot
-          ? `Opened Block ${selectedLotDetails.blockNumber} Lot ${selectedLotDetails.lotNumber} with title now in processing`
-          : `Property assigned with title now in processing`;
+          ? `Opened Block ${selectedLotDetails.blockNumber} Lot ${selectedLotDetails.lotNumber} as fully paid, cleared by Billing`
+          : `Property assigned as fully paid, cleared by Billing`;
         toast.success(actionText);
       } else if (selectedStage === 'to-claim') {
-        if (!titleNumber.trim()) {
-          toast.error('Title number is required for To Claim stage');
+        if (!titleNumber.trim() || !titleHolder) {
+          toast.error('Title number and whose name the title is in are required for the To Claim stage');
           return;
         }
 
-        const result = await assignPropertyFullyPaid(targetPropertyId, client.client_id, titleNumber.trim());
+        const result = await assignPropertyFullyPaid(targetPropertyId, client.client_id, {
+          title_number: titleNumber.trim(),
+          title_holder: titleHolder,
+        });
 
         if (!result.success) {
           throw new Error(result.error || 'Failed to assign property');
@@ -409,6 +416,7 @@ export function PropertyAssignmentWizard({
       setEditingMetric(null);
       setSelectedStage(null);
       setTitleNumber('');
+      setTitleHolder(null);
 
       router.refresh();
 
@@ -426,7 +434,7 @@ export function PropertyAssignmentWizard({
   const canProceed = Boolean(selectedLotDetails) && Boolean(selectedStage);
   const selectedStageOption = STAGE_OPTIONS.find((opt) => opt.id === selectedStage);
   const needsRequirements = selectedStageOption?.requiresComplete && !requirements.isComplete;
-  const needsTitleNumber = selectedStage === 'to-claim' && !titleNumber.trim();
+  const needsTitleNumber = selectedStage === 'to-claim' && (!titleNumber.trim() || !titleHolder);
   const hasAnyInput = Boolean(blockInput || lotInput || areaInput || priceInput || selectedStage);
 
   return (
@@ -588,7 +596,7 @@ export function PropertyAssignmentWizard({
                       evaluatedStatus.lot.client?.full_name
                         ? ` to ${evaluatedStatus.lot.client.full_name}`
                         : ''
-                    } — double sale prevented.`}
+                    }. Double sale prevented.`}
                 </p>
               </div>
 
@@ -637,7 +645,7 @@ export function PropertyAssignmentWizard({
                     </button>
                   ) : (
                     <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
-                      {!isNaN(numericArea) && numericArea > 0 ? `${numericArea} sqm` : '—'}
+                      {!isNaN(numericArea) && numericArea > 0 ? `${numericArea} sqm` : 'Not set'}
                     </p>
                   )}
                 </div>
@@ -685,7 +693,7 @@ export function PropertyAssignmentWizard({
                     </button>
                   ) : (
                     <p className="mt-0.5 text-xs font-semibold tabular-nums text-foreground">
-                      {!isNaN(numericPrice) && numericPrice > 0 ? PESO.format(numericPrice) : '—'}
+                      {!isNaN(numericPrice) && numericPrice > 0 ? PESO.format(numericPrice) : 'Not set'}
                     </p>
                   )}
                 </div>
@@ -701,7 +709,7 @@ export function PropertyAssignmentWizard({
                     Total Price
                   </p>
                   <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">
-                    {computedTotalPrice !== null ? PESO.format(computedTotalPrice) : '—'}
+                    {computedTotalPrice !== null ? PESO.format(computedTotalPrice) : 'Not set'}
                   </p>
                 </div>
               </div>
@@ -858,9 +866,8 @@ export function PropertyAssignmentWizard({
                 <AlertDescription className="text-sm">
                   <p className="font-semibold">Title Processing Workflow</p>
                   <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
-                    <li>Property will be marked as &quot;Sold&quot;</li>
-                    <li>A land title record will be created with status &quot;Processing&quot;</li>
-                    <li>No title number required at this stage</li>
+                    <li>The account will be marked &quot;Cleared by Billing&quot; and the lot &quot;Sold&quot;</li>
+                    <li>Legal staff then create the title record from the Legal page</li>
                     <li>Client is fully paid for this property</li>
                   </ul>
                 </AlertDescription>
@@ -887,12 +894,30 @@ export function PropertyAssignmentWizard({
                 </p>
               </div>
 
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">
+                  Whose name is the title in? <span className="text-destructive">*</span>
+                </legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(['client', 'fdm'] as const).map((holder) => (
+                    <RadioCard
+                      key={holder}
+                      name="title-holder"
+                      value={holder}
+                      checked={titleHolder === holder}
+                      onChange={() => setTitleHolder(holder)}
+                      label={TITLE_HOLDER_LABEL[holder]}
+                    />
+                  ))}
+                </div>
+              </fieldset>
+
               <Alert>
                 <Award className="h-4 w-4" />
                 <AlertDescription className="text-sm">
                   <p className="font-semibold">Ready for Client Pickup</p>
                   <p className="mt-1 text-xs">
-                    Property will be marked as &quot;Sold&quot; with title status &quot;Ready for Release&quot;. This stage bypasses profile requirements as the title is already processed.
+                    The account will be cleared by Billing and the title created at &quot;Ready for Claim&quot;. This stage bypasses profile requirements as the title is already processed.
                   </p>
                 </AlertDescription>
               </Alert>
@@ -914,6 +939,7 @@ export function PropertyAssignmentWizard({
             setEditingMetric(null);
             setSelectedStage(null);
             setTitleNumber('');
+            setTitleHolder(null);
             setTotalContractPrice('');
             setIsEditingPrice(false);
           }}

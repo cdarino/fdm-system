@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DOC_TYPES } from "@/lib/types/client";
 
 export function stripUndefined<T extends Record<string, unknown>>(data: T): Partial<T> {
   return Object.fromEntries(
@@ -8,35 +9,112 @@ export function stripUndefined<T extends Record<string, unknown>>(data: T): Part
 
 export const uuidSchema = z.string().uuid("Invalid UUID format");
 
-export const docTypeSchema = z.enum([
-  "Valid ID",
-  "Deed of Sale",
-  "Contract",
-  "eCAR",
-  "Other",
-]);
+export const docTypeSchema = z.enum(DOC_TYPES);
 
-export const contactInfoInputSchema = z.object({
-  type: z.string().trim().min(1, "Contact type is required"),
+// Letters (including ñ and accented letters), spaces, and the punctuation that
+// appears in names: "Ma. Teresa", "O'Neil", "Santos-Reyes", "dela Cruz, Jr.".
+const PERSON_NAME_PATTERN = /^\p{L}[\p{L}\p{M} .,'-]*$/u;
+
+export function personNameSchema(label: string) {
+  return z
+    .string()
+    .trim()
+    .min(1, `${label} is required`)
+    .max(100, `${label} must be 100 characters or fewer`)
+    .regex(
+      PERSON_NAME_PATTERN,
+      `${label} can only contain letters, spaces, periods, commas, apostrophes, and hyphens`
+    );
+}
+
+export const CONTACT_TYPES = ["Phone", "Mobile", "Email", "Other"] as const;
+
+const PHONE_CHARACTERS = /^\+?[\d\s()-]+$/;
+const PH_MOBILE_DIGITS = /^(09|639)\d{9}$/;
+// Mobile numbers, or landlines with their area code: (082) 221 1234, 02 8123 4567.
+const PH_PHONE_DIGITS = /^(0|63)\d{9,10}$/;
+const INTERNATIONAL_DIGITS = /^\d{8,15}$/;
+
+function isValidPhone(value: string, mobileOnly: boolean): boolean {
+  if (!PHONE_CHARACTERS.test(value)) return false;
+
+  const digits = value.replace(/\D/g, "");
+  // Numbers abroad (e.g. clients working overseas) are accepted in +<country code> form.
+  if (value.startsWith("+") && !digits.startsWith("63")) {
+    return INTERNATIONAL_DIGITS.test(digits);
+  }
+
+  return (mobileOnly ? PH_MOBILE_DIGITS : PH_PHONE_DIGITS).test(digits);
+}
+
+/**
+ * Returns why a contact value is invalid for its type, or null when it is
+ * valid. Shared by the server schemas and the contact editor so both show the
+ * same message.
+ */
+export function getContactValueError(type: string, rawValue: string): string | null {
+  const value = rawValue.trim();
+  if (!value) return "Contact value is required";
+  if (value.length > 200) return "Contact value must be 200 characters or fewer";
+
+  switch (type) {
+    case "Mobile":
+      return isValidPhone(value, true)
+        ? null
+        : "Enter a valid mobile number, e.g. 0917 123 4567 or +63 917 123 4567";
+    case "Phone":
+      return isValidPhone(value, false)
+        ? null
+        : "Enter a valid phone number with area code, e.g. (082) 221 1234 or 0917 123 4567";
+    case "Email":
+      return z.email().safeParse(value).success
+        ? null
+        : "Enter a valid email address, e.g. name@example.com";
+    default:
+      return null;
+  }
+}
+
+const contactTypeSchema = z.enum(CONTACT_TYPES, { error: "Choose a valid contact type" });
+
+const contactInfoFields = z.object({
+  type: contactTypeSchema,
   value: z.string().trim().min(1, "Contact value is required"),
   is_primary: z.boolean().optional().default(false),
 });
 
-export const createContactInfoSchema = contactInfoInputSchema.extend({
-  clientId: uuidSchema,
-});
+function refineContactValue(
+  data: { type?: string; value?: string },
+  ctx: z.RefinementCtx
+) {
+  if (data.type === undefined || data.value === undefined) return;
 
+  const message = getContactValueError(data.type, data.value);
+  if (message) {
+    ctx.addIssue({ code: "custom", path: ["value"], message });
+  }
+}
+
+export const contactInfoInputSchema = contactInfoFields.superRefine(refineContactValue);
+
+export const createContactInfoSchema = contactInfoFields
+  .extend({ clientId: uuidSchema })
+  .superRefine(refineContactValue);
+
+// A value sent without its type is checked against the stored type in
+// updateContactInfo, since only the server knows it.
 export const updateContactInfoSchema = z
   .object({
     contactId: uuidSchema,
-    type: z.string().trim().min(1, "Contact type is required").optional(),
+    type: contactTypeSchema.optional(),
     value: z.string().trim().min(1, "Contact value is required").optional(),
     is_primary: z.boolean().optional(),
   })
+  .superRefine(refineContactValue)
   .transform(stripUndefined);
 
 export const clientSchema = z.object({
-  full_name: z.string().trim().min(1, "Full name is required"),
+  full_name: personNameSchema("Full name"),
   address: z.string().trim().nullable().optional(),
   tin_number: z
     .string()
@@ -57,7 +135,7 @@ export const createClientSchema = clientSchema.extend({
 export const updateClientSchema = z
   .object({
     clientId: uuidSchema,
-    full_name: z.string().trim().min(1, "Full name is required").optional(),
+    full_name: personNameSchema("Full name").optional(),
     address: z.string().trim().nullable().optional(),
     tin_number: z
       .string()

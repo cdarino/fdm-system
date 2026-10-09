@@ -8,8 +8,8 @@ import { getUserInfo } from "@/lib/user";
  * from the layout and again from the page costs two round trips per render.
  *
  * The user id is resolved before the cached call so that `hasPermission(name)`
- * and `hasPermission(name, currentUserId)` — both of which occur in this
- * codebase — collapse onto the same cache key instead of querying twice.
+ * and `hasPermission(name, currentUserId)` (both of which occur in this
+ * codebase) collapse onto the same cache key instead of querying twice.
  */
 const fetchHasPermission = cache(
     async (permissionName: string, userId: string): Promise<boolean> => {

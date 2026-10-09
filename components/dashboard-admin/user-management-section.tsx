@@ -508,7 +508,7 @@ function UserRow({ user, isExpanded }: { user: UserListItem; isExpanded: boolean
           }`}
         />
         <div className="flex items-center gap-3">
-          {/* A real button, so the row can be expanded from the keyboard — the
+          {/* A real button, so the row can be expanded from the keyboard. The
               row's own click handler is mouse-only. */}
           <button
             type="button"
@@ -602,8 +602,8 @@ function UserDetailRow({ user }: { user: UserListItem }) {
           className={`animate-in fade-in-0 slide-in-from-top-2 shadow-[0_10px_12px_-10px_var(--row-panel-shadow)] duration-200 pb-6 pt-4 ${GUTTER}`}
         >
           <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
-            <DetailField label="First name">{user.firstName || '—'}</DetailField>
-            <DetailField label="Last name">{user.lastName || '—'}</DetailField>
+            <DetailField label="First name">{user.firstName || 'Not provided'}</DetailField>
+            <DetailField label="Last name">{user.lastName || 'Not provided'}</DetailField>
             <DetailField label="Email address">
               <span className="break-all">{user.email}</span>
             </DetailField>

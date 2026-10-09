@@ -3,7 +3,7 @@
  *
  * A service-role Supabase client for server-side admin operations (e.g. creating
  * users when public sign-ups are disabled). This module must NEVER be imported
- * in client components — the "server-only" package enforces this at build time.
+ * in client components. The "server-only" package enforces this at build time.
  *
  * Required env vars:
  *   NEXT_PUBLIC_SUPABASE_URL
@@ -15,7 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 
 /**
  * Creates a Supabase client authenticated as the service role.
- * The service role bypasses Row Level Security — use only in trusted server
+ * The service role bypasses Row Level Security. Use only in trusted server
  * contexts such as Server Actions and Route Handlers.
  *
  * Especially important if using Fluid compute: Don't put this client in a

@@ -23,7 +23,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Folder Structure
 
-> **Keep this section up to date.** If the folder structure changes significantly — new top-level directories, major reorganization — rewrite this section to reflect the current layout.
+> **Keep this section up to date.** If the folder structure changes significantly (new top-level directories, major reorganization), rewrite this section to reflect the current layout.
 
 ```
 fdm-system/
@@ -46,6 +46,7 @@ fdm-system/
 │   ├── dashboard-overview/     # Role-aware overview, record follow-ups, portfolio charts & quick links
 │   ├── dashboard-properties/   # Property lots table & subdivision map components
 │   ├── dashboard-settings/     # Dashboard settings forms
+│   ├── dashboard-titles/       # Land title records (Legal page)
 │   ├── landing/                # Landing page components (navbar, hero, features)
 │   ├── shared/                 # Global cross-cutting shared brand & utility components
 │   └── ui/                     # shadcn/ui primitives and custom base components
@@ -81,7 +82,7 @@ fdm-system/
 
 ## Auth & RBAC
 
-Permissions live in the `rbac` Postgres schema (not `public`). Roles are `system_admin`, `admin_staff`, `billing_staff`, `legal_staff`, and `accounting_staff`. Permissions follow the pattern `<resource>.<action>` (e.g. `billing.read`, `system.create`). Use `hasPermission()` and `getUserPermissions()` from `lib/permissions.ts` — don't query `rbac.*` tables directly. For admin self-protection rules, see `.agents/skills/backend-architecture/SKILL.md`.
+Permissions live in the `rbac` Postgres schema (not `public`). Roles are `system_admin`, `admin_staff`, `billing_staff`, `legal_staff`, and `accounting_staff`. Permissions follow the pattern `<resource>.<action>` (e.g. `billing.read`, `system.create`). Use `hasPermission()` and `getUserPermissions()` from `lib/permissions.ts`. Don't query `rbac.*` tables directly. For admin self-protection rules, see `.agents/skills/backend-architecture/SKILL.md`.
 
 ## Server Actions & Action Scopes (`createScope`)
 
@@ -94,13 +95,13 @@ All server actions in `lib/actions/` must use `createScope` from `lib/actions/ac
 
 ## Supabase Clients
 
-Three clients exist — use the right one for the context:
+Three clients exist. Use the right one for the context:
 
 | Client | File | Use when |
 |---|---|---|
-| Server client | `lib/supabase/server.ts` | Server Components, Server Actions, Route Handlers — respects RLS |
-| Admin client | `lib/supabase/admin.ts` | Server Actions only — **bypasses RLS**, never import in client components |
-| Proxy client | `lib/supabase/proxy.ts` | Middleware only — refreshes session cookies |
+| Server client | `lib/supabase/server.ts` | Server Components, Server Actions, Route Handlers. Respects RLS |
+| Admin client | `lib/supabase/admin.ts` | Server Actions only. **Bypasses RLS**, never import in client components |
+| Proxy client | `lib/supabase/proxy.ts` | Middleware only. Refreshes session cookies |
 
 Always instantiate a new client per request/function call; never store in a global variable (handled automatically when using `createScope`). Refer to `.agents/skills/backend-architecture/SKILL.md`.
 
@@ -112,12 +113,12 @@ All required vars must be set in `.env.local`. See `.env.example` for the full l
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Anon/publishable key (safe for client) |
-| `SUPABASE_SECRET_KEY` | Service role key — server only, never expose to client |
+| `SUPABASE_SECRET_KEY` | Service role key. Server only, never expose to client |
 
 ## Database Migrations & Pre-Flight Introspection
 
 - **Pre-Flight Introspection**: Before creating new database migrations, modifying schemas, or implementing backend Server Actions/RPCs, inspect existing live schema, triggers, and functions (via `npx supabase db diff --linked --schema public,rbac` or the catalog inspection queries in `.agents/skills/backend-architecture/SKILL.md`) to prevent drift, duplicate procedures, or conflicting trigger logic.
-- **Migration Standards**: Migration files live in `supabase/migrations/` and must follow the naming convention `YYYYMMDDHHMMSS_description.sql`. Apply with `supabase db push` (remote) or `supabase migration up` (local). Never edit an already-applied migration — create a new one instead. See `.agents/skills/backend-architecture/SKILL.md` for RLS policy standards and function retrieval instructions.
+- **Migration Standards**: Migration files live in `supabase/migrations/` and must follow the naming convention `YYYYMMDDHHMMSS_description.sql`. Apply with `supabase db push` (remote) or `supabase migration up` (local). Never edit an already-applied migration. Create a new one instead. See `.agents/skills/backend-architecture/SKILL.md` for RLS policy standards and function retrieval instructions.
 
 ## Middleware Route Guard
 
@@ -131,7 +132,7 @@ Avoid Tailwind slash-opacity modifiers (e.g. `bg-primary/90`, `bg-success/10`) b
 
 ## `useMutation` Hook
 
-`lib/hooks/use-mutation.ts` wraps any async function and returns `{ state, execute, reset }`. `state` is a discriminated union: `idle | pending | success | error`. The wrapped function must throw on failure — do not return error objects. `execute` returns `Promise<boolean>` for imperative flow control when needed.
+`lib/hooks/use-mutation.ts` wraps any async function and returns `{ state, execute, reset }`. `state` is a discriminated union: `idle | pending | success | error`. The wrapped function must throw on failure. Do not return error objects. `execute` returns `Promise<boolean>` for imperative flow control when needed.
 
 ## Component Organization & Naming Conventions
 
@@ -145,7 +146,7 @@ All component folders must remain strictly **1 level deep** directly under `comp
 
 ## Admin Panel Data Layer
 
-`lib/hooks/use-admin-users.ts` is the sole file that imports server actions and calls `router.refresh()` for the admin panel. UI components under `components/dashboard-admin/` must not import from `lib/actions/` directly — consume data and mutations through the `useAdminUsers()` context hook instead.
+`lib/hooks/use-admin-users.ts` is the sole file that imports server actions and calls `router.refresh()` for the admin panel. UI components under `components/dashboard-admin/` must not import from `lib/actions/` directly. Consume data and mutations through the `useAdminUsers()` context hook instead.
 
 ## Forms & Validation
 
@@ -169,6 +170,6 @@ Tests use **Vitest** and **`@faker-js/faker`** located under `scripts/tests/`. R
 - **Sequential Pacing**: `vitest.config.ts` enforces `fileParallelism: false` and `maxConcurrency: 1` to prevent database race conditions on shared tables and avoid GoTrue auth rate limits.
 - **Session & Headers Emulation**: `scripts/tests/framework/vitest.setup.ts` mocks `next/headers` (`cookies()`, `headers()`) and keeps an in-memory cookie jar synced with `@supabase/ssr`.
 - **Commands**:
-  - `npm run test:e2e` — run the full suite
-  - `npm run test:e2e:watch` — run Vitest interactive watch mode on file changes
-  - `npm run test:e2e:<suite>` (e.g. `test:e2e:clients`, `test:e2e:properties`, `test:e2e:auth`) — run a specific suite
+  - `npm run test:e2e`: run the full suite
+  - `npm run test:e2e:watch`: run Vitest interactive watch mode on file changes
+  - `npm run test:e2e:<suite>` (e.g. `test:e2e:clients`, `test:e2e:properties`, `test:e2e:auth`): run a specific suite

@@ -11,13 +11,13 @@ This skill provides architectural invariants, lifecycle recipes, and technical g
 
 Geospatial mapping in the dashboard is structured across domain components, hooks, server actions, and geometry utilities:
 
-- **Primary Map Component**: `components/dashboard-properties/map-site.tsx` — Handles basemap switching, layer management, vector plat plans, selection states, and fallbacks.
-- **Interactive Popup Component**: `components/dashboard-properties/map-site-popup.tsx` — Rich React-rendered parcel details and action controls rendered via `createPortal`.
-- **Subdivision Plat Editor**: `components/dashboard-properties/map-site-editor.tsx` — Polygon plotting, vertex snapping, and draft lot boundary editing.
-- **Map Instance Hook**: `lib/hooks/use-maplibre-map.ts` — Encapsulates MapLibre GL instantiation, canvas resizing, WebGL cleanup, and navigation controls.
-- **Server Action Bridge**: `lib/actions/arcgis.ts` — Authenticates and proxies ArcGIS Basemap Styles v2 JSON with trusted HTTP headers.
-- **Geometry & Geodesics**: `lib/geometry.ts` — WGS84 geodesic polygon projection, shoelace metric area calculation, bounding boxes, and ring parsing.
-- **Global Styles**: `app/globals.css` — Custom popup container styling, arrow tips, and MapLibre canvas controls.
+- **Primary Map Component**: `components/dashboard-properties/map-site.tsx`: Handles basemap switching, layer management, vector plat plans, selection states, and fallbacks.
+- **Interactive Popup Component**: `components/dashboard-properties/map-site-popup.tsx`: Rich React-rendered parcel details and action controls rendered via `createPortal`.
+- **Subdivision Plat Editor**: `components/dashboard-properties/map-site-editor.tsx`: Polygon plotting, vertex snapping, and draft lot boundary editing.
+- **Map Instance Hook**: `lib/hooks/use-maplibre-map.ts`: Encapsulates MapLibre GL instantiation, canvas resizing, WebGL cleanup, and navigation controls.
+- **Server Action Bridge**: `lib/actions/arcgis.ts`: Authenticates and proxies ArcGIS Basemap Styles v2 JSON with trusted HTTP headers.
+- **Geometry & Geodesics**: `lib/geometry.ts`: WGS84 geodesic polygon projection, shoelace metric area calculation, bounding boxes, and ring parsing.
+- **Global Styles**: `app/globals.css`: Custom popup container styling, arrow tips, and MapLibre canvas controls.
 
 ---
 

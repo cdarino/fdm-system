@@ -36,12 +36,13 @@ import {
   type ClientListItem,
   type ClientWithDetails,
   type ClientDocument,
+  DOC_TYPES,
   type DocType,
 } from '@/lib/types/client';
 import type { OcrStatus } from '@/lib/types/search';
 
 /** Upload categories, and the display order of the filter chips. */
-const DOCUMENT_TYPES: DocType[] = ['Valid ID', 'Contract', 'Deed of Sale', 'eCAR', 'Other'];
+const DOCUMENT_TYPES: readonly DocType[] = DOC_TYPES;
 
 export function ClientProfileDocuments({
   client,

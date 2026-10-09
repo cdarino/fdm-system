@@ -1,10 +1,11 @@
 import type { PropertyStatus } from '@/lib/types/property';
+import type { TitleStatus } from '@/lib/types/title';
 
 /**
  * One source of truth for how a lot's status is coloured.
  *
- * The lot table and the site map have to agree — a lot shown green in the list
- * and gold on the plan is worse than no colour at all — but they need the
+ * The lot table and the site map have to agree (a lot shown green in the list
+ * and gold on the plan is worse than no colour at all), but they need the
  * colour in two different forms. Tailwind utilities cannot be used on SVG
  * presentation attributes, and CSS variable strings cannot be used as Tailwind
  * classes, so each status carries both.
@@ -52,3 +53,17 @@ export const PROPERTY_STATUS_VARIANT: Record<
 export const PROPERTY_STATUS_COLOR = PROPERTY_STATUS_VARIANT;
 
 
+
+/** Badge colour for each title release step, used by the Legal page. */
+export const TITLE_STATUS_VARIANT: Record<
+  TitleStatus,
+  'info' | 'muted' | 'warning' | 'success'
+> = {
+  'Cleared by Billing': 'info',
+  'Legal Processing': 'muted',
+  'Legal Review': 'muted',
+  'Management Approval': 'muted',
+  '30-Day Clearance': 'muted',
+  'Ready for Claim': 'warning',
+  Released: 'success',
+};

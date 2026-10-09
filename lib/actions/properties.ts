@@ -1,5 +1,6 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createScope } from "@/lib/actions/action-handler";
 import type { ActionResult } from "@/lib/actions/action-result";
 import { uuidSchema } from "@/lib/validations/client";
@@ -24,6 +25,7 @@ import type {
   AssignPropertyOptions,
   GetPropertyLotsParams,
 } from "@/lib/types/property";
+import type { TitleHolder } from "@/lib/types/title";
 import {
   LOT_WITH_CLIENT_SELECT,
   mapLotWithAccount,
@@ -34,6 +36,86 @@ const property = createScope(["properties.read"]);
 const propertyCreate = property.extend(["properties.create"]);
 const propertyWrite = property.extend(["properties.update"]);
 const propertyDelete = property.extend(["properties.delete"]);
+
+/**
+ * Lots can only go to active clients. Inactive and archived clients keep their
+ * records but must be reactivated before they can take a new lot. Every
+ * assignment path calls this, so the rule holds even if a form lets one through.
+ */
+async function assertClientsActive(supabase: SupabaseClient, clientIds: string[]) {
+  const ids = Array.from(new Set(clientIds));
+  if (ids.length === 0) return;
+
+  const { data, error } = await supabase
+    .from("client")
+    .select("client_id, full_name, status")
+    .in("client_id", ids)
+    .returns<{ client_id: string; full_name: string; status: string }[]>();
+
+  if (error) {
+    throw new Error(`Failed to check client status: ${error.message}`);
+  }
+  if (!data || data.length !== ids.length) {
+    throw new Error("Client not found.");
+  }
+
+  const inactive = data.filter((c) => c.status !== "Active");
+  if (inactive.length > 0) {
+    const names = inactive.map((c) => c.full_name).join(", ");
+    throw new Error(
+      `${names} ${inactive.length === 1 ? "is" : "are"} not active. Only active clients can be assigned a lot.`
+    );
+  }
+}
+
+type LotOwner = { client_id: string; client: { full_name: string } | null };
+
+/**
+ * A lot belongs to one sale at a time. Assigning it again is only allowed to
+ * the clients already on its active account (or its title). Anyone else is
+ * refused, so a reserved or sold lot is never given to a second buyer by
+ * mistake. To resell a lot, unassign it first.
+ */
+async function assertLotAvailableTo(
+  supabase: SupabaseClient,
+  propertyId: string,
+  clientIds: string[]
+) {
+  const [accountResult, titleResult] = await Promise.all([
+    supabase
+      .from("ledger_account")
+      .select("cleared_at, parties:account_party(client_id, client:client_id(full_name))")
+      .eq("property_id", propertyId)
+      .eq("status", "Active")
+      .maybeSingle<{ cleared_at: string | null; parties: LotOwner[] }>(),
+    supabase
+      .from("land_title")
+      .select("client_id, client:client_id(full_name)")
+      .eq("property_id", propertyId)
+      .maybeSingle<LotOwner>(),
+  ]);
+
+  if (accountResult.error) {
+    throw new Error(`Failed to check the lot's account: ${accountResult.error.message}`);
+  }
+  if (titleResult.error) {
+    throw new Error(`Failed to check the lot's title: ${titleResult.error.message}`);
+  }
+
+  const account = accountResult.data;
+  const title = titleResult.data;
+  const owners = account?.parties.length ? account.parties : title ? [title] : [];
+  if (owners.length === 0) return;
+
+  const ownerIds = new Set(owners.map((o) => o.client_id));
+  if (clientIds.every((id) => ownerIds.has(id))) return;
+
+  const names = owners.map((o) => o.client?.full_name ?? "another client").join(" and ");
+  const state = title || account?.cleared_at ? "sold" : "reserved";
+  throw new Error(
+    `This lot is already ${state} to ${names}. Unassign it before assigning it to someone else.`
+  );
+}
 
 export async function getPropertyLots(
   params?: GetPropertyLotsParams
@@ -309,6 +391,18 @@ export async function assignPropertyClient(
           throw new Error("Cannot unassign a titled property lot. Remove the land title first.");
         }
 
+        const { data: clearedAccount } = await supabase
+          .from("ledger_account")
+          .select("account_id")
+          .eq("property_id", targetLotId)
+          .eq("status", "Active")
+          .not("cleared_at", "is", null)
+          .maybeSingle<{ account_id: string }>();
+
+        if (clearedAccount) {
+          throw new Error("Cannot unassign a lot cleared by Billing. Undo the clearance first.");
+        }
+
         await supabase
           .from("ledger_account")
           .update({ status: "Cancelled" })
@@ -334,6 +428,9 @@ export async function assignPropertyClient(
           title: null,
         };
       }
+
+      await assertClientsActive(supabase, [targetClientId]);
+      await assertLotAvailableTo(supabase, targetLotId, [targetClientId]);
 
       const { data: lot, error: lotErr } = await supabase
         .from("property_lot")
@@ -425,6 +522,9 @@ export async function assignPropertyParties(
     handler: async (validatedData, { supabase }) => {
       const { propertyId: targetLotId, parties: validParties } = validatedData;
 
+      await assertClientsActive(supabase, validParties.map((p) => p.client_id));
+      await assertLotAvailableTo(supabase, targetLotId, validParties.map((p) => p.client_id));
+
       const { data: lot, error: lotErr } = await supabase
         .from("property_lot")
         .select("area_size, price_per_sqm")
@@ -501,6 +601,8 @@ export async function addAccountParty(
     schema: addAccountPartyActionSchema,
     input: { accountId, ...input },
     handler: async (validatedData, { supabase }) => {
+      await assertClientsActive(supabase, [validatedData.client_id]);
+
       if (validatedData.is_primary) {
         await supabase
           .from("account_party")
@@ -584,50 +686,103 @@ export async function openSubdivisionForSale(
   });
 }
 
+/**
+ * Records a lot as fully paid by the client. This is Billing's clearance: the
+ * lot's account is marked cleared (creating one if needed), which makes the
+ * lot Sold and puts it on the Legal page so Legal can create the title.
+ *
+ * `existingTitle` is for legacy accounts whose title was already processed
+ * before the system: the title is created straight away at Ready for Claim.
+ */
 export async function assignPropertyFullyPaid(
   propertyId: string,
   clientId: string,
-  titleNumber?: string | null
+  existingTitle?: { title_number: string; title_holder: TitleHolder }
 ): Promise<ActionResult<PropertyLotWithClient>> {
   return propertyWrite.run({
-    permissions: ["legal.create", "legal.update"],
+    permissions: existingTitle ? ["billing.update", "legal.create"] : ["billing.update"],
     schema: assignPropertyFullyPaidActionSchema,
-    input: { propertyId, clientId, title_number: titleNumber },
-    handler: async (validatedData, { supabase }) => {
-      const { propertyId: targetLotId, clientId: targetClientId, title_number } = validatedData;
+    input: { propertyId, clientId, existing_title: existingTitle },
+    handler: async (validatedData, { supabase, userId }) => {
+      const { propertyId: targetLotId, clientId: targetClientId, existing_title } = validatedData;
 
-      // Cancel any active ledger account
-      await supabase
-        .from("ledger_account")
-        .update({ status: "Cancelled" })
+      await assertClientsActive(supabase, [targetClientId]);
+      await assertLotAvailableTo(supabase, targetLotId, [targetClientId]);
+
+      const { data: lot, error: lotErr } = await supabase
+        .from("property_lot")
+        .select("area_size, price_per_sqm")
         .eq("property_id", targetLotId)
-        .eq("status", "Active");
+        .single<{ area_size: number; price_per_sqm: number }>();
 
-      // Upsert land_title for this property and client
-      const { error: titleErr } = await supabase
-        .from("land_title")
-        .upsert(
-          {
-            property_id: targetLotId,
-            client_id: targetClientId,
-            title_number: title_number ?? null,
-            status: "Processing",
-          },
-          { onConflict: "property_id" }
-        );
-
-      if (titleErr) {
-        throw new Error(`Failed to create land title record: ${titleErr.message}`);
+      if (lotErr || !lot) {
+        throw new Error(`Property lot not found: ${lotErr?.message ?? "Unknown error"}`);
       }
 
-      // Mark property status as Sold
-      const { error: lotErr } = await supabase
-        .from("property_lot")
-        .update({ status: "Sold" })
-        .eq("property_id", targetLotId);
+      const cleared = { cleared_at: new Date().toISOString(), cleared_by: userId };
 
-      if (lotErr) {
-        throw new Error(`Failed to update lot status: ${lotErr.message}`);
+      // If this client is already paying for the lot, clear that account
+      // instead of replacing it, so its history stays with the sale. The
+      // guard above guarantees any active account here is this client's.
+      const { data: current } = await supabase
+        .from("ledger_account")
+        .select("account_id")
+        .eq("property_id", targetLotId)
+        .eq("status", "Active")
+        .maybeSingle<{ account_id: string }>();
+
+      if (current) {
+        const { error } = await supabase
+          .from("ledger_account")
+          .update(cleared)
+          .eq("account_id", current.account_id);
+
+        if (error) {
+          throw new Error(`Failed to clear account: ${error.message}`);
+        }
+      } else {
+        const tcp = Number(lot.area_size) * Number(lot.price_per_sqm);
+        const { data: account, error: accErr } = await supabase
+          .from("ledger_account")
+          .insert({
+            property_id: targetLotId,
+            status: "Active",
+            total_contract_price: tcp,
+            remaining_balance: 0,
+            ...cleared,
+          })
+          .select("account_id")
+          .single<{ account_id: string }>();
+
+        if (accErr || !account) {
+          throw new Error(`Failed to create ledger account: ${accErr?.message ?? "Unknown error"}`);
+        }
+
+        const { error: partyErr } = await supabase.from("account_party").insert({
+          account_id: account.account_id,
+          client_id: targetClientId,
+          role: "Principal Buyer",
+          ownership_percentage: 100.0,
+          is_primary: true,
+        });
+
+        if (partyErr) {
+          throw new Error(`Failed to assign client to account: ${partyErr.message}`);
+        }
+      }
+
+      if (existing_title) {
+        const { error: titleErr } = await supabase.from("land_title").insert({
+          property_id: targetLotId,
+          client_id: targetClientId,
+          title_holder: existing_title.title_holder,
+          title_number: existing_title.title_number,
+          status: "Ready for Claim",
+        });
+
+        if (titleErr) {
+          throw new Error(`Failed to create land title record: ${titleErr.message}`);
+        }
       }
 
       return getPropertyLotById(targetLotId);
@@ -644,9 +799,12 @@ export async function createAndAssignPropertyFromSubdivision(
     input,
     handler: async (validatedInput, { supabase }) => {
       if (validatedInput.ownership_type === "fully_paid") {
+        // A fully paid sale is created already cleared by Billing.
         const { requirePermission } = await import("@/lib/actions/auth-guard");
-        await requirePermission("legal.create");
+        await requirePermission("billing.update");
       }
+
+      await assertClientsActive(supabase, [validatedInput.client_id]);
 
       const { data: createdPropertyId, error } = await supabase.rpc(
         "create_and_assign_property_from_subdivision",
@@ -660,7 +818,6 @@ export async function createAndAssignPropertyFromSubdivision(
           p_ownership_type: validatedInput.ownership_type,
           p_total_contract_price: validatedInput.total_contract_price ?? null,
           p_remaining_balance: validatedInput.remaining_balance ?? null,
-          p_title_number: validatedInput.title_number ?? null,
         }
       );
 

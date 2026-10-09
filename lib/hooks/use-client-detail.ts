@@ -20,6 +20,10 @@ import {
   deleteClientDocument as deleteClientDocumentAction,
   getClientDocumentUrl as getClientDocumentUrlAction,
 } from '@/lib/actions/clients';
+import {
+  markAccountClearedByBilling as markAccountClearedAction,
+  undoBillingClearance as undoBillingClearanceAction,
+} from '@/lib/actions/billing';
 import type {
   Client,
   ClientWithDetails,
@@ -47,6 +51,10 @@ export interface ClientDetailContextValue {
   uploadDocument: (formData: FormData) => Promise<ClientDocument>;
   deleteDocument: (documentId: string) => Promise<void>;
   getDocumentUrl: (documentId: string) => Promise<string>;
+  /** Billing confirms the client fully paid for a lot. The lot becomes Sold. */
+  clearAccount: (accountId: string) => Promise<void>;
+  /** Reverses a clearance, allowed until Legal creates the title. */
+  undoClearance: (accountId: string) => Promise<void>;
 }
 
 const ClientDetailContext = createContext<ClientDetailContextValue | null>(null);
@@ -219,6 +227,42 @@ export function ClientDetailProvider({
     return await getClientDocumentUrlAction(documentId);
   }, []);
 
+  const setAccountClearance = useCallback(
+    (accountId: string, cleared_at: string | null) => {
+      setClient((prev) => ({
+        ...prev,
+        properties: (prev.properties ?? []).map((p) =>
+          p.account_id === accountId
+            ? { ...p, cleared_at, status: cleared_at ? 'Sold' : 'Reserved' }
+            : p
+        ),
+      }));
+    },
+    []
+  );
+
+  const clearAccount = useCallback(
+    async (accountId: string): Promise<void> => {
+      const result = await markAccountClearedAction(accountId);
+      if (!result.success) throw new Error(result.error);
+
+      setAccountClearance(accountId, result.data.cleared_at ?? new Date().toISOString());
+      router.refresh();
+    },
+    [router, setAccountClearance]
+  );
+
+  const undoClearance = useCallback(
+    async (accountId: string): Promise<void> => {
+      const result = await undoBillingClearanceAction(accountId);
+      if (!result.success) throw new Error(result.error);
+
+      setAccountClearance(accountId, null);
+      router.refresh();
+    },
+    [router, setAccountClearance]
+  );
+
   const value: ClientDetailContextValue = {
     client,
     updateAddress,
@@ -231,6 +275,8 @@ export function ClientDetailProvider({
     uploadDocument,
     deleteDocument,
     getDocumentUrl,
+    clearAccount,
+    undoClearance,
   };
 
   return createElement(ClientDetailContext.Provider, { value }, children);

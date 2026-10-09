@@ -3,11 +3,18 @@ import { faker } from "@faker-js/faker";
 import {
   getLandTitles,
   getLandTitleByPropertyId,
+  getAccountsAwaitingTitle,
   createLandTitle,
   updateLandTitle,
   deleteLandTitle,
 } from "@/lib/actions/titles";
-import { createPropertyLot } from "@/lib/actions/properties";
+import { markAccountClearedByBilling, undoBillingClearance } from "@/lib/actions/billing";
+import {
+  createPropertyLot,
+  assignPropertyClient,
+  assignPropertyFullyPaid,
+  getPropertyLotById,
+} from "@/lib/actions/properties";
 import { createClient } from "@/lib/actions/clients";
 import {
   loginAsAdmin,
@@ -17,6 +24,7 @@ import {
   hardDeleteTestClient,
 } from "../framework/session";
 import { unwrap } from "../framework/action-helper";
+import { uniqueNameSuffix } from "../framework/fake-data";
 
 describe("Land Title Management Actions", () => {
   const testPropertyIds: string[] = [];
@@ -43,122 +51,178 @@ describe("Land Title Management Actions", () => {
     }
   });
 
-  it("createLandTitle creates a land title record linked to property and client", async () => {
-    const client = unwrap(
-      await createClient({
-        full_name: `Title Test Buyer ${Date.now()}`,
-      })
-    );
+  async function createBuyerAndLot(label: string) {
+    const client = unwrap(await createClient({ full_name: `${label} Buyer ${uniqueNameSuffix()}` }));
     testClientIds.push(client.client_id);
 
-    const blockNum = faker.number.int({ min: 100, max: 999 });
     const lot = unwrap(
       await createPropertyLot({
-        location: "Title Test Estate",
-        block_number: blockNum,
-        lot_number: 1,
+        location: `${label} Estate`,
+        block_number: faker.number.int({ min: 100, max: 999 }),
+        lot_number: faker.number.int({ min: 1, max: 99 }),
         area_size: 200,
         price_per_sqm: 10000,
-        status: "Sold",
       })
     );
     testPropertyIds.push(lot.property_id);
+
+    return { client, lot };
+  }
+
+  it("creates a title for an account cleared by Billing, starting at Cleared by Billing", async () => {
+    const { client, lot } = await createBuyerAndLot("Title Test");
+
+    // Marking the lot fully paid clears the account, makes the lot Sold, and
+    // puts it on Legal's queue without creating a title.
+    const sold = unwrap(await assignPropertyFullyPaid(lot.property_id, client.client_id));
+    expect(sold.status).toBe("Sold");
+    expect(sold.title).toBeNull();
+    expect(sold.active_account?.cleared_at).toBeTruthy();
+
+    const queue = await getAccountsAwaitingTitle();
+    expect(queue.some((a) => a.property.property_id === lot.property_id)).toBe(true);
 
     const titleNumber = `TCT-${Date.now()}`;
     const title = unwrap(
-      await createLandTitle({
-        property_id: lot.property_id,
-        client_id: client.client_id,
-        title_number: titleNumber,
-        status: "Processing",
-      })
+      await createLandTitle({ property_id: lot.property_id, title_holder: "fdm", title_number: titleNumber })
     );
 
-    expect(title.title_id).toBeDefined();
     expect(title.property_id).toBe(lot.property_id);
     expect(title.client_id).toBe(client.client_id);
+    expect(title.title_holder).toBe("fdm");
     expect(title.title_number).toBe(titleNumber);
-    expect(title.status).toBe("Processing");
-    expect(title.client?.full_name).toBe(client.full_name);
+    expect(title.status).toBe("Cleared by Billing");
+    expect(title.created_by).toBeTruthy();
+    expect(title.property?.block_number).toBe(lot.block_number);
 
-    // Fetch by property ID
+    const queueAfter = await getAccountsAwaitingTitle();
+    expect(queueAfter.some((a) => a.property.property_id === lot.property_id)).toBe(false);
+
     const fetchedByProp = await getLandTitleByPropertyId(lot.property_id);
-    expect(fetchedByProp).not.toBeNull();
     expect(fetchedByProp?.title_id).toBe(title.title_id);
 
-    // List and filter by client_id
     const listResult = await getLandTitles({ client_id: client.client_id });
-    expect(listResult.data.length).toBeGreaterThanOrEqual(1);
     expect(listResult.data.some((t) => t.title_id === title.title_id)).toBe(true);
 
-    // Update title
-    const updated = unwrap(
-      await updateLandTitle(title.title_id, {
-        status: "Ready for Release",
-      })
-    );
-    expect(updated.status).toBe("Ready for Release");
+    const updated = unwrap(await updateLandTitle(title.title_id, { status: "Legal Processing" }));
+    expect(updated.status).toBe("Legal Processing");
 
-    // Delete title
+    const badStatus = await updateLandTitle(title.title_id, { status: "Processing" });
+    expect(badStatus.success).toBe(false);
+
+    // A lot has at most one title
+    const second = await createLandTitle({
+      property_id: lot.property_id,
+      title_holder: "client",
+      title_number: `TCT-2-${Date.now()}`,
+    });
+    expect(second.success).toBe(false);
+    if (!second.success) expect(second.error).toMatch(/already has a title/i);
+
     unwrap(await deleteLandTitle(title.title_id));
-    const afterDelete = await getLandTitleByPropertyId(lot.property_id);
-    expect(afterDelete).toBeNull();
+    expect(await getLandTitleByPropertyId(lot.property_id)).toBeNull();
   });
 
-  it("enforces unique constraint on property_id for land_title", async () => {
-    const client = unwrap(
-      await createClient({
-        full_name: `Duplicate Title Buyer ${Date.now()}`,
-      })
-    );
-    testClientIds.push(client.client_id);
+  it("only allows a title once Billing has cleared the account", async () => {
+    const { client, lot } = await createBuyerAndLot("Clearance Gate");
 
-    const blockNum = faker.number.int({ min: 100, max: 999 });
-    const lot = unwrap(
-      await createPropertyLot({
-        location: "Unique Title Estate",
-        block_number: blockNum,
-        lot_number: 2,
-        area_size: 180,
-        price_per_sqm: 8000,
-        status: "Sold",
-      })
-    );
-    testPropertyIds.push(lot.property_id);
+    // No account at all
+    const noAccount = await createLandTitle({
+      property_id: lot.property_id,
+      title_holder: "client",
+      title_number: "TCT-NONE",
+    });
+    expect(noAccount.success).toBe(false);
+
+    // Installment account still being paid
+    const reserved = unwrap(await assignPropertyClient(lot.property_id, client.client_id));
+    expect(reserved.status).toBe("Reserved");
+    const accountId = reserved.active_account!.account_id;
+
+    const notCleared = await createLandTitle({
+      property_id: lot.property_id,
+      title_holder: "client",
+      title_number: "TCT-EARLY",
+    });
+    expect(notCleared.success).toBe(false);
+    if (!notCleared.success) expect(notCleared.error).toMatch(/not cleared/i);
+
+    // Billing clears it: the lot becomes Sold and a title can be created
+    unwrap(await markAccountClearedByBilling(accountId));
+    expect((await getPropertyLotById(lot.property_id)).status).toBe("Sold");
+
+    // Clearing twice is refused
+    expect((await markAccountClearedByBilling(accountId)).success).toBe(false);
+
+    // Undo is allowed while there is no title
+    unwrap(await undoBillingClearance(accountId));
+    expect((await getPropertyLotById(lot.property_id)).status).toBe("Reserved");
+    unwrap(await markAccountClearedByBilling(accountId));
 
     unwrap(
       await createLandTitle({
         property_id: lot.property_id,
-        client_id: client.client_id,
-        title_number: `TCT-1-${Date.now()}`,
+        title_holder: "client",
+        title_number: `TCT-GATE-${Date.now()}`,
       })
     );
 
-    // Second insert for same lot must fail
-    const secondRes = await createLandTitle({
-      property_id: lot.property_id,
-      client_id: client.client_id,
-      title_number: `TCT-2-${Date.now()}`,
-    });
-
-    expect(secondRes.success).toBe(false);
-    if (!secondRes.success) {
-      expect(secondRes.error).toMatch(/duplicate key value|uq_land_title_property/i);
-    }
+    // Once Legal has created the title, the clearance can no longer be undone
+    const lateUndo = await undoBillingClearance(accountId);
+    expect(lateUndo.success).toBe(false);
   });
 
-  it("rejects mutations when user lacks legal.create permission", async () => {
+  it("requires whose name the title is in and the title number", async () => {
+    const { client, lot } = await createBuyerAndLot("Required Fields");
+    unwrap(await assignPropertyFullyPaid(lot.property_id, client.client_id));
+
+    const blankNumber = await createLandTitle({
+      property_id: lot.property_id,
+      title_holder: "fdm",
+      title_number: "  ",
+    });
+    expect(blankNumber.success).toBe(false);
+
+    const noHolder = await createLandTitle({
+      property_id: lot.property_id,
+      title_number: "TCT-NO-HOLDER",
+    } as never);
+    expect(noHolder.success).toBe(false);
+  });
+
+  it("creates a legacy title at Ready for Claim when the title was already processed", async () => {
+    const { client, lot } = await createBuyerAndLot("Legacy Claim");
+    const titleNumber = `TCT-LEGACY-${Date.now()}`;
+
+    const sold = unwrap(
+      await assignPropertyFullyPaid(lot.property_id, client.client_id, {
+        title_number: titleNumber,
+        title_holder: "client",
+      })
+    );
+
+    expect(sold.status).toBe("Sold");
+    expect(sold.title?.status).toBe("Ready for Claim");
+    expect(sold.title?.title_number).toBe(titleNumber);
+  });
+
+  it("limits each step to its role", async () => {
     await logoutUser();
 
     await withTemporaryUser({ roleNames: ["billing_staff"] }, async () => {
       const res = await createLandTitle({
         property_id: faker.string.uuid(),
-        client_id: faker.string.uuid(),
+        title_holder: "client",
+        title_number: "TCT-FORBIDDEN",
       });
       expect(res.success).toBe(false);
-      if (!res.success) {
-        expect(res.error).toMatch(/Forbidden|permission 'legal.create'/i);
-      }
+      if (!res.success) expect(res.error).toMatch(/Forbidden|permission 'legal.create'/i);
+    });
+
+    await withTemporaryUser({ roleNames: ["legal_staff"] }, async () => {
+      const res = await markAccountClearedByBilling(faker.string.uuid());
+      expect(res.success).toBe(false);
+      if (!res.success) expect(res.error).toMatch(/Forbidden|permission 'billing.update'/i);
     });
 
     await loginAsAdmin();

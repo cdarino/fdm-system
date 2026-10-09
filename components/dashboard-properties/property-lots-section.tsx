@@ -18,7 +18,6 @@ import {
   FileDown,
 } from 'lucide-react';
 import { getPropertyReportData } from '@/lib/actions/reports';
-import { generatePropertyPdfReport } from '@/lib/reports/pdf-property-report';
 import {
   Table,
   TableBody,
@@ -76,6 +75,8 @@ function StatusPill({ status }: { status: PropertyStatus }) {
 async function handleExportLotPdf(lot: PropertyLotWithClient) {
   try {
     const data = await getPropertyReportData(lot.property_id);
+    // Loaded on demand so jsPDF stays out of the page bundle.
+    const { generatePropertyPdfReport } = await import('@/lib/reports/pdf-property-report');
     generatePropertyPdfReport(data);
     toast.success('Property PDF report generated');
   } catch (err) {

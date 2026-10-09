@@ -315,6 +315,8 @@ export function ClientAssignModal({
                     client={client}
                     selectable
                     selected={selectedClientId === client.client_id}
+                    disabled={client.status !== 'Active'}
+                    disabledReason="Only active clients can be assigned a lot. Reactivate this client first."
                     onSelect={() => setSelectedClientId(client.client_id)}
                   />
                 ))}

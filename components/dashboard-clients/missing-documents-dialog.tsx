@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 import { ShieldCheck, Phone, Mail, HelpCircle, UserRound } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
-import type { ClientDocumentNotification } from '@/lib/types/client';
+import { DOC_TYPE_LABEL, type ClientDocumentNotification } from '@/lib/types/client';
 
 function ContactLine({ contact }: { contact: ClientDocumentNotification['contact'] }) {
   if (!contact) {
@@ -104,7 +104,7 @@ export function MissingDocumentsDialog({
                           variant="outline"
                           className="border-destructive text-[10px] text-destructive"
                         >
-                          {type}
+                          {DOC_TYPE_LABEL[type]}
                         </Badge>
                       ))}
                     </div>

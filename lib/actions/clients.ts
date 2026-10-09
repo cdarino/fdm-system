@@ -16,9 +16,11 @@ import {
   getClientDocumentsParamsSchema,
   clientInteractionSchema,
   createClientLogSchema,
+  getContactValueError,
 } from "@/lib/validations/client";
 import {
   type Client,
+  type ClientProperty,
   type ClientListItem,
   type ClientWithDetails,
   type ContactInfo,
@@ -43,9 +45,8 @@ import {
   uploadClientDocumentObject,
   createClientDocumentUrl,
   removeClientDocumentObject,
-  MAX_DOCUMENT_BYTES,
-  ALLOWED_DOCUMENT_TYPES,
 } from "@/lib/storage/client-documents";
+import { documentFileSchema } from "@/lib/validations/document";
 
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 
@@ -56,13 +57,9 @@ const clientDelete = client.extend(["clients.delete"]);
 const uploadClientDocumentSchema = z.object({
   clientId: uuidSchema,
   document_type: docTypeSchema,
-  file: z
-    .custom<File>((val) => val instanceof File && val.size > 0, "No file was provided.")
-    .refine((file) => file.size <= MAX_DOCUMENT_BYTES, "File is larger than the 10MB limit.")
-    .refine(
-      (file) => ALLOWED_DOCUMENT_TYPES.includes(file.type as (typeof ALLOWED_DOCUMENT_TYPES)[number]),
-      "Only PDF, JPEG and PNG files are accepted."
-    ),
+  file: documentFileSchema,
+  // Optional lot the document belongs to. FormData gives null when absent.
+  property_id: uuidSchema.nullish().transform((v) => v ?? null),
 });
 
 async function resolveUserNames(
@@ -184,11 +181,11 @@ export async function getClients(
 async function resolveClientProperties(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   clientId: string
-): Promise<PropertyLot[]> {
+): Promise<ClientProperty[]> {
   const [partyResult, titleResult] = await Promise.all([
     supabase
       .from("account_party")
-      .select("ledger_account!inner(property_id, status)")
+      .select("ledger_account!inner(account_id, property_id, status, cleared_at)")
       .eq("client_id", clientId)
       .eq("ledger_account.status", "Active"),
     supabase
@@ -204,14 +201,21 @@ async function resolveClientProperties(
     console.error(`Failed to resolve titles for client ${clientId}:`, titleResult.error.message);
   }
 
-  const partyPropertyIds = (partyResult.data ?? [])
-    .map((row) => (row.ledger_account as { property_id?: string } | null)?.property_id)
-    .filter((id): id is string => Boolean(id));
-  const titlePropertyIds = (titleResult.data ?? [])
-    .map((row) => row.property_id)
-    .filter((id): id is string => Boolean(id));
+  type AccountRef = { account_id: string; property_id: string; cleared_at: string | null };
+  const accounts = new Map<string, AccountRef>();
+  for (const row of partyResult.data ?? []) {
+    // A many-to-one embed is one object at runtime, but untyped clients see an array.
+    const embedded = row.ledger_account as unknown as AccountRef | AccountRef[] | null;
+    const account = Array.isArray(embedded) ? embedded[0] : embedded;
+    if (account?.property_id) accounts.set(account.property_id, account);
+  }
+  const titlePropertyIds = new Set(
+    (titleResult.data ?? [])
+      .map((row) => row.property_id)
+      .filter((id): id is string => Boolean(id))
+  );
 
-  const propertyIds = Array.from(new Set([...partyPropertyIds, ...titlePropertyIds]));
+  const propertyIds = Array.from(new Set([...accounts.keys(), ...titlePropertyIds]));
 
   if (propertyIds.length === 0) return [];
 
@@ -226,7 +230,15 @@ async function resolveClientProperties(
     return [];
   }
 
-  return data ?? [];
+  return (data ?? []).map((lot) => {
+    const account = accounts.get(lot.property_id);
+    return {
+      ...lot,
+      account_id: account?.account_id ?? null,
+      cleared_at: account?.cleared_at ?? null,
+      has_title: titlePropertyIds.has(lot.property_id),
+    };
+  });
 }
 
 export async function getClientById(clientId: string): Promise<ClientWithDetails> {
@@ -449,6 +461,19 @@ export async function updateContactInfo(
     schema: updateContactInfoSchema,
     input: { contactId, ...input },
     handler: async ({ contactId: validId, ...data }, { supabase }) => {
+      if (data.value !== undefined && data.type === undefined) {
+        const { data: stored } = await supabase
+          .from("contact_info")
+          .select("type")
+          .eq("contact_id", validId)
+          .single<{ type: string }>();
+
+        const message = stored ? getContactValueError(stored.type, data.value) : null;
+        if (message) {
+          throw new Error(message);
+        }
+      }
+
       if (data.is_primary) {
         const { data: current } = await supabase
           .from("contact_info")
@@ -512,8 +537,9 @@ export async function uploadClientDocument(
       clientId,
       file: formData.get("file"),
       document_type: formData.get("document_type"),
+      property_id: formData.get("property_id") || null,
     },
-    handler: async ({ clientId: validId, file, document_type }, { supabase, userId }) => {
+    handler: async ({ clientId: validId, file, document_type, property_id }, { supabase, userId }) => {
       const filePath = await uploadClientDocumentObject(validId, file);
 
       const { data, error } = await supabase
@@ -521,6 +547,7 @@ export async function uploadClientDocument(
         .insert({
           client_id: validId,
           document_type,
+          property_id,
           file_path: filePath,
           uploaded_by: userId,
         })

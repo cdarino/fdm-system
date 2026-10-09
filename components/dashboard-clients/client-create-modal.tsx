@@ -19,9 +19,10 @@ import { useClients } from '@/lib/hooks/use-clients-page';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { personNameSchema } from '@/lib/validations/client';
 
 const minimalClientSchema = z.object({
-  full_name: z.string().trim().min(1, "Full name is required"),
+  full_name: personNameSchema('Full name'),
 });
 
 type MinimalClientForm = z.infer<typeof minimalClientSchema>;

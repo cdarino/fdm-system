@@ -21,6 +21,8 @@ export interface RawLedgerRow {
   status: "Active" | "Matured" | "Delinquent" | "Cancelled";
   total_contract_price: number;
   remaining_balance: number;
+  cleared_at: string | null;
+  cleared_by: string | null;
   created_at: string;
   updated_at: string;
   parties: RawPartyRow[];
@@ -32,6 +34,8 @@ export interface RawLandTitleRow {
   client_id: string;
   title_number: string | null;
   status: string;
+  title_holder: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   client?: { client_id: string; full_name: string; status: string; address: string | null } | null;
@@ -50,6 +54,8 @@ export const LOT_WITH_CLIENT_SELECT = `
     status,
     total_contract_price,
     remaining_balance,
+    cleared_at,
+    cleared_by,
     created_at,
     updated_at,
     parties:account_party(
@@ -68,6 +74,8 @@ export const LOT_WITH_CLIENT_SELECT = `
     client_id,
     title_number,
     status,
+    title_holder,
+    created_by,
     created_at,
     updated_at,
     client:client_id(client_id, full_name, status, address)

@@ -7,6 +7,8 @@ import { DashboardTopBar } from '@/components/dashboard-layout/top-bar';
 import { FdmLogo } from '@/components/shared/fdm-logo';
 import { Button } from '@/components/ui/button';
 
+const MOBILE_QUERY = '(max-width: 1023px)';
+
 interface DashboardShellProps {
   children: React.ReactNode;
   user: Parameters<typeof DashboardTopBar>[0]['user'];
@@ -23,17 +25,21 @@ export function DashboardShell({
 
   React.useEffect(() => {
     // NOTE: Could be fine for now, in the future we could use some kind of class/hook to manage local configs
-    const savedPreference = window.localStorage.getItem('dashboard-sidebar-open');
-    if (savedPreference !== null) {
-      setIsSidebarOpen(savedPreference === 'true');
-    } else if (window.matchMedia('(max-width: 1023px)').matches) {
+    // On small screens the sidebar is an overlay drawer, so it always starts
+    // closed. The saved preference only applies to the desktop layout.
+    if (window.matchMedia(MOBILE_QUERY).matches) {
       setIsSidebarOpen(false);
+    } else {
+      const savedPreference = window.localStorage.getItem('dashboard-sidebar-open');
+      if (savedPreference !== null) {
+        setIsSidebarOpen(savedPreference === 'true');
+      }
     }
     hasLoadedSidebarPreference.current = true;
   }, []);
 
   React.useEffect(() => {
-    if (hasLoadedSidebarPreference.current) {
+    if (hasLoadedSidebarPreference.current && !window.matchMedia(MOBILE_QUERY).matches) {
       window.localStorage.setItem('dashboard-sidebar-open', String(isSidebarOpen));
     }
   }, [isSidebarOpen]);
@@ -41,7 +47,7 @@ export function DashboardShell({
   // Close mobile sidebar on Escape key press
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isSidebarOpen && window.matchMedia('(max-width: 1023px)').matches) {
+      if (e.key === 'Escape' && isSidebarOpen && window.matchMedia(MOBILE_QUERY).matches) {
         setIsSidebarOpen(false);
       }
     };

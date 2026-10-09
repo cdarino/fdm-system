@@ -36,7 +36,9 @@ test.describe('Client journeys: field validations, modal closure, and list updat
   });
 
   test('successfully creates a client, closes modal, displays toast, and updates list', async ({ page }) => {
-    const uniqueClientName = `Test Auto Client ${Date.now()}`;
+    // Client names cannot contain digits, so the timestamp is spelled with letters.
+    const uniqueSuffix = Date.now().toString().replace(/\d/g, (d) => "abcdefghij"[Number(d)]);
+    const uniqueClientName = `Test Auto Client ${uniqueSuffix}`;
     const testAddress = 'E2E Testing Avenue, Davao City';
     const testTin = '987-654-321';
 
