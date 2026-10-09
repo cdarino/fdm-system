@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { FilePicker } from '@/components/ui/file-picker';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
 import {
@@ -41,14 +41,14 @@ const ALL_LOTS = 'all-lots';
 export function ClientDetailDocuments() {
   const { client, uploadDocument, deleteDocument, getDocumentUrl } = useClientDetail();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [documentType, setDocumentType] = useState<DocType>('Valid ID');
+  // Empty until the user picks a type, so nothing is filed under the wrong type by default.
+  const [documentType, setDocumentType] = useState<DocType | ''>('');
   const [lotId, setLotId] = useState<string>(ALL_LOTS);
   const [categoryFilter, setCategoryFilter] = useState<DocType | 'all'>('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const allDocuments = client.client_document || [];
   const lots = client.properties ?? [];
@@ -75,7 +75,7 @@ export function ClientDetailDocuments() {
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedFile) return;
+    if (!selectedFile || !documentType) return;
 
     setIsUploading(true);
     try {
@@ -87,9 +87,9 @@ export function ClientDetailDocuments() {
       await uploadDocument(formData);
 
       setSelectedFile(null);
+      setDocumentType('');
       setLotId(ALL_LOTS);
       setIsUploadOpen(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
       toast.success('Document uploaded');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to upload document');
@@ -185,8 +185,8 @@ export function ClientDetailDocuments() {
           className="space-y-3 rounded-lg border border-border bg-row-hover p-4"
         >
           <Select value={documentType} onValueChange={(value) => setDocumentType(value as DocType)}>
-            <SelectTrigger className="h-9">
-              <SelectValue />
+            <SelectTrigger className="h-9" aria-label="Document type">
+              <SelectValue placeholder="Select document type" />
             </SelectTrigger>
             <SelectContent>
               {DOCUMENT_TYPES.map((type) => (
@@ -213,18 +213,17 @@ export function ClientDetailDocuments() {
             </Select>
           )}
 
-          <Input
-            ref={fileInputRef}
-            type="file"
+          <FilePicker
+            file={selectedFile}
+            onFileChange={setSelectedFile}
             accept={DOCUMENT_FILE_ACCEPT}
-            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-            className="h-9"
+            disabled={isUploading}
           />
 
           <Button
             type="submit"
             size="sm"
-            disabled={isUploading || !selectedFile}
+            disabled={isUploading || !selectedFile || !documentType}
             className="h-9 w-full gap-1.5"
           >
             {isUploading ? (
