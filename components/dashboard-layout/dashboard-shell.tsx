@@ -115,7 +115,7 @@ export function DashboardShell({
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
         />
-        <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-clip">
           {children}
         </main>
       </div>

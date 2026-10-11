@@ -12,7 +12,6 @@ import {
   FileCheck,
   Inbox,
   Loader2,
-  Lock,
   Mail,
   MoreVertical,
   Paperclip,
@@ -29,6 +28,7 @@ import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   AlertDialog,
@@ -61,6 +61,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { formatActivityTime } from '@/lib/format-activity-time';
 import { formatDocumentName } from '@/lib/format-document-name';
 import { lotRefLabel } from '@/lib/hooks/use-land-titles';
 import { useSession } from '@/lib/hooks/use-session';
@@ -88,13 +90,18 @@ const TIME_FORMAT = new Intl.DateTimeFormat('en-PH', { dateStyle: 'short', timeS
 
 const LIFECYCLE_STAGES: { status: TitleStatus; label: string; desc: string }[] = [
   { status: 'Cleared by Billing', label: 'Cleared by Billing', desc: 'Account verified & cleared as fully paid' },
-  { status: 'Document Preparation', label: 'Document Preparation', desc: 'Assembling packet & drafting DOAS' },
-  { status: 'For Review', label: 'For Review', desc: 'Legal supervisor review of technical description' },
-  { status: 'For Signature', label: 'For Signature', desc: 'Executive management sign-off & notarization' },
+  { status: 'Document Preparation', label: 'Document Preparation', desc: 'Packet assembly, review & signing' },
   { status: 'Clearance Period', label: 'Clearance Period', desc: '30-day internal clearance before release' },
-  { status: 'Ready for Claim', label: 'Ready for Claim', desc: 'Original TCT & DOAS in vault awaiting buyer' },
+  { status: 'Ready for Claim', label: 'Ready for Claim', desc: 'Original title & DOAS in vault awaiting buyer' },
   { status: 'Released', label: 'Released', desc: 'Physical packet turned over to buyer' },
 ];
+
+function normalizeLifecycleStage(status: TitleStatus): TitleStatus {
+  if (status === 'For Review' || status === 'For Signature') {
+    return 'Document Preparation';
+  }
+  return status;
+}
 
 interface TitleDialogProps {
   open: boolean;
@@ -182,6 +189,7 @@ export function TitleDialog({
   const [isGeneratingNotice, setIsGeneratingNotice] = useState<number | null>(null);
 
   const [confirmReleaseOpen, setConfirmReleaseOpen] = useState(false);
+  const [confirmReadyForClaimOpen, setConfirmReadyForClaimOpen] = useState(false);
   const [confirmStartNotice, setConfirmStartNotice] = useState<1 | 2 | 3 | null>(null);
   const [confirmUndoNotice, setConfirmUndoNotice] = useState<1 | 2 | 3 | null>(null);
   const [noticeStatusChoice, setNoticeStatusChoice] = useState<'received' | 'returned_to_sender'>('received');
@@ -214,14 +222,23 @@ export function TitleDialog({
   const activeTitle = activeItem?.type === 'title' ? activeItem.data : null;
   const activeAwaiting = activeItem?.type === 'awaiting' ? activeItem.data : null;
 
-  const currentStageStatus: TitleStatus = activeTitle ? activeTitle.status : 'Cleared by Billing';
+  const currentStageStatus: TitleStatus = activeTitle
+    ? normalizeLifecycleStage(activeTitle.status)
+    : 'Cleared by Billing';
   const currentStageIdx = LIFECYCLE_STAGES.findIndex((s) => s.status === currentStageStatus);
 
   const [selectedStage, setSelectedStage] = useState<TitleStatus>(currentStageStatus);
+  const [isExecutiveSigned, setIsExecutiveSigned] = useState(false);
 
   useEffect(() => {
-    setSelectedStage(activeTitle ? activeTitle.status : 'Cleared by Billing');
+    setSelectedStage(
+      activeTitle ? normalizeLifecycleStage(activeTitle.status) : 'Cleared by Billing'
+    );
   }, [activeTitle, activeAwaiting?.account_id, open]);
+
+  useEffect(() => {
+    setIsExecutiveSigned(false);
+  }, [activeTitle?.title_id]);
 
   const currentTct =
     activeTitle?.property?.title_number ?? activeAwaiting?.property?.title_number ?? '';
@@ -298,17 +315,52 @@ export function TitleDialog({
     const propertyId = activeTitle?.property_id ?? activeAwaiting?.property?.property_id;
     if (!propertyId) return;
 
-    if (!titleNumberInput.trim()) {
+    const trimmed = titleNumberInput.trim();
+    if (!trimmed) {
       toast.error('Title number cannot be empty');
       return;
     }
     setIsSavingTct(true);
     try {
-      await onUpdateTitleNumber(propertyId, titleNumberInput.trim());
+      await onUpdateTitleNumber(propertyId, trimmed);
+      // Immediately reflect saved title number in local dialog state
+      setActiveItem((prev) => {
+        if (!prev) return prev;
+        if (prev.type === 'title') {
+          return {
+            ...prev,
+            data: {
+              ...prev.data,
+              property: prev.data.property
+                ? { ...prev.data.property, title_number: trimmed }
+                : {
+                    property_id: propertyId,
+                    block_number: 0,
+                    lot_number: 0,
+                    location: '',
+                    title_number: trimmed,
+                  },
+            },
+          };
+        }
+        if (prev.type === 'awaiting') {
+          return {
+            ...prev,
+            data: {
+              ...prev.data,
+              property: {
+                ...prev.data.property,
+                title_number: trimmed,
+              },
+            },
+          };
+        }
+        return prev;
+      });
       setIsEditingTct(false);
-      toast.success('TCT number saved');
+      toast.success('Title number saved');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save TCT number');
+      toast.error(err instanceof Error ? err.message : 'Failed to save title number');
     } finally {
       setIsSavingTct(false);
     }
@@ -392,7 +444,7 @@ export function TitleDialog({
           history: newHistory,
         },
       });
-      setSelectedStage(nextStatus);
+      setSelectedStage(normalizeLifecycleStage(nextStatus));
       toast.success(`Status updated to "${nextStatus}"`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update status');
@@ -578,6 +630,93 @@ export function TitleDialog({
 
   const clearance = getClearanceProgress(activeTitle?.clearance_started_at);
 
+  const reviewSubmittedEntry = activeTitle?.history?.find((h) => h.status === 'For Review');
+  const reviewApprovedEntry = activeTitle?.history?.find((h) => h.status === 'For Signature');
+  const clearanceStartedEntry = activeTitle?.history?.find((h) => h.status === 'Clearance Period');
+
+  const reviewSubmittedDate = reviewSubmittedEntry
+    ? DATE_FORMAT.format(new Date(reviewSubmittedEntry.changed_at))
+    : (activeTitle?.status === 'For Review' ? DATE_FORMAT.format(new Date(activeTitle.updated_at)) : null);
+
+  const reviewApprovedDate = reviewApprovedEntry
+    ? DATE_FORMAT.format(new Date(reviewApprovedEntry.changed_at))
+    : (activeTitle?.status === 'For Signature' ? DATE_FORMAT.format(new Date(activeTitle.updated_at)) : null);
+
+  const signedDate = clearanceStartedEntry
+    ? DATE_FORMAT.format(new Date(clearanceStartedEntry.changed_at))
+    : (isExecutiveSigned ? DATE_FORMAT.format(new Date()) : reviewApprovedDate);
+
+  const isPastDocPrep = currentStageIdx > LIFECYCLE_STAGES.findIndex((s) => s.status === 'Document Preparation');
+  const step1Done = Boolean(packetIsComplete);
+  const step2Done = isPastDocPrep || activeTitle?.status === 'For Review' || activeTitle?.status === 'For Signature';
+  const step3Done = isPastDocPrep || activeTitle?.status === 'For Signature';
+  const step4Done = isPastDocPrep || (activeTitle?.status === 'For Signature' && isExecutiveSigned);
+
+  function renderDocPrepLifecycleChecklist() {
+    if (!step1Done && !step2Done) {
+      const missingDesc = [
+        missingDocs.length > 0 ? `${missingDocs.length} file${missingDocs.length > 1 ? 's' : ''} missing` : '',
+        !hasRecordedTct ? 'Title number missing' : '',
+      ].filter(Boolean).join(' • ');
+
+      return (
+        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+          <Circle className="h-3.5 w-3.5 shrink-0" />
+          <span>{missingDesc || 'Missing required documents'}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-1.5 text-xs">
+        <div className="flex items-center gap-2 text-success font-medium">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          <span>Release packet complete ({requiredDocs.length}/{requiredDocs.length})</span>
+        </div>
+
+        {step2Done ? (
+          <div className="flex items-center gap-2 text-success font-medium">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            <span>Submitted for review ({reviewSubmittedDate ?? 'On record'})</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Circle className="h-3.5 w-3.5 shrink-0" />
+            <span>Awaiting submission</span>
+          </div>
+        )}
+
+        {step2Done && (
+          step3Done ? (
+            <div className="flex items-center gap-2 text-success font-medium">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span>Legal review approved ({reviewApprovedDate ?? 'On record'})</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Circle className="h-3.5 w-3.5 shrink-0" />
+              <span>Pending legal supervisor review</span>
+            </div>
+          )
+        )}
+
+        {step3Done && (
+          step4Done ? (
+            <div className="flex items-center gap-2 text-success font-medium">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span>Signed by Executive Management ({signedDate ?? 'On record'})</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Circle className="h-3.5 w-3.5 shrink-0" />
+              <span>Awaiting signature</span>
+            </div>
+          )
+        )}
+      </div>
+    );
+  }
+
   function getStageTimestamp(stageStatus: TitleStatus): string | null {
     if (stageStatus === 'Cleared by Billing') {
       if (activeAwaiting?.cleared_at) return activeAwaiting.cleared_at;
@@ -594,6 +733,12 @@ export function TitleDialog({
   }
 
   function formatStageTime(timestamp: string | null): string | null {
+    if (!timestamp) return null;
+    const d = new Date(timestamp);
+    return Number.isNaN(d.getTime()) ? null : formatActivityTime(d);
+  }
+
+  function formatFullStageTime(timestamp: string | null): string | null {
     if (!timestamp) return null;
     const d = new Date(timestamp);
     return Number.isNaN(d.getTime()) ? null : TIME_FORMAT.format(d);
@@ -627,35 +772,7 @@ export function TitleDialog({
     }
 
     if (stageStatus === 'Document Preparation') {
-      if (!hasRecordedTct && missingDocs.length > 0) {
-        return `${missingDocs.length} file${missingDocs.length > 1 ? 's' : ''} missing • TCT missing`;
-      }
-      if (missingDocs.length > 0) {
-        return `${missingDocs.length} file${missingDocs.length > 1 ? 's' : ''} missing`;
-      }
-      if (!hasRecordedTct) {
-        return 'TCT number missing';
-      }
-      return `Release packet complete (${requiredDocs.length}/${requiredDocs.length})`;
-    }
-
-    if (stageStatus === 'For Review') {
-      const reviewEntry = activeTitle?.history?.find((h) => h.status === 'For Review');
-      if (reviewEntry) {
-        return `Supervisor review completed on ${DATE_FORMAT.format(new Date(reviewEntry.changed_at))}`;
-      }
-      if (currentStageStatus === 'For Review') {
-        return 'Pending Legal Supervisor review';
-      }
-      return 'Legal supervisor review of technical description';
-    }
-
-    if (stageStatus === 'For Signature') {
-      const signEntry = activeTitle?.history?.find((h) => h.status === 'For Signature');
-      const isSignedOrPast =
-        Boolean(signEntry) ||
-        currentStageIdx >= LIFECYCLE_STAGES.findIndex((s) => s.status === 'For Signature');
-      return isSignedOrPast ? 'Signed by Executive Management' : 'Awaiting executive sign-off';
+      return 'Packet assembly, supervisor review & executive signing';
     }
 
     if (stageStatus === 'Clearance Period') {
@@ -692,7 +809,7 @@ export function TitleDialog({
         const timeStr = formatStageTime(latest.generated_at ?? latest.created_at);
         return `${nth} notice ongoing (started ${timeStr ?? 'record'})`;
       }
-      return 'Original TCT & DOAS in vault awaiting buyer';
+      return 'Original title & DOAS in vault awaiting buyer';
     }
 
     if (stageStatus === 'Released') {
@@ -705,11 +822,11 @@ export function TitleDialog({
     return 'Workflow stage';
   }
 
-  // Left Column Timeline navigation
+  // Left Column Lifecycle Progress navigation
   const timelineColumnContent = (
-    <div className="space-y-3 pl-1">
-      <div className="flex items-center justify-between pb-2 border-b border-border">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+    <div className="space-y-3 pb-2">
+      <div className="sticky top-0 bg-card z-10 flex items-center justify-between pb-2 border-b border-border">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Lifecycle Progress
         </span>
         {selectedStage !== currentStageStatus && (
@@ -717,95 +834,86 @@ export function TitleDialog({
             variant="ghost"
             size="sm"
             onClick={() => setSelectedStage(currentStageStatus)}
-            className="h-6 text-[11px] px-2 text-primary hover:text-primary gap-1"
+            className="h-8 text-xs px-2.5 text-primary hover:text-primary gap-1.5"
           >
-            <Target className="h-3 w-3" />
+            <Target className="h-3.5 w-3.5" />
             Jump to Current
           </Button>
         )}
       </div>
 
-      <div className="space-y-1.5">
-        {timelineStages.map((stage, idx) => {
+      <div className="space-y-3">
+        {timelineStages.map((stage) => {
           const isCurrent = stage.status === currentStageStatus;
           const isSelected = stage.status === selectedStage;
-          const isLast = idx === timelineStages.length - 1;
           const timestamp = getStageTimestamp(stage.status);
           const formattedTime = formatStageTime(timestamp);
+          const fullTime = formatFullStageTime(timestamp);
           const dynamicDesc = getDynamicStageDescription(stage.status);
 
           return (
-            <div key={stage.status} className="relative flex items-stretch gap-2 text-xs">
-              <div className="flex flex-col items-center shrink-0 w-6">
-                {isCurrent ? (
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ring-4 ring-[color-mix(in_srgb,var(--primary)_25%,transparent)] shadow-sm mt-2">
-                    <Circle className="h-2 w-2 fill-primary-foreground" />
-                  </div>
-                ) : (
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center mt-2">
-                    <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-card text-success ring-2 ring-[color-mix(in_srgb,var(--success)_30%,transparent)]">
-                      <CheckCircle2 className="h-4 w-4 fill-success text-card" />
-                    </div>
-                  </div>
+            <div
+              key={stage.status}
+              className={cn(
+                'rounded-xl border p-4 space-y-2 bg-card transition-shadow',
+                isCurrent
+                  ? 'border-border shadow-sm ring-1 ring-border/60'
+                  : 'border-border/70'
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {isCurrent ? (
+                    <span className="flex h-2 w-2 shrink-0 rounded-full bg-primary" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+                  )}
+                  <span className="text-sm font-semibold text-foreground truncate">
+                    {stage.label}
+                  </span>
+                </div>
+                {isCurrent && (
+                  <Badge variant="outline" className="text-xs font-normal shrink-0">
+                    Current
+                  </Badge>
                 )}
-                {!isLast && <div className="w-[1.5px] flex-1 bg-border my-1" />}
               </div>
 
-              <div className={`min-w-0 flex-1 ${!isLast ? 'pb-2' : 'pb-0'}`}>
-                <div
-                  role="button"
-                  tabIndex={0}
+              {stage.status === 'Document Preparation' ? (
+                <div className="pt-0.5">
+                  {renderDocPrepLifecycleChecklist()}
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    {dynamicDesc}
+                  </p>
+
+                  {formattedTime && (
+                    <p
+                      className="text-xs text-muted-foreground font-medium"
+                      title={fullTime ?? undefined}
+                    >
+                      {formattedTime}
+                    </p>
+                  )}
+                </>
+              )}
+
+              {!isSelected && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-sm gap-2 h-9 px-3.5 font-medium mt-1.5"
                   onClick={() => {
                     setSelectedStage(stage.status);
                     setMobileTab('content');
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      setSelectedStage(stage.status);
-                      setMobileTab('content');
-                    }
-                  }}
-                  className={`group w-full text-left transition-all rounded-lg p-2.5 cursor-pointer border ${
-                    isSelected
-                      ? 'border-primary bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] shadow-sm'
-                      : 'border-transparent hover:bg-row-hover hover:border-border'
-                  }`}
                 >
-                  <div className="flex items-center justify-between gap-1">
-                    <span
-                      className={`text-xs truncate ${
-                        isSelected ? 'font-semibold text-foreground' : 'font-medium text-foreground'
-                      }`}
-                    >
-                      {stage.label}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {formattedTime && (
-                        <span
-                          className={`text-[10px] text-muted-foreground font-mono ${
-                            isSelected ? 'hidden' : 'group-hover:hidden'
-                          }`}
-                        >
-                          {formattedTime}
-                        </span>
-                      )}
-                      <span
-                        className={`inline-flex items-center gap-0.5 text-[10px] font-medium transition-opacity ${
-                          isSelected
-                            ? 'opacity-100 text-primary font-semibold'
-                            : 'opacity-0 group-hover:opacity-100 text-muted-foreground group-hover:text-primary'
-                        }`}
-                      >
-                        View {stage.label}
-                        <ArrowRight className="h-2.5 w-2.5" />
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground leading-tight mt-1">
-                    {dynamicDesc}
-                  </p>
-                </div>
-              </div>
+                  View {stage.label.toLowerCase()}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           );
         })}
@@ -818,7 +926,7 @@ export function TitleDialog({
     <div className="space-y-5">
       <Alert variant="info">
         <Inbox className="h-4 w-4" />
-        <AlertDescription className="text-xs">
+        <AlertDescription className="text-sm">
           Billing cleared this account as fully paid
           {activeAwaiting?.cleared_at ? (
             <>
@@ -836,7 +944,7 @@ export function TitleDialog({
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Account Intake Overview
         </h4>
-        <div className="grid grid-cols-2 gap-4 text-xs">
+        <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-muted-foreground">Principal Buyer:</span>
             <p className="font-medium text-foreground">{clientName}</p>
@@ -854,7 +962,7 @@ export function TitleDialog({
             <p className="font-medium text-foreground">{propertyRef}</p>
           </div>
           <div>
-            <span className="text-muted-foreground">TCT Number on Lot:</span>
+            <span className="text-muted-foreground">Title Number on Lot:</span>
             <p className="font-mono text-foreground">
               {activeTitle?.property?.title_number ?? activeAwaiting?.property.title_number ?? 'Not yet recorded'}
             </p>
@@ -871,8 +979,9 @@ export function TitleDialog({
               size="sm"
               disabled={isReturningToBilling || isStartingProcessing}
               onClick={() => setConfirmReturnAccount(activeAwaiting)}
+              className="text-sm h-9 px-4 gap-2"
             >
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+              <RotateCcw className="h-4 w-4" />
               Send back to Billing
             </Button>
           )}
@@ -880,7 +989,7 @@ export function TitleDialog({
             <Button
               type="button"
               size="sm"
-              className="gap-2 ml-auto"
+              className="gap-2 ml-auto text-sm h-9 px-4"
               disabled={isStartingProcessing || isReturningToBilling}
               onClick={() => void handleStartLegalProcessing()}
             >
@@ -918,16 +1027,16 @@ export function TitleDialog({
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3.5 py-2.5 bg-card">
           <div className="flex items-center gap-2">
             <Mail className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-xs font-semibold text-foreground">Client Outreach &amp; Notice Letters</span>
+            <span className="text-sm font-semibold text-foreground">Client Outreach &amp; Notice Letters</span>
           </div>
           {activeTitle?.status === 'Ready for Claim' && canEdit && (
             <Button
               size="sm"
               disabled={isUpdatingStatus}
               onClick={() => setConfirmReleaseOpen(true)}
-              className="text-xs gap-1.5 h-8 shrink-0"
+              className="text-sm gap-2 h-9 px-4 shrink-0"
             >
-              <CheckCircle2 className="h-3.5 w-3.5" />
+              <CheckCircle2 className="h-4 w-4" />
               Record Release to Buyer
             </Button>
           )}
@@ -940,7 +1049,7 @@ export function TitleDialog({
               Notice Escalation
               {isLoadingNotices && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
             </h4>
-            <span className="text-[11px] text-muted-foreground font-medium">
+            <span className="text-xs text-muted-foreground font-medium">
               {sortedNotices.length === 0
                 ? 'Not started'
                 : ongoingNotice
@@ -965,25 +1074,25 @@ export function TitleDialog({
             return (
               <div
                 key={n.notice_id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card shadow-2xs"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-border bg-card shadow-2xs"
               >
                 {/* Left: Title, badge, and plain inline metadata */}
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground">
+                    <span className="text-sm font-semibold text-foreground">
                       {getNoticeTitle(n.notice_number)}
                     </span>
                     {isReceived ? (
-                      <Badge variant="success" shape="pill" dot className="text-[10px]">
+                      <Badge variant="success" shape="pill" dot className="text-xs">
                         Received
                       </Badge>
                     ) : (
-                      <Badge variant="warning" shape="pill" dot className="text-[10px]">
+                      <Badge variant="warning" shape="pill" dot className="text-xs">
                         Returned to Sender
                       </Badge>
                     )}
                   </div>
-                  <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span>Started {startedStr ?? DATE_FORMAT.format(new Date(n.generated_at))}</span>
                     <span>•</span>
                     <span className={isReceived ? 'text-success font-medium' : 'text-warning font-medium'}>
@@ -1006,7 +1115,7 @@ export function TitleDialog({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-xs gap-1.5 h-8"
+                      className="text-sm gap-2 h-9 px-3.5"
                       onClick={() => void handleViewNoticeProof(n.rts_attachment_id!)}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -1017,7 +1126,7 @@ export function TitleDialog({
                   {canEdit && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -1049,17 +1158,17 @@ export function TitleDialog({
           {ongoingNotice && (
             <>
               {/* Card 1: Ongoing notice */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-border bg-card shadow-2xs">
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground">
+                    <span className="text-sm font-semibold text-foreground">
                       {getNoticeTitle(ongoingNotice.notice_number)}
                     </span>
-                    <Badge variant="info" shape="pill" dot className="text-[10px]">
+                    <Badge variant="info" shape="pill" dot className="text-xs">
                       Ongoing
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Started {formatStageTime(ongoingNotice.generated_at) ?? DATE_FORMAT.format(new Date(ongoingNotice.generated_at))}
                   </p>
                 </div>
@@ -1067,7 +1176,7 @@ export function TitleDialog({
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                   <Button
                     size="sm"
-                    className="text-xs gap-1.5 h-8"
+                    className="text-sm gap-2 h-9 px-4"
                     disabled={isGeneratingNotice === ongoingNotice.notice_number}
                     onClick={() => void handleGenerateNotice(ongoingNotice.notice_number as 1 | 2 | 3)}
                   >
@@ -1083,8 +1192,8 @@ export function TitleDialog({
 
               {/* Card 2: Option to provide status update to the ongoing notice */}
               {canEdit && (
-                <div className="rounded-lg border border-dashed border-border p-2.5 bg-card flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shadow-2xs">
-                  <div className="w-full sm:w-44 shrink-0">
+                <div className="rounded-lg border border-dashed border-border p-3 bg-card flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shadow-2xs">
+                  <div className="w-full sm:w-48 shrink-0">
                     <Select
                       value={noticeStatusChoice}
                       onValueChange={(val) => {
@@ -1092,7 +1201,7 @@ export function TitleDialog({
                         setStatusFileInput(null);
                       }}
                     >
-                      <SelectTrigger className="h-8 text-xs">
+                      <SelectTrigger className="h-9 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1120,15 +1229,15 @@ export function TitleDialog({
                       variant="outline"
                       size="sm"
                       onClick={() => statusFileInputRef.current?.click()}
-                      className="h-8 text-xs gap-1.5 shrink-0"
+                      className="h-9 text-sm gap-2 px-3.5 shrink-0"
                     >
                       <Upload className="h-3.5 w-3.5" />
                       Upload {noticeStatusChoice === 'received' ? 'Waybill' : 'RTS Scan'}
                     </Button>
                   ) : (
-                    <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-border bg-muted text-xs shrink-0 max-w-[200px]">
+                    <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-border bg-muted text-xs shrink-0 max-w-[200px]">
                       <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
-                      <span className="truncate text-foreground font-mono text-[11px]" title={statusFileInput.name}>
+                      <span className="truncate text-foreground font-mono text-xs" title={statusFileInput.name}>
                         {statusFileInput.name}
                       </span>
                       <button
@@ -1150,14 +1259,14 @@ export function TitleDialog({
                     }
                     value={statusNotesInput}
                     onChange={(e) => setStatusNotesInput(e.target.value)}
-                    className="h-8 text-xs flex-1 min-w-[140px]"
+                    className="h-9 text-sm flex-1 min-w-[140px]"
                   />
 
                   <Button
                     size="sm"
                     disabled={!statusFileInput || isResolvingNotice}
                     onClick={() => void handleConfirmResolveNotice(ongoingNotice.notice_number as 1 | 2 | 3)}
-                    className="h-8 text-xs gap-1.5 shrink-0"
+                    className="h-9 text-sm gap-2 px-4 shrink-0"
                   >
                     {isResolvingNotice ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1178,15 +1287,15 @@ export function TitleDialog({
                 /* Initial State: Single card with 'Start 1st Notice' */
                 <div className="rounded-lg border border-dashed border-border p-3.5 bg-card flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-foreground">Start 1st Notice</span>
-                    <Badge variant="muted" shape="pill" className="text-[10px]">
+                    <span className="text-sm font-semibold text-foreground">Start 1st Notice</span>
+                    <Badge variant="muted" shape="pill" className="text-xs">
                       Pending
                     </Badge>
                   </div>
                   {canEdit && (
                     <Button
                       size="sm"
-                      className="text-xs gap-1.5 h-8 shrink-0"
+                      className="text-sm gap-2 h-9 px-4 shrink-0"
                       onClick={() => setConfirmStartNotice(1)}
                     >
                       <Send className="h-3.5 w-3.5" />
@@ -1199,16 +1308,16 @@ export function TitleDialog({
                 canEdit && (
                   <div className="rounded-lg border border-dashed border-border p-3.5 bg-card flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-foreground">
+                      <span className="text-sm font-semibold text-foreground">
                         Start {nextNoticeNumber === 2 ? '2nd' : 'Final'} Notice
                       </span>
-                      <Badge variant="muted" shape="pill" className="text-[10px]">
+                      <Badge variant="muted" shape="pill" className="text-xs">
                         Pending
                       </Badge>
                     </div>
                     <Button
                       size="sm"
-                      className="text-xs gap-1.5 h-8 shrink-0"
+                      className="text-sm gap-2 h-9 px-4 shrink-0"
                       onClick={() => setConfirmStartNotice(nextNoticeNumber)}
                     >
                       <Send className="h-3.5 w-3.5" />
@@ -1218,7 +1327,7 @@ export function TitleDialog({
                 )
               ) : (
                 /* Final Notice Concluded: Static message card */
-                <div className="rounded-lg border border-border p-3 bg-[color-mix(in_srgb,var(--card)_70%,var(--background))] flex items-center gap-2.5 text-xs text-muted-foreground">
+                <div className="rounded-lg border border-border p-3.5 bg-[color-mix(in_srgb,var(--card)_70%,var(--background))] flex items-center gap-2.5 text-sm text-muted-foreground">
                   <ShieldAlert className="h-4 w-4 text-warning shrink-0" />
                   <span>Notice cycle concluded. Title packet queued for legal counsel referral.</span>
                 </div>
@@ -1236,9 +1345,9 @@ export function TitleDialog({
       <div className="flex items-center gap-3 rounded-lg border border-border p-4 bg-card text-success">
         <CheckCircle2 className="h-6 w-6 shrink-0" />
         <div>
-          <h4 className="text-sm font-semibold text-foreground">Finalized &amp; Turned Over to Buyer</h4>
-          <p className="text-xs text-muted-foreground">
-            Original Transfer Certificate of Title (TCT) and notarized Deed of Absolute Sale (DOAS) have been formally handed over to the client.
+          <h4 className="text-base font-semibold text-foreground">Finalized &amp; Turned Over to Buyer</h4>
+          <p className="text-sm text-muted-foreground">
+            Original title certificate and notarized Deed of Absolute Sale (DOAS) have been formally handed over to the client.
           </p>
         </div>
       </div>
@@ -1247,7 +1356,7 @@ export function TitleDialog({
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Turnover Summary
         </h4>
-        <div className="grid grid-cols-2 gap-4 text-xs">
+        <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-muted-foreground">Client:</span>
             <p className="font-medium text-foreground">{clientName}</p>
@@ -1257,7 +1366,7 @@ export function TitleDialog({
             <p className="font-medium text-foreground">{propertyRef}</p>
           </div>
           <div>
-            <span className="text-muted-foreground">TCT Number:</span>
+            <span className="text-muted-foreground">Title Number:</span>
             <p className="font-mono text-foreground">{activeTitle?.property?.title_number ?? 'N/A'}</p>
           </div>
           <div>
@@ -1269,7 +1378,42 @@ export function TitleDialog({
     </div>
   );
 
-  // Release Packet & Clearance Workflow View (Doc Prep, Review, Signature, Clearance)
+  // Clearance Period View
+  const clearanceColumnContent = (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-border p-5 bg-card space-y-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <h4 className="text-sm font-semibold text-foreground">30-Day Clearance Period</h4>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {clearance.isComplete
+                ? 'Clearance window has ended. Title is eligible to be marked ready for claim.'
+                : clearance.targetDate
+                ? `Clears on ${DATE_FORMAT.format(clearance.targetDate)} (${Math.max(0, clearance.daysRemaining)} days remaining)`
+                : 'Clearance period active'}
+            </p>
+          </div>
+
+          {activeTitle?.status === 'Clearance Period' && canEdit && (
+            <Button
+              size="sm"
+              disabled={isUpdatingStatus || (!clearance.isComplete && !isAdmin)}
+              onClick={() => setConfirmReadyForClaimOpen(true)}
+              className="text-sm gap-2 h-9 px-4 shrink-0"
+            >
+              <FileCheck className="h-4 w-4" />
+              Mark Ready for Claim
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Release Packet Workflow View (Doc Prep, Review, Signature)
   const packetColumnContent = (
     <div className="space-y-5">
       {activeTitle && (
@@ -1281,121 +1425,225 @@ export function TitleDialog({
                 size="sm"
                 disabled={isUpdatingStatus}
                 onClick={() => void handleStatusChange('Document Preparation')}
-                className="w-full text-xs gap-1.5"
+                className="w-full text-sm gap-2 h-9 px-4"
               >
-                <ArrowRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-4 w-4" />
                 Begin Document Preparation
               </Button>
             </div>
           )}
 
-          {activeTitle.status === 'Document Preparation' && (
-            <div className="rounded-lg border border-border p-3.5 bg-card">
-              {!packetIsComplete ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span>
-                    Upload required documents and enter TCT below to advance.
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-xs font-medium text-success flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4" /> Release packet complete
-                  </span>
-                  <Select
-                    disabled={isUpdatingStatus || !canEdit}
-                    value={activeTitle.status}
-                    onValueChange={(val) => void handleStatusChange(val as TitleStatus)}
-                  >
-                    <SelectTrigger className="w-48 h-8 text-xs">
-                      <SelectValue placeholder="Advance stage..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Document Preparation">Document Preparation</SelectItem>
-                      <SelectItem value="For Review">Submit for Review</SelectItem>
-                      <SelectItem value="For Signature">Route for Signature</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          )}
-
-          {(activeTitle.status === 'For Review' || activeTitle.status === 'For Signature') && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3.5 bg-card">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Workflow Stage:</span>
-                <Select
-                  disabled={isUpdatingStatus || !canEdit}
-                  value={activeTitle.status}
-                  onValueChange={(val) => void handleStatusChange(val as TitleStatus)}
-                >
-                  <SelectTrigger className="w-48 h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Document Preparation">Document Preparation</SelectItem>
-                    <SelectItem value="For Review">For Review</SelectItem>
-                    <SelectItem value="For Signature">For Signature</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {activeTitle.status === 'For Signature' && canEdit && (
-                <Button
-                  size="sm"
-                  disabled={isUpdatingStatus}
-                  onClick={() => void handleStatusChange('Clearance Period')}
-                  className="text-xs gap-1.5"
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  Start 30-Day Clearance
-                </Button>
-              )}
-            </div>
-          )}
-
-          {activeTitle.status === 'Clearance Period' && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3.5 bg-card">
+          {/* Document Preparation Workflow Checklist */}
+          <div className="rounded-xl border border-border bg-card p-4 space-y-3.5 shadow-2xs">
+            <div className="flex items-center justify-between pb-1 border-b border-border">
               <div className="space-y-0.5">
-                <span className="text-xs font-medium text-foreground">30-Day Clearance Period</span>
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Document Preparation & Verification Workflow
+                </h4>
                 <p className="text-xs text-muted-foreground">
-                  {clearance.isComplete
-                    ? 'Clearance period complete'
-                    : clearance.targetDate
-                    ? `Clears ${DATE_FORMAT.format(clearance.targetDate)} (${Math.max(0, clearance.daysRemaining)} days remaining)`
-                    : 'Clearance period active'}
+                  Track packet readiness, supervisor review, and executive sign-off.
                 </p>
               </div>
-              {canEdit && (
-                <Button
-                  size="sm"
-                  disabled={isUpdatingStatus || (!clearance.isComplete && !isAdmin)}
-                  onClick={() => void handleStatusChange('Ready for Claim')}
-                  className="text-xs gap-1.5"
-                >
-                  <FileCheck className="h-3.5 w-3.5" />
-                  Mark Ready for Claim
-                </Button>
+              {isUpdatingStatus && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               )}
             </div>
-          )}
 
-          {/* TCT Number Card */}
-          <div className="rounded-lg border border-border p-3.5 bg-card">
+            <div className="space-y-3 pt-1">
+              {/* Step 1: Release Packet Complete */}
+              <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/70 bg-card">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="mt-0.5 shrink-0">
+                    {step1Done ? (
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="space-y-0.5 min-w-0">
+                    <p className="text-sm font-semibold text-foreground">
+                      Release Packet Documents & Title Number
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {step1Done
+                        ? `Complete (${requiredDocs.length}/${requiredDocs.length} documents uploaded • Title number recorded)`
+                        : `${missingDocs.length > 0 ? `${missingDocs.length} file${missingDocs.length > 1 ? 's' : ''} missing` : ''}${!hasRecordedTct ? (missingDocs.length > 0 ? ' • Title number missing' : 'Title number missing') : ''}`}
+                    </p>
+                  </div>
+                </div>
+                <Badge
+                  variant={step1Done ? 'success' : 'outline'}
+                  shape="pill"
+                  className="text-xs shrink-0"
+                >
+                  {step1Done ? 'Complete' : 'Incomplete'}
+                </Badge>
+              </div>
+
+              {/* Step 2: Submitted for Review */}
+              <div className={cn(
+                'flex items-start justify-between gap-3 p-3 rounded-lg border transition-colors',
+                step2Done ? 'border-border bg-card' : 'border-border/70 bg-card'
+              )}>
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="mt-0.5 shrink-0">
+                    <Checkbox
+                      id="step-submitted-review"
+                      checked={step2Done}
+                      disabled={isUpdatingStatus || !canEdit || !step1Done || isPastDocPrep}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          void handleStatusChange('For Review');
+                        } else if (activeTitle?.status === 'For Review') {
+                          void handleStatusChange('Document Preparation');
+                        }
+                      }}
+                      className="h-4 w-4"
+                    />
+                  </div>
+                  <div className="space-y-0.5 min-w-0">
+                    <label
+                      htmlFor="step-submitted-review"
+                      className="text-sm font-semibold text-foreground cursor-pointer"
+                    >
+                      Submitted for Review
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {step2Done
+                        ? `Submitted for legal review on ${reviewSubmittedDate ?? 'record'}`
+                        : step1Done
+                        ? 'Ready for submission to legal supervisor'
+                        : 'Requires complete release packet and title number'}
+                    </p>
+                  </div>
+                </div>
+                {step2Done && reviewSubmittedDate && (
+                  <span className="text-xs font-medium text-muted-foreground shrink-0 self-center">
+                    {reviewSubmittedDate}
+                  </span>
+                )}
+              </div>
+
+              {/* Step 3: Legal Supervisor Review Approved */}
+              <div className={cn(
+                'flex items-start justify-between gap-3 p-3 rounded-lg border transition-colors',
+                step3Done ? 'border-border bg-card' : 'border-border/70 bg-card'
+              )}>
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="mt-0.5 shrink-0">
+                    <Checkbox
+                      id="step-review-approved"
+                      checked={step3Done}
+                      disabled={isUpdatingStatus || !canEdit || !step2Done || isPastDocPrep}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          void handleStatusChange('For Signature');
+                        } else if (activeTitle?.status === 'For Signature') {
+                          void handleStatusChange('For Review');
+                        }
+                      }}
+                      className="h-4 w-4"
+                    />
+                  </div>
+                  <div className="space-y-0.5 min-w-0">
+                    <label
+                      htmlFor="step-review-approved"
+                      className="text-sm font-semibold text-foreground cursor-pointer"
+                    >
+                      Legal Supervisor Review Approved
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {step3Done
+                        ? `Supervisor review verified on ${reviewApprovedDate ?? 'record'}`
+                        : step2Done
+                        ? 'Pending supervisor verification of technical description'
+                        : 'Awaiting submission for review'}
+                    </p>
+                  </div>
+                </div>
+                {step3Done && reviewApprovedDate && (
+                  <span className="text-xs font-medium text-muted-foreground shrink-0 self-center">
+                    {reviewApprovedDate}
+                  </span>
+                )}
+              </div>
+
+              {/* Step 4: Executive Management Signature */}
+              <div className={cn(
+                'p-3 rounded-lg border transition-colors space-y-3',
+                step4Done ? 'border-border bg-card' : 'border-border/70 bg-card'
+              )}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="mt-0.5 shrink-0">
+                      <Checkbox
+                        id="step-executive-signature"
+                        checked={step4Done}
+                        disabled={isUpdatingStatus || !canEdit || !step3Done || isPastDocPrep}
+                        onCheckedChange={(checked) => {
+                          setIsExecutiveSigned(Boolean(checked));
+                        }}
+                        className="h-4 w-4"
+                      />
+                    </div>
+                    <div className="space-y-0.5 min-w-0">
+                      <label
+                        htmlFor="step-executive-signature"
+                        className="text-sm font-semibold text-foreground cursor-pointer"
+                      >
+                        Signed by Executive Management
+                      </label>
+                      <p className="text-xs text-muted-foreground">
+                        {step4Done
+                          ? `Signed & notarized on ${signedDate ?? 'record'}`
+                          : step3Done
+                          ? 'Awaiting executive management sign-off & notarization'
+                          : 'Awaiting legal supervisor approval'}
+                      </p>
+                    </div>
+                  </div>
+                  {step4Done && signedDate && (
+                    <span className="text-xs font-medium text-muted-foreground shrink-0 self-center">
+                      {signedDate}
+                    </span>
+                  )}
+                </div>
+
+                {/* Button to start 30-Day Clearance once signed */}
+                {step4Done && activeTitle?.status === 'For Signature' && canEdit && (
+                  <div className="pt-2 pl-7 flex items-center justify-between gap-3 border-t border-border">
+                    <span className="text-xs text-muted-foreground">
+                      All preparation steps complete. Begin 30-day clearance window:
+                    </span>
+                    <Button
+                      size="sm"
+                      disabled={isUpdatingStatus}
+                      onClick={() => void handleStatusChange('Clearance Period')}
+                      className="text-sm gap-2 h-9 px-4 shrink-0 font-medium"
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Start 30-Day Clearance
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Title Number Card */}
+          <div className="rounded-lg border border-border p-4 bg-card space-y-2">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  TCT Number on Lot Parcel
+                  Title number on {[propertyRef, propertyLocation].filter(Boolean).join(', ')}
                 </span>
                 {!isEditingTct && activeTitle.property?.title_number ? (
-                  <p className="font-mono text-sm font-semibold text-foreground">
+                  <p className="font-mono text-sm font-semibold text-foreground mt-0.5">
                     {activeTitle.property.title_number}
                   </p>
                 ) : !isEditingTct ? (
-                  <p className="text-xs text-warning font-medium">
-                    No TCT recorded on lot (Required to submit for review)
+                  <p className="text-sm text-warning font-medium mt-0.5">
+                    No title number recorded on lot (Required to submit for review)
                   </p>
                 ) : null}
               </div>
@@ -1405,9 +1653,9 @@ export function TitleDialog({
                   variant="quiet"
                   size="sm"
                   onClick={() => setIsEditingTct(true)}
-                  className="gap-1 text-xs"
+                  className="gap-1.5 text-sm h-8.5 px-3"
                 >
-                  <Pencil className="h-3 w-3" /> Edit
+                  <Pencil className="h-3.5 w-3.5" /> Edit
                 </Button>
               )}
             </div>
@@ -1418,22 +1666,22 @@ export function TitleDialog({
                   value={titleNumberInput}
                   onChange={(e) => setTitleNumberInput(e.target.value)}
                   placeholder="e.g. T-123456"
-                  className="h-8 font-mono text-xs flex-1"
+                  className="h-9 font-mono text-sm flex-1"
                   autoFocus
                 />
                 <Button
                   type="submit"
                   size="sm"
-                  className="h-8 text-xs"
+                  className="h-9 px-4 text-sm"
                   disabled={isSavingTct || !titleNumberInput.trim()}
                 >
-                  {isSavingTct ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                  {isSavingTct ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
                 </Button>
                 <Button
                   type="button"
                   variant="quiet"
                   size="sm"
-                  className="h-8 text-xs"
+                  className="h-9 px-4 text-sm"
                   onClick={() => setIsEditingTct(false)}
                 >
                   Cancel
@@ -1447,9 +1695,9 @@ export function TitleDialog({
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 Release Packet Documents
-                {isLoadingDocs && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                {isLoadingDocs && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
               </h4>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 {requiredDocs.length - missingDocs.length} of {requiredDocs.length} uploaded
               </span>
             </div>
@@ -1463,7 +1711,7 @@ export function TitleDialog({
                 return (
                   <div
                     key={type}
-                    className="flex items-center justify-between gap-3 p-3 text-xs hover:bg-row-hover transition-colors"
+                    className="flex items-center justify-between gap-3 p-3.5 text-sm hover:bg-row-hover transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {isSkipped ? (
@@ -1478,42 +1726,42 @@ export function TitleDialog({
                           {DOC_TYPE_LABEL[type]}
                         </p>
                         {isSkipped ? (
-                          <p className="text-[11px] text-muted-foreground italic">
+                          <p className="text-xs text-muted-foreground italic">
                             Omitted — Title already in client name
                           </p>
                         ) : doc ? (
-                          <p className="text-[11px] text-muted-foreground truncate">
+                          <p className="text-xs text-muted-foreground truncate">
                             {formatDocumentName(doc.file_path)} • {DATE_FORMAT.format(new Date(doc.uploaded_at))}
                           </p>
                         ) : (
-                          <p className="text-[11px] text-muted-foreground">Required for turnover</p>
+                          <p className="text-xs text-muted-foreground">Required for turnover</p>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {doc && (
                         <>
                           <Button
                             type="button"
                             variant="quiet"
                             size="sm"
-                            className="h-7 w-7 p-0"
+                            className="h-8.5 w-8.5 p-0"
                             onClick={() => void handleViewDoc(doc)}
                             title="View document"
                           >
-                            <ExternalLink className="h-3.5 w-3.5" />
+                            <ExternalLink className="h-4 w-4" />
                           </Button>
                           {canEdit && (
                             <Button
                               type="button"
                               variant="quiet"
                               size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_15%,transparent)]"
+                              className="h-8.5 w-8.5 p-0 text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_15%,transparent)]"
                               onClick={() => setDocToRemove(doc)}
                               title="Remove document"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
                         </>
@@ -1523,14 +1771,14 @@ export function TitleDialog({
                           type="button"
                           variant="quiet"
                           size="sm"
-                          className="h-7 px-2 text-xs gap-1"
+                          className="h-8.5 px-3.5 text-sm gap-1.5"
                           disabled={isBusy}
                           onClick={() => pickFile(type)}
                         >
                           {isBusy ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <Upload className="h-3 w-3" />
+                            <Upload className="h-3.5 w-3.5" />
                           )}
                           {doc ? 'Replace' : 'Upload'}
                         </Button>
@@ -1551,6 +1799,9 @@ export function TitleDialog({
     if (selectedStage === 'Cleared by Billing') {
       return intakeColumnContent;
     }
+    if (selectedStage === 'Clearance Period') {
+      return clearanceColumnContent;
+    }
     if (selectedStage === 'Ready for Claim') {
       return noticesColumnContent;
     }
@@ -1563,8 +1814,8 @@ export function TitleDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="bg-card border-border sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl w-[95vw] max-h-[90vh] overflow-y-auto p-6 sm:p-8">
-          <DialogHeader className="pb-4 border-b border-border">
+        <DialogContent className="bg-card border-border sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-6 sm:p-8 overflow-hidden">
+          <DialogHeader className="pb-4 border-b border-border shrink-0">
             <div className="flex items-center justify-between">
               <Badge
                 variant={TITLE_STATUS_VARIANT[currentStageStatus] ?? 'muted'}
@@ -1574,7 +1825,7 @@ export function TitleDialog({
                 {currentStageStatus}
               </Badge>
               {activeTitle?.is_legacy_transferred && (
-                <Badge variant="outline" className="text-[11px]">
+                <Badge variant="outline" className="text-xs">
                   Legacy Pre-Transferred
                 </Badge>
               )}
@@ -1582,25 +1833,27 @@ export function TitleDialog({
             <DialogTitle className="text-xl">
               {propertyRef} <span className="text-muted-foreground font-normal">• {propertyLocation}</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm">
               {clientName}
             </DialogDescription>
           </DialogHeader>
 
           {/* Mobile Tab Switcher */}
-          <div className="md:hidden pt-2">
+          <div className="md:hidden flex-1 min-h-0 overflow-y-auto pt-2">
             <Tabs
               value={mobileTab}
               onValueChange={(val) => setMobileTab(val as 'timeline' | 'content')}
             >
               <TabsList className="w-full grid grid-cols-2">
-                <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                <TabsTrigger value="content">
+                <TabsTrigger value="timeline" className="text-sm">Timeline</TabsTrigger>
+                <TabsTrigger value="content" className="text-sm">
                   {selectedStage === 'Ready for Claim'
                     ? 'Notices & Actions'
                     : selectedStage === 'Cleared by Billing'
                     ? 'Intake Details'
-                    : 'Packet & Actions'}
+                    : selectedStage === 'Clearance Period'
+                    ? 'Clearance Details'
+                    : 'Document Preparation'}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="timeline" className="pt-4">
@@ -1612,12 +1865,12 @@ export function TitleDialog({
             </Tabs>
           </div>
 
-          {/* Desktop Two-Column Layout */}
-          <div className="hidden md:grid md:grid-cols-12 gap-8 pt-4">
-            <div className="md:col-span-5 lg:col-span-4 border-r border-border pr-6 lg:pr-8">
+          {/* Desktop Two-Column Layout with Independent Scrolling */}
+          <div className="hidden md:grid md:grid-cols-12 gap-8 flex-1 min-h-0 pt-4 overflow-hidden">
+            <div className="md:col-span-5 lg:col-span-4 border-r border-border pr-4 lg:pr-6 overflow-y-auto h-full min-h-0">
               {timelineColumnContent}
             </div>
-            <div className="md:col-span-7 lg:col-span-8 pl-1 lg:pl-3">
+            <div className="md:col-span-7 lg:col-span-8 pl-1 lg:pl-3 pr-2 overflow-y-auto h-full min-h-0">
               {activeContent}
             </div>
           </div>
@@ -1640,18 +1893,18 @@ export function TitleDialog({
         <DialogContent className="sm:max-w-md bg-card border-border">
           <DialogHeader>
             <DialogTitle>Upload Return to Sender (RTS) Scan</DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-sm">
               Upload courier or postal proof of non-delivery for Notice {rtsModalNotice}. This unlocks subsequent notice letters.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2 text-xs">
+          <div className="space-y-4 py-2 text-sm">
             <div className="space-y-1.5">
               <label className="font-medium text-foreground">RTS Reason (Optional)</label>
               <Input
                 placeholder="e.g. Unclaimed, Moved / Incomplete address, Refused to receive"
                 value={rtsReasonInput}
                 onChange={(e) => setRtsReasonInput(e.target.value)}
-                className="h-8 text-xs"
+                className="h-8.5 text-sm"
               />
             </div>
             <div className="space-y-1.5">
@@ -1660,7 +1913,7 @@ export function TitleDialog({
                 type="file"
                 accept={DOCUMENT_FILE_ACCEPT}
                 onChange={(e) => setRtsFileInput(e.target.files?.[0] ?? null)}
-                className="text-xs"
+                className="text-sm"
               />
             </div>
           </div>
@@ -1670,7 +1923,7 @@ export function TitleDialog({
               size="sm"
               onClick={() => setRtsModalNotice(null)}
               disabled={isUploadingRts}
-              className="text-xs"
+              className="text-sm h-9 px-4"
             >
               Cancel
             </Button>
@@ -1678,12 +1931,12 @@ export function TitleDialog({
               size="sm"
               disabled={!rtsFileInput || isUploadingRts}
               onClick={() => void handleConfirmUploadRts()}
-              className="text-xs gap-1.5"
+              className="text-sm gap-2 h-9 px-4"
             >
               {isUploadingRts ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Upload className="h-3.5 w-3.5" />
+                <Upload className="h-4 w-4" />
               )}
               Upload RTS
             </Button>
@@ -1696,7 +1949,7 @@ export function TitleDialog({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove document?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm">
               Are you sure you want to remove &quot;
               {docToRemove ? formatDocumentName(docToRemove.file_path) : 'this document'}
               &quot;? This cannot be undone.
@@ -1722,7 +1975,7 @@ export function TitleDialog({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Return account to Billing?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm">
               This will remove this account from Legal intake and return it to Billing as uncleared.
               Are you sure?
             </AlertDialogDescription>
@@ -1739,12 +1992,49 @@ export function TitleDialog({
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Confirmation Alert to Mark Ready for Claim */}
+      <AlertDialog
+        open={confirmReadyForClaimOpen}
+        onOpenChange={setConfirmReadyForClaimOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {clearance.isComplete
+                ? 'Mark Title Ready for Claim?'
+                : 'Mark Ready for Claim (Early Clearance)?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              {clearance.isComplete
+                ? 'The 30-day internal clearance period has concluded. This will move the title to Ready for Claim in the vault and enable client notice letters or turnover to the buyer.'
+                : `The 30-day clearance period is still ongoing (${Math.max(0, clearance.daysRemaining)} days remaining). Marking this ready now will bypass the remaining clearance window and make the title ready for client release. Are you sure you want to proceed?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUpdatingStatus}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isUpdatingStatus}
+              onClick={() => {
+                setConfirmReadyForClaimOpen(false);
+                void handleStatusChange('Ready for Claim');
+              }}
+              className="bg-primary text-primary-foreground hover:opacity-90"
+            >
+              {isUpdatingStatus ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              ) : null}
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Confirmation Alert to Record Release to Buyer */}
       <AlertDialog open={confirmReleaseOpen} onOpenChange={setConfirmReleaseOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm Title Release to Buyer</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm">
               Are you sure you want to record the physical turnover of this title to the buyer?
               This marks the title packet as officially Released and concludes the titling workflow.
             </AlertDialogDescription>
@@ -1774,7 +2064,7 @@ export function TitleDialog({
             <AlertDialogTitle>
               Start {confirmStartNotice === 1 ? '1st' : confirmStartNotice === 2 ? '2nd' : 'Final Demand'} Notice?
             </AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm">
               This will mark the title claim with the{' '}
               {confirmStartNotice === 1 ? 'first' : confirmStartNotice === 2 ? 'second' : 'final demand'}{' '}
               notice and start the outreach tracking cycle. Are you sure you want to proceed?
@@ -1808,7 +2098,7 @@ export function TitleDialog({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Undo Notice {confirmUndoNotice} Status?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="text-sm">
               This will revert Notice {confirmUndoNotice} status back to Ongoing and remove the uploaded proof document. Are you sure you want to proceed?
             </AlertDialogDescription>
           </AlertDialogHeader>

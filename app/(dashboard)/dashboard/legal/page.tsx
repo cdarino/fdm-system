@@ -18,7 +18,7 @@ async function LegalContent() {
   ]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pt-4 sm:pt-8 pb-6 sm:pb-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Contract &amp; Title Management</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -32,7 +32,7 @@ async function LegalContent() {
 
 export default function LegalPage() {
   return (
-    <PageContainer>
+    <PageContainer padding="horizontal">
       <Suspense fallback={<PropertiesSkeleton />}>
         <LegalContent />
       </Suspense>

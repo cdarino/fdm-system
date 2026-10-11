@@ -9,17 +9,13 @@ export interface PageContainerProps extends React.HTMLAttributes<HTMLDivElement>
    */
   scrollable?: boolean | 'responsive';
   /**
-   * Whether to apply standard page padding (`p-8`).
-   * Defaults to `true`. Set to `false` for full-bleed edge-to-edge layouts.
+   * Whether to apply page padding. Supports `true` (all sides), `'horizontal'` (x-axis only), or `false`.
    */
-  padding?: boolean;
+  padding?: boolean | 'horizontal';
   children: React.ReactNode;
   className?: string;
 }
 
-/**
- * Standard container for dashboard pages.
- */
 export function PageContainer({
   scrollable = true,
   padding = true,
@@ -35,10 +31,12 @@ export function PageContainer({
       : 'overflow-hidden';
 
   const paddingClasses =
-    padding &&
-    (scrollable === 'responsive'
-      ? 'min-h-full md:min-h-0 p-4 sm:p-8'
-      : 'min-h-full p-4 sm:p-8');
+    padding === 'horizontal'
+      ? 'min-h-full px-4 sm:px-8'
+      : padding &&
+        (scrollable === 'responsive'
+          ? 'min-h-full md:min-h-0 p-4 sm:p-8'
+          : 'min-h-full p-4 sm:p-8');
 
   return (
     <div
