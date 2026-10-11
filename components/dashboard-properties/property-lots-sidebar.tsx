@@ -67,9 +67,9 @@ const STATUS_AVATAR: Record<PropertyStatus, { border: string; bg: string; text: 
     text: 'text-accent-gold-foreground',
   },
   Forfeited: {
-    border: 'border-destructive',
-    bg: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)]',
-    text: 'text-destructive',
+    border: 'border-[#8B5CF6]',
+    bg: 'bg-[color-mix(in_srgb,#8B5CF6_12%,white)]',
+    text: 'text-[#7C3AED]',
   },
 };
 
@@ -77,7 +77,7 @@ const STATUS_TEXT: Record<PropertyStatus, string> = {
   Open: 'text-success',
   Reserved: 'text-accent-blue-foreground',
   Sold: 'text-accent-gold-foreground',
-  Forfeited: 'text-destructive',
+  Forfeited: 'text-[#7C3AED]',
 };
 
 function getInitials(name: string): string {

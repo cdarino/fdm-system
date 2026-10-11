@@ -9,13 +9,14 @@ import {
   updateLandTitleSchema,
   updatePropertyTitleNumberSchema,
   getLandTitlesParamsSchema,
+  recordLandTitleReleaseSchema,
 } from "@/lib/validations/title";
 import type { AccountAwaitingTitle, CreateLandTitleInput, LandTitle } from "@/lib/types/title";
 import type { PaginatedResult } from "@/lib/types/client";
 
 // The client's documents ride along so title lists can show release packet progress.
 const TITLE_SELECT =
-  "*, client:client_id(client_id, full_name, status, address, documents:client_document(document_type, property_id)), property:property_id(property_id, location, block_number, lot_number, title_number), history:land_title_status_history(history_id, title_id, status, changed_at, changed_by)";
+  "*, client:client_id(client_id, full_name, status, address, civil_status, spouse_name, tin_number, documents:client_document(document_type, property_id)), property:property_id(property_id, location, block_number, lot_number, title_number, area_size, price_per_sqm), history:land_title_status_history(history_id, title_id, status, changed_at, changed_by), release_attachment:release_attachment_id(attachment_id, file_path, file_name, file_size, mime_type, uploaded_at)";
 
 const titleBase = createScope();
 const titleCreate = createScope(["legal.create"]);
@@ -230,6 +231,22 @@ export async function updateLandTitle(
     schema: updateLandTitleSchema,
     input,
     handler: async (validatedUpdates, { supabase }) => {
+      // Prevent reversing status once title is released
+      if (validatedUpdates.status) {
+        const { data: current, error: checkError } = await supabase
+          .from("land_title")
+          .select("status")
+          .eq("title_id", titleId)
+          .single<{ status: string }>();
+
+        if (checkError) {
+          throw new Error(`Failed to check current title status: ${checkError.message}`);
+        }
+        if (current?.status === "Released" && validatedUpdates.status !== "Released") {
+          throw new Error("Released titles cannot be reverted to a previous status.");
+        }
+      }
+
       const { data, error } = await supabase
         .from("land_title")
         .update(validatedUpdates)
@@ -239,6 +256,56 @@ export async function updateLandTitle(
 
       if (error || !data) {
         throw new Error(`Failed to update land title: ${error?.message ?? "Unknown error"}`);
+      }
+
+      return data;
+    },
+  });
+}
+
+export async function recordLandTitleRelease(
+  input: unknown
+): Promise<ActionResult<LandTitle>> {
+  return titleUpdate.run({
+    schema: recordLandTitleReleaseSchema,
+    input,
+    handler: async (
+      { title_id, released_to_name, released_to_id, release_remarks, release_attachment_id },
+      { supabase }
+    ) => {
+      // Verify title is currently ready for release
+      const { data: current, error: checkError } = await supabase
+        .from("land_title")
+        .select("status")
+        .eq("title_id", title_id)
+        .single<{ status: string }>();
+
+      if (checkError || !current) {
+        throw new Error("Land title not found.");
+      }
+      if (current.status === "Released") {
+        throw new Error("Title has already been released.");
+      }
+      if (current.status !== "Ready for Claim") {
+        throw new Error("Only titles in 'Ready for Claim' can be marked as Released.");
+      }
+
+      const { data, error } = await supabase
+        .from("land_title")
+        .update({
+          status: "Released",
+          released_at: new Date().toISOString(),
+          released_to_name,
+          released_to_id,
+          release_remarks: release_remarks ?? null,
+          release_attachment_id: release_attachment_id ?? null,
+        })
+        .eq("title_id", title_id)
+        .select(TITLE_SELECT)
+        .single<LandTitle>();
+
+      if (error || !data) {
+        throw new Error(`Failed to record title release: ${error?.message ?? "Unknown error"}`);
       }
 
       return data;

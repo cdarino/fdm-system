@@ -24,6 +24,7 @@ import {
   markAccountClearedByBilling as markAccountClearedAction,
   undoBillingClearance as undoBillingClearanceAction,
 } from '@/lib/actions/billing';
+import { forfeitPropertyLot as forfeitPropertyLotAction } from '@/lib/actions/properties';
 import type {
   Client,
   ClientWithDetails,
@@ -60,6 +61,8 @@ export interface ClientDetailContextValue {
   clearAccount: (accountId: string) => Promise<void>;
   /** Reverses a clearance, allowed until Legal creates the title. */
   undoClearance: (accountId: string) => Promise<void>;
+  /** Forfeits an account/lot, transitioning it into the grace period. */
+  forfeitLot: (propertyId: string, reason?: string) => Promise<void>;
 }
 
 const ClientDetailContext = createContext<ClientDetailContextValue | null>(null);
@@ -313,6 +316,22 @@ export function ClientDetailProvider({
     [router, setAccountClearance]
   );
 
+  const forfeitLot = useCallback(
+    async (propertyId: string, reason?: string): Promise<void> => {
+      const result = await forfeitPropertyLotAction({ propertyId, reason });
+      if (!result.success) throw new Error(result.error);
+
+      setClient((prev) => ({
+        ...prev,
+        properties: (prev.properties ?? []).map((p) =>
+          p.property_id === propertyId ? { ...p, status: 'Forfeited' } : p
+        ),
+      }));
+      router.refresh();
+    },
+    [router]
+  );
+
   const value: ClientDetailContextValue = {
     client,
     updateAddress,
@@ -330,6 +349,7 @@ export function ClientDetailProvider({
     getDocumentUrl,
     clearAccount,
     undoClearance,
+    forfeitLot,
   };
 
   return createElement(ClientDetailContext.Provider, { value }, children);

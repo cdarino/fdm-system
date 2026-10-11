@@ -15,6 +15,8 @@ import {
   openSubdivisionForSaleSchema,
   assignPropertyFullyPaidActionSchema,
   createAndAssignPropertyFromSubdivisionSchema,
+  forfeitPropertyLotSchema,
+  reopenPropertyLotForSaleSchema,
 } from "@/lib/validations/property";
 import type { PaginatedResult } from "@/lib/types/client";
 import type {
@@ -80,7 +82,7 @@ async function assertLotAvailableTo(
   propertyId: string,
   clientIds: string[]
 ) {
-  const [accountResult, titleResult] = await Promise.all([
+  const [accountResult, titleResult, lotResult] = await Promise.all([
     supabase
       .from("ledger_account")
       .select("cleared_at, parties:account_party(client_id, client:client_id(full_name))")
@@ -92,6 +94,11 @@ async function assertLotAvailableTo(
       .select("client_id, client:client_id(full_name)")
       .eq("property_id", propertyId)
       .maybeSingle<LotOwner>(),
+    supabase
+      .from("property_lot")
+      .select("status")
+      .eq("property_id", propertyId)
+      .maybeSingle<{ status: string }>(),
   ]);
 
   if (accountResult.error) {
@@ -99,6 +106,15 @@ async function assertLotAvailableTo(
   }
   if (titleResult.error) {
     throw new Error(`Failed to check the lot's title: ${titleResult.error.message}`);
+  }
+  if (lotResult.error) {
+    throw new Error(`Failed to check the lot's status: ${lotResult.error.message}`);
+  }
+
+  if (lotResult.data?.status === "Forfeited") {
+    throw new Error(
+      "This lot is currently forfeited and under the 30-day grace period. Reopen it for sale before assigning it to a client."
+    );
   }
 
   const account = accountResult.data;
@@ -841,3 +857,119 @@ export async function createAndAssignPropertyFromSubdivision(
     },
   });
 }
+
+// NOTE: Forfeiture logic may migrate to the billing/accounting module once implemented.
+export async function forfeitPropertyLot(
+  input: unknown
+): Promise<ActionResult<PropertyLotWithClient>> {
+  return propertyWrite.run({
+    schema: forfeitPropertyLotSchema,
+    input,
+    handler: async (validatedInput, { supabase }) => {
+      const { propertyId, reason, forfeitedAt } = validatedInput;
+
+      const { data: existingTitle, error: titleErr } = await supabase
+        .from("land_title")
+        .select("title_id")
+        .eq("property_id", propertyId)
+        .maybeSingle<{ title_id: string }>();
+
+      if (titleErr) {
+        throw new Error(`Failed to check land title: ${titleErr.message}`);
+      }
+      if (existingTitle) {
+        throw new Error("Cannot forfeit a titled property lot. Handle title cancellation through legal first.");
+      }
+
+      const { data: activeAccount, error: accErr } = await supabase
+        .from("ledger_account")
+        .select("account_id, cleared_at")
+        .eq("property_id", propertyId)
+        .eq("status", "Active")
+        .maybeSingle<{ account_id: string; cleared_at: string | null }>();
+
+      if (accErr) {
+        throw new Error(`Failed to check ledger account: ${accErr.message}`);
+      }
+      if (!activeAccount) {
+        throw new Error("Only lots with an active reservation can be forfeited.");
+      }
+      if (activeAccount.cleared_at) {
+        throw new Error("Cannot forfeit an account cleared by Billing. Undo the billing clearance first.");
+      }
+
+      const effectiveForfeitedAt = forfeitedAt ?? new Date().toISOString();
+
+      const { error: updateErr } = await supabase
+        .from("ledger_account")
+        .update({
+          status: "Forfeited",
+          forfeited_at: effectiveForfeitedAt,
+          forfeiture_reason: reason ?? null,
+        })
+        .eq("account_id", activeAccount.account_id);
+
+      if (updateErr) {
+        throw new Error(`Failed to forfeit ledger account: ${updateErr.message}`);
+      }
+
+      return getPropertyLotById(propertyId);
+    },
+  });
+}
+
+export async function reopenPropertyLotForSale(
+  input: unknown
+): Promise<ActionResult<PropertyLotWithClient>> {
+  return propertyWrite.run({
+    schema: reopenPropertyLotForSaleSchema,
+    input,
+    handler: async (validatedInput, { supabase }) => {
+      const { propertyId } = validatedInput;
+
+      const { data: forfeitedAccount, error: accErr } = await supabase
+        .from("ledger_account")
+        .select("account_id, forfeited_at, reopened_at")
+        .eq("property_id", propertyId)
+        .eq("status", "Forfeited")
+        .is("reopened_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ account_id: string; forfeited_at: string | null; reopened_at: string | null }>();
+
+      if (accErr) {
+        throw new Error(`Failed to check forfeited account: ${accErr.message}`);
+      }
+      if (!forfeitedAccount) {
+        throw new Error("Only lots currently in forfeited status can be reopened for sale.");
+      }
+
+      if (!validatedInput.allowEarlyReopen && forfeitedAccount.forfeited_at) {
+        const forfeitedTime = new Date(forfeitedAccount.forfeited_at).getTime();
+        const now = Date.now();
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        if (now < forfeitedTime + thirtyDaysMs) {
+          const remainingMs = forfeitedTime + thirtyDaysMs - now;
+          const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+          throw new Error(
+            `Cannot reopen lot yet. The 30-day grace period is still active (${remainingDays} day(s) remaining).`
+          );
+        }
+      }
+
+      const { error: updateErr } = await supabase
+        .from("ledger_account")
+        .update({
+          reopened_at: new Date().toISOString(),
+        })
+        .eq("account_id", forfeitedAccount.account_id);
+
+      if (updateErr) {
+        throw new Error(`Failed to reopen forfeited account: ${updateErr.message}`);
+      }
+
+      return getPropertyLotById(propertyId);
+    },
+  });
+}
+

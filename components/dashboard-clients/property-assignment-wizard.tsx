@@ -894,7 +894,7 @@ export function PropertyAssignmentWizard({
                   />
                   <div className="space-y-0.5">
                     <span className="text-sm font-medium text-foreground">
-                      Legacy pre-transferred title
+                      Title is already on client&apos;s name
                     </span>
                     <p className="text-xs text-muted-foreground">
                       Check if FDM already transferred the title into the client&apos;s name during historical 80%–90% settlement. Bypasses Deed of Absolute Sale (DOAS) drafting during release.

@@ -23,9 +23,20 @@ import {
   Award,
   ExternalLink,
   MoreHorizontal,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Card } from '@/components/ui/card';
 import { IconBox } from '@/components/ui/icon-box';
 import { Input } from '@/components/ui/input';
@@ -66,11 +77,12 @@ const PESO = new Intl.NumberFormat('en-PH', {
 
 const AREA = new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 });
 
-const ACCOUNT_STATUS_VARIANT: Record<AccountStatus, 'success' | 'warning' | 'destructive' | 'muted'> = {
+const ACCOUNT_STATUS_VARIANT: Record<AccountStatus, 'success' | 'warning' | 'destructive' | 'muted' | 'purple'> = {
   Active: 'success',
   Matured: 'warning',
   Delinquent: 'destructive',
   Cancelled: 'muted',
+  Forfeited: 'purple',
 };
 
 function initials(name: string): string {
@@ -340,11 +352,13 @@ export interface PropertyLotDetailViewProps {
 }
 
 export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetailViewProps) {
-  const { createLot, updateLot, archiveLot, unarchiveLot, sites } = usePropertyLots();
+  const { createLot, updateLot, archiveLot, unarchiveLot, reopenLot, sites } = usePropertyLots();
   const { isSystemAdmin } = useSession();
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isReopenDialogOpen, setIsReopenDialogOpen] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -363,6 +377,18 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
   const displayStatus: SubdivisionDisplayStatus = isRegistered ? lot.status : 'Closed';
   const isArchived = Boolean(lot.is_archived);
   const eligibility = getArchiveEligibility(isArchived, lot.archived_at);
+
+  const forfeitedAt = lot.forfeited_account?.forfeited_at;
+  const daysRemaining = forfeitedAt
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(forfeitedAt).getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now()) /
+            (24 * 60 * 60 * 1000)
+        )
+      )
+    : 0;
+  const isGracePeriodActive = daysRemaining > 0;
 
   const currentArea = isRegistered ? lot.area_size : draftArea;
   const currentPrice = isRegistered ? lot.price_per_sqm : draftPrice;
@@ -465,6 +491,25 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
       toast.error(err instanceof Error ? err.message : 'Failed to generate property report');
     } finally {
       setIsExportingPdf(false);
+    }
+  }
+
+  // Reopen forfeited lot for sale with early override when grace period is active
+  async function handleConfirmReopen() {
+    if (isReopening) return;
+    setIsReopening(true);
+    try {
+      const result = await reopenLot(lot.property_id, isGracePeriodActive);
+      if (result.success) {
+        toast.success(`${lotLabel(lot)} reopened for sale`);
+        setIsReopenDialogOpen(false);
+      } else {
+        toast.error(result.error);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reopen lot');
+    } finally {
+      setIsReopening(false);
     }
   }
 
@@ -705,7 +750,9 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
                 ? 'Reservation & ledger'
                 : displayStatus === 'Sold'
                   ? 'Ownership & land title'
-                  : 'Client assignment'}
+                  : displayStatus === 'Forfeited'
+                    ? 'Forfeiture & grace period'
+                    : 'Client assignment'}
             </h3>
             {displayStatus === 'Closed' ? (
               <Badge variant="muted" shape="pill">
@@ -718,24 +765,18 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
             )}
           </div>
 
-          {(displayStatus === 'Closed' ||
-            displayStatus === 'Open' ||
-            displayStatus === 'Forfeited') && (
+          {(displayStatus === 'Closed' || displayStatus === 'Open') && (
             <Card padding="sm" className="space-y-3 bg-row-hover">
               <div className="space-y-1">
                 <p className="text-xs font-semibold text-foreground">
                   {displayStatus === 'Closed'
                     ? 'Plot not yet opened for sale'
-                    : displayStatus === 'Forfeited'
-                      ? 'Available for reassignment'
-                      : 'Available for acquisition'}
+                    : 'Available for acquisition'}
                 </p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {displayStatus === 'Closed'
                     ? 'Choose a client to automatically open this subdivision plot and start the property assignment workflow, or open the lot for sale first.'
-                    : displayStatus === 'Forfeited'
-                      ? 'This lot was previously forfeited and can now be assigned to a new buyer.'
-                      : 'No client is assigned to this lot. Select a client to start the property assignment workflow.'}
+                    : 'No client is assigned to this lot. Select a client to start the property assignment workflow.'}
                 </p>
               </div>
 
@@ -747,9 +788,7 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
                   className="w-full gap-1.5 text-xs"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
-                  <span>
-                    {displayStatus === 'Forfeited' ? 'Reassign Client' : 'Assign Client'}
-                  </span>
+                  <span>Assign Client</span>
                 </Button>
 
                 {displayStatus === 'Closed' && (
@@ -766,6 +805,78 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
                 )}
               </div>
             </Card>
+          )}
+
+          {displayStatus === 'Forfeited' && (
+            <>
+              {lot.client && (
+                <Card padding="sm" className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <IconBox size="md" shape="rounded-xl" className="shrink-0 font-semibold">
+                      {initials(lot.client.full_name) || <UserRound className="h-4 w-4" />}
+                    </IconBox>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {lot.client.full_name}
+                        </p>
+                        <Badge variant="purple" shape="pill" className="text-[10px]">
+                          Previous Buyer
+                        </Badge>
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {lot.client.address || 'Forfeited buyer'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button asChild variant="quiet" size="sm" className="h-7 shrink-0 gap-1 text-xs">
+                    <Link href={`/dashboard/clients/${lot.client.client_id}`}>
+                      <span>Profile</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </Button>
+                </Card>
+              )}
+
+              <Card padding="sm" className="space-y-3 bg-row-hover">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-foreground">
+                      {isGracePeriodActive ? 'Grace Period Active' : 'Grace Period Ended'}
+                    </p>
+                    <Badge variant={isGracePeriodActive ? 'purple' : 'success'} shape="pill">
+                      {isGracePeriodActive
+                        ? `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left`
+                        : 'Eligible for resale'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {isGracePeriodActive
+                      ? `This lot was forfeited${
+                          lot.forfeited_account?.forfeited_at
+                            ? ` on ${new Date(lot.forfeited_account.forfeited_at).toLocaleDateString()}`
+                            : ''
+                        }. A 30-day legal grace period applies before returning to Open inventory.`
+                      : 'The 30-day redemption grace period has passed. The lot can now be reopened for sale.'}
+                  </p>
+                  {lot.forfeited_account?.forfeiture_reason && (
+                    <p className="text-xs italic text-muted-foreground">
+                      Reason: {lot.forfeited_account.forfeiture_reason}
+                    </p>
+                  )}
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setIsReopenDialogOpen(true)}
+                  className="w-full gap-1.5 text-xs"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Reopen Lot for Sale</span>
+                </Button>
+              </Card>
+            </>
           )}
 
           {displayStatus === 'Reserved' && (
@@ -896,10 +1007,11 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
             </>
           )}
 
-          {/* Land Title (TCT) Details Card for Open, Reserved, and Sold */}
+          {/* Land Title (TCT) Details Card for Open, Reserved, Sold, and Forfeited */}
           {(displayStatus === 'Open' ||
             displayStatus === 'Reserved' ||
-            displayStatus === 'Sold') && (
+            displayStatus === 'Sold' ||
+            displayStatus === 'Forfeited') && (
             <Card className="overflow-hidden">
               <div className="flex items-center justify-between border-b border-border bg-row-hover px-3 py-2">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
@@ -990,6 +1102,40 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
           onSuccess={() => onBack()}
         />
       )}
+
+      <AlertDialog
+        open={isReopenDialogOpen}
+        onOpenChange={(open) => !isReopening && setIsReopenDialogOpen(open)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isGracePeriodActive ? 'Reopen Lot Early?' : 'Reopen Lot for Sale?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isGracePeriodActive
+                ? `The legal 30-day grace period is still active (${daysRemaining} day${
+                    daysRemaining === 1 ? '' : 's'
+                  } remaining). Reopening early will terminate the holding window and make this lot immediately available for new buyers. Proceed anyway?`
+                : 'The 30-day grace period has elapsed. This lot will be restored to Open status and made available for new buyers.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReopening}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmReopen();
+              }}
+              disabled={isReopening}
+            >
+              {isReopening && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isGracePeriodActive ? 'Reopen Lot Early' : 'Reopen Lot'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

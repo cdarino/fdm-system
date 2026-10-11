@@ -20,6 +20,12 @@ export interface LandTitle {
   status: TitleStatus;
   is_legacy_transferred: boolean;
   clearance_started_at?: string | null;
+  released_at?: string | null;
+  released_to_name?: string | null;
+  released_to_id?: string | null;
+  release_remarks?: string | null;
+  release_attachment_id?: string | null;
+  release_attachment?: FileAttachment | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -28,6 +34,9 @@ export interface LandTitle {
     full_name: string;
     status: string;
     address: string | null;
+    civil_status?: string | null;
+    spouse_name?: string | null;
+    tin_number?: string | null;
     /** The client's documents, used for the release packet progress on title lists. */
     documents?: Pick<ClientDocument, 'document_type' | 'property_id'>[];
   } | null;
@@ -37,6 +46,8 @@ export interface LandTitle {
     block_number: number;
     lot_number: number;
     title_number?: string | null;
+    area_size?: number | null;
+    price_per_sqm?: number | null;
   } | null;
   history?: LandTitleStatusHistory[];
   notices?: LandTitleNotice[];
@@ -113,6 +124,18 @@ export interface UpdateLandTitleInput {
   is_legacy_transferred?: boolean;
   status?: TitleStatus;
   clearance_started_at?: string | null;
+  released_to_name?: string | null;
+  released_to_id?: string | null;
+  release_remarks?: string | null;
+  release_attachment_id?: string | null;
+}
+
+export interface RecordLandTitleReleaseInput {
+  title_id: string;
+  released_to_name: string;
+  released_to_id: string;
+  release_remarks?: string | null;
+  release_attachment_id?: string | null;
 }
 
 /**
@@ -130,3 +153,19 @@ export const RELEASE_DOCUMENT_TYPES = [
 ] as const satisfies readonly DocType[];
 
 export type ReleaseDocumentType = (typeof RELEASE_DOCUMENT_TYPES)[number];
+
+export type StorageFeeStatus = 'not_applicable' | 'within_grace' | 'overdue';
+
+export interface StorageFeeCalculation {
+  isApplicable: boolean;
+  status: StorageFeeStatus;
+  monthlyRate: number;
+  readyForClaimDate: Date | null;
+  gracePeriodEndDate: Date | null;
+  evaluationDate: Date;
+  daysRemainingInGrace: number;
+  monthsOverdue: number;
+  accruedFee: number;
+  isOverdue: boolean;
+  isFrozen: boolean;
+}

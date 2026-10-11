@@ -18,11 +18,14 @@ export interface RawPartyRow {
 export interface RawLedgerRow {
   account_id: string;
   property_id: string;
-  status: "Active" | "Matured" | "Delinquent" | "Cancelled";
+  status: "Active" | "Matured" | "Delinquent" | "Cancelled" | "Forfeited";
   total_contract_price: number;
   remaining_balance: number;
   cleared_at: string | null;
   cleared_by: string | null;
+  forfeited_at: string | null;
+  forfeiture_reason: string | null;
+  reopened_at: string | null;
   created_at: string;
   updated_at: string;
   parties: RawPartyRow[];
@@ -55,6 +58,9 @@ export const LOT_WITH_CLIENT_SELECT = `
     remaining_balance,
     cleared_at,
     cleared_by,
+    forfeited_at,
+    forfeiture_reason,
+    reopened_at,
     created_at,
     updated_at,
     parties:account_party(
@@ -82,7 +88,11 @@ export const LOT_WITH_CLIENT_SELECT = `
 
 export function mapLotWithAccount(lot: RawLotRow): PropertyLotWithClient {
   const activeAccount = lot.ledger_accounts?.find((a) => a.status === "Active") ?? null;
-  const primaryParty = activeAccount?.parties?.find((p) => p.is_primary) ?? activeAccount?.parties?.[0] ?? null;
+  const forfeitedAccount = lot.ledger_accounts?.find((a) => a.status === "Forfeited" && !a.reopened_at) ?? null;
+  const pastAccounts = (lot.ledger_accounts?.filter((a) => a.status === "Forfeited" || a.status === "Cancelled") ?? []) as LedgerAccountWithParties[];
+
+  const relevantAccount = activeAccount ?? (lot.status === "Forfeited" ? forfeitedAccount : null);
+  const primaryParty = relevantAccount?.parties?.find((p) => p.is_primary) ?? relevantAccount?.parties?.[0] ?? null;
 
   const rawTitle = Array.isArray(lot.land_title) ? lot.land_title[0] : lot.land_title;
   const resolvedClient = primaryParty?.client ?? rawTitle?.client ?? null;
@@ -106,6 +116,8 @@ export function mapLotWithAccount(lot: RawLotRow): PropertyLotWithClient {
     client: resolvedClient,
     client_id: resolvedClientId,
     active_account: activeAccount as LedgerAccountWithParties | null,
+    forfeited_account: forfeitedAccount as LedgerAccountWithParties | null,
+    past_accounts: pastAccounts,
     title: (rawTitle as LandTitle) ?? null,
   };
 }

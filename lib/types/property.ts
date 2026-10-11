@@ -3,7 +3,7 @@ import type { LandTitle } from './title';
 
 export type PropertyStatus = 'Open' | 'Reserved' | 'Sold' | 'Forfeited';
 export type SubdivisionDisplayStatus = PropertyStatus | 'Closed';
-export type AccountStatus = 'Active' | 'Matured' | 'Delinquent' | 'Cancelled';
+export type AccountStatus = 'Active' | 'Matured' | 'Delinquent' | 'Cancelled' | 'Forfeited';
 
 export interface AccountParty {
   account_id: string;
@@ -24,6 +24,9 @@ export interface LedgerAccount {
   /** When Billing cleared the account as fully paid. Null while payments are ongoing. */
   cleared_at?: string | null;
   cleared_by?: string | null;
+  forfeited_at?: string | null;
+  forfeiture_reason?: string | null;
+  reopened_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -70,7 +73,20 @@ export interface PropertyLotWithClient extends PropertyLot {
   client: Pick<Client, 'client_id' | 'full_name' | 'status' | 'address'> | null;
   client_id?: string | null;
   active_account?: LedgerAccountWithParties | null;
+  forfeited_account?: LedgerAccountWithParties | null;
+  past_accounts?: LedgerAccountWithParties[];
   title?: LandTitle | null;
+}
+
+export interface ForfeitPropertyLotInput {
+  property_id: string;
+  reason?: string;
+  forfeited_at?: string;
+}
+
+export interface ReopenPropertyLotForSaleInput {
+  property_id: string;
+  allowEarlyReopen?: boolean;
 }
 
 /** A pre-planned lot division on a site, drawn from the plat before any property is created. */

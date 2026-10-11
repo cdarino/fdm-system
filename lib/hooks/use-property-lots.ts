@@ -17,6 +17,8 @@ import {
   archivePropertyLot,
   unarchivePropertyLot,
   deletePropertyLot,
+  forfeitPropertyLot,
+  reopenPropertyLotForSale,
 } from '@/lib/actions/properties';
 import type { ActionResult } from '@/lib/actions/action-result';
 import type {
@@ -71,6 +73,8 @@ interface PropertyLotsContextValue {
   archiveLot: (propertyId: string) => Promise<ActionResult<PropertyLot>>;
   unarchiveLot: (propertyId: string) => Promise<ActionResult<PropertyLot>>;
   deleteLot: (propertyId: string) => Promise<ActionResult<void>>;
+  forfeitLot: (propertyId: string, reason?: string) => Promise<ActionResult<PropertyLotWithClient>>;
+  reopenLot: (propertyId: string, allowEarlyReopen?: boolean) => Promise<ActionResult<PropertyLotWithClient>>;
   sites: Site[];
   isSystemAdmin: boolean;
 }
@@ -332,6 +336,30 @@ export function PropertyLotsProvider({
     [router]
   );
 
+  const forfeitLot = useCallback(
+    async (propertyId: string, reason?: string): Promise<ActionResult<PropertyLotWithClient>> => {
+      const result = await forfeitPropertyLot({ propertyId, reason });
+      if (!result.success) return result;
+      const updated = result.data;
+      setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
+      router.refresh();
+      return result;
+    },
+    [router]
+  );
+
+  const reopenLot = useCallback(
+    async (propertyId: string, allowEarlyReopen?: boolean): Promise<ActionResult<PropertyLotWithClient>> => {
+      const result = await reopenPropertyLotForSale({ propertyId, allowEarlyReopen });
+      if (!result.success) return result;
+      const updated = result.data;
+      setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
+      router.refresh();
+      return result;
+    },
+    [router]
+  );
+
   const value: PropertyLotsContextValue = {
     lots,
     controller,
@@ -347,6 +375,8 @@ export function PropertyLotsProvider({
     archiveLot,
     unarchiveLot,
     deleteLot,
+    forfeitLot,
+    reopenLot,
     sites,
     isSystemAdmin,
   };

@@ -21,11 +21,23 @@ export const createLandTitleSchema = z.object({
   status: titleStatusSchema.optional().default("Document Preparation"),
 });
 
+export const recordLandTitleReleaseSchema = z.object({
+  title_id: uuidSchema,
+  released_to_name: z.string().trim().min(2, "Recipient name is required"),
+  released_to_id: z.string().trim().min(2, "Government ID number is required"),
+  release_remarks: z.string().trim().optional().nullable(),
+  release_attachment_id: uuidSchema.optional().nullable(),
+});
+
 export const updateLandTitleSchema = z
   .object({
     is_legacy_transferred: z.boolean().optional(),
     status: titleStatusSchema.optional(),
     clearance_started_at: z.string().datetime().nullable().optional(),
+    released_to_name: z.string().trim().min(2).nullable().optional(),
+    released_to_id: z.string().trim().min(2).nullable().optional(),
+    release_remarks: z.string().trim().nullable().optional(),
+    release_attachment_id: uuidSchema.nullable().optional(),
   })
   .transform(stripUndefined);
 
@@ -47,3 +59,4 @@ export const getLandTitlesParamsSchema = z
 
 export type CreateLandTitleFormData = z.infer<typeof createLandTitleSchema>;
 export type UpdateLandTitleFormData = z.infer<typeof updateLandTitleSchema>;
+export type RecordLandTitleReleaseFormData = z.infer<typeof recordLandTitleReleaseSchema>;

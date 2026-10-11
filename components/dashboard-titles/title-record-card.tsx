@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { formatActivityTime } from '@/lib/format-activity-time';
 import { lotRefLabel } from '@/lib/hooks/use-land-titles';
+import { calculateStorageFee } from '@/lib/storage-fee';
 import { TITLE_STATUS_VARIANT } from '@/lib/status-colors';
 import {
   documentsForLot,
@@ -127,6 +128,7 @@ export function TitleRecordCard({ item, onClick }: TitleRecordCardProps) {
   const isPacketComplete = missing === 0 && hasTct;
 
   const clearance = getClearanceProgress(title.clearance_started_at);
+  const storageFee = calculateStorageFee(title);
 
   let statusTimeString: string;
   if (title.status === 'Clearance Period') {
@@ -208,14 +210,21 @@ export function TitleRecordCard({ item, onClick }: TitleRecordCardProps) {
 
       {/* Consolidated status footer */}
       <div className="mt-3.5 border-t border-border pt-2.5 space-y-1.5">
-        <Badge
-          variant={TITLE_STATUS_VARIANT[title.status] ?? 'muted'}
-          shape="pill"
-          dot
-          className="shrink-0"
-        >
-          {title.status}
-        </Badge>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Badge
+            variant={TITLE_STATUS_VARIANT[title.status] ?? 'muted'}
+            shape="pill"
+            dot
+            className="shrink-0"
+          >
+            {title.status}
+          </Badge>
+          {title.status === 'Ready for Claim' && storageFee.isOverdue && (
+            <Badge variant="warning" shape="pill" dot className="shrink-0 text-[11px]">
+              {storageFee.monthsOverdue} {storageFee.monthsOverdue === 1 ? 'mo' : 'mos'} overdue
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Clock className="h-3 w-3 shrink-0" />
           <span className="truncate">{statusTimeString}</span>

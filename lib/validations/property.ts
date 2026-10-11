@@ -184,7 +184,21 @@ export const createAndAssignPropertyFromSubdivisionSchema = z.object({
   title_number: z.string().trim().max(100).optional(),
 });
 
+export const forfeitPropertyLotSchema = z.object({
+  propertyId: uuidSchema,
+  reason: z.string().trim().max(1000).optional(),
+  forfeitedAt: z.string().datetime().optional(),
+});
+
+export const reopenPropertyLotForSaleSchema = z.object({
+  propertyId: uuidSchema,
+  allowEarlyReopen: z.boolean().optional(),
+});
+
 export type CreatePropertyLotFormData = z.infer<typeof createPropertyLotSchema>;
 export type UpdateLotFormData = z.infer<typeof updateLotSchema>;
 export type OpenSubdivisionForSaleFormData = z.infer<typeof openSubdivisionForSaleSchema>;
 export type CreateAndAssignPropertyFromSubdivisionFormData = z.infer<typeof createAndAssignPropertyFromSubdivisionSchema>;
+export type ForfeitPropertyLotFormData = z.infer<typeof forfeitPropertyLotSchema>;
+export type ReopenPropertyLotForSaleFormData = z.infer<typeof reopenPropertyLotForSaleSchema>;
+

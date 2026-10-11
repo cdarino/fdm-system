@@ -14,6 +14,7 @@ const dotVariants = {
   info: "bg-primary",
   destructive: "bg-destructive",
   muted: "bg-muted-foreground",
+  purple: "bg-[#8B5CF6]",
 } as const;
 
 const badgeVariants = cva(
@@ -37,6 +38,8 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive",
         muted: "border-transparent bg-muted text-muted-foreground",
+        purple:
+          "border-transparent bg-[color-mix(in_srgb,#8B5CF6_12%,white)] text-[#7C3AED]",
       },
       shape: {
         default: "rounded-md",

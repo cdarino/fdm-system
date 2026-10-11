@@ -1,6 +1,20 @@
-import { ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, Plus, Trash2, RotateCcw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useSession } from '@/lib/hooks/use-session';
+import { reopenPropertyLotForSale } from '@/lib/actions/properties';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export interface LotPlotProperties {
@@ -19,6 +33,8 @@ export interface LotPlotProperties {
   pricePerSqm: number;
   totalPrice: number;
   clientName: string;
+  titleNumber?: string;
+  forfeitedAt?: string;
   isSiteArchived?: boolean;
   centerLng: number;
   centerLat: number;
@@ -37,7 +53,7 @@ export const STATUS_PILL_MAP: Record<string, string> = {
   Open: 'bg-[color-mix(in_srgb,var(--success)_12%,white)] text-success',
   Reserved: 'bg-sidebar-accent text-accent-blue-foreground',
   Sold: 'bg-row-active text-accent-gold-foreground',
-  Forfeited: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive',
+  Forfeited: 'bg-[color-mix(in_srgb,#8B5CF6_12%,white)] text-[#7C3AED]',
   Closed: 'bg-muted text-muted-foreground',
   Available: 'bg-muted text-muted-foreground',
   Unregistered: 'bg-muted text-muted-foreground',
@@ -50,7 +66,45 @@ export function MapSitePopup({
   onRegisterLot,
   onDeletePlot,
 }: MapSitePopupProps) {
+  const router = useRouter();
   const { isSystemAdmin } = useSession();
+  const [isReopenOpen, setIsReopenOpen] = useState(false);
+  const [isReopening, setIsReopening] = useState(false);
+
+  const daysRemaining = plot.forfeitedAt
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(plot.forfeitedAt).getTime() + 30 * 24 * 60 * 60 * 1000 - Date.now()) /
+            (24 * 60 * 60 * 1000)
+        )
+      )
+    : 0;
+  const isGracePeriodActive = daysRemaining > 0;
+
+  // Reopen forfeited lot from map popup with early grace period override
+  async function handleReopen() {
+    if (isReopening || !plot.propertyId) return;
+    setIsReopening(true);
+    try {
+      const res = await reopenPropertyLotForSale({
+        propertyId: plot.propertyId,
+        allowEarlyReopen: isGracePeriodActive,
+      });
+      if (res.success) {
+        toast.success(`${plot.name} reopened for sale`);
+        setIsReopenOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reopen lot');
+    } finally {
+      setIsReopening(false);
+    }
+  }
+
   const pillClass = STATUS_PILL_MAP[plot.status] ?? STATUS_PILL_MAP.Closed ?? STATUS_PILL_MAP.Unregistered;
 
   return (
@@ -89,9 +143,21 @@ export function MapSitePopup({
               <dd className="font-semibold text-primary">₱{Number(plot.totalPrice).toLocaleString()}</dd>
             </div>
             <div className="flex justify-between">
+              <dt className="text-muted-foreground">Title No:</dt>
+              <dd className="font-mono text-foreground">{plot.titleNumber || 'Pending'}</dd>
+            </div>
+            <div className="flex justify-between">
               <dt className="text-muted-foreground">Client:</dt>
               <dd className="font-medium text-foreground">{plot.clientName || 'Unassigned'}</dd>
             </div>
+            {plot.status === 'Forfeited' && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Grace Period:</dt>
+                <dd className={cn('font-medium', isGracePeriodActive ? 'text-[#7C3AED]' : 'text-success')}>
+                  {isGracePeriodActive ? `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left` : 'Ended'}
+                </dd>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex justify-between">
@@ -102,10 +168,28 @@ export function MapSitePopup({
       </dl>
 
       {plot.isRegistered ? (
-        <Button size="sm" className="mt-3 w-full cursor-pointer gap-1.5" onClick={onViewDetails}>
-          <span>View Details</span>
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Button>
+        <div className="mt-3 flex flex-col gap-1.5">
+          <Button size="sm" className="w-full cursor-pointer gap-1.5" onClick={onViewDetails}>
+            <span>View Details</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+
+          {plot.status === 'Forfeited' && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full cursor-pointer gap-1.5 border-[color-mix(in_srgb,#8B5CF6_40%,white)] text-[#7C3AED] hover:bg-[color-mix(in_srgb,#8B5CF6_10%,white)]"
+              onClick={() => setIsReopenOpen(true)}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>
+                {isGracePeriodActive
+                  ? `Reopen (${daysRemaining}d left)`
+                  : 'Reopen Lot for Sale'}
+              </span>
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="mt-3 flex flex-col gap-1.5">
           <Button
@@ -143,6 +227,40 @@ export function MapSitePopup({
           <span>Delete Plot</span>
         </Button>
       )}
+
+      <AlertDialog
+        open={isReopenOpen}
+        onOpenChange={(open) => !isReopening && setIsReopenOpen(open)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isGracePeriodActive ? 'Reopen Lot Early?' : 'Reopen Lot for Sale?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isGracePeriodActive
+                ? `The legal 30-day grace period is still active (${daysRemaining} day${
+                    daysRemaining === 1 ? '' : 's'
+                  } remaining). Reopening early will terminate the holding window and make this lot immediately available for new buyers. Proceed anyway?`
+                : 'The 30-day grace period has elapsed. This lot will be restored to Open status and made available for new buyers.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReopening}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleReopen();
+              }}
+              disabled={isReopening}
+            >
+              {isReopening && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isGracePeriodActive ? 'Reopen Lot Early' : 'Reopen Lot'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

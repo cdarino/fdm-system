@@ -1,16 +1,20 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ArrowRight, FileCheck, FolderOpen, SearchX, X } from 'lucide-react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardTableFooter, CardStickyHeader } from '@/components/ui/card';
 import { FilterToolbar } from '@/components/ui/filter-toolbar';
 import { TitleDialog } from './title-dialog';
 import { TitleRecordCard } from './title-record-card';
 import { TitleStatsStrip } from './title-stats-strip';
-import { lotRefLabel, useLandTitles, type LegalTab } from '@/lib/hooks/use-land-titles';
-import { useSession } from '@/lib/hooks/use-session';
+import {
+  LandTitlesProvider,
+  useLandTitles,
+  type LegalTab,
+  type TitleDialogItem,
+} from '@/lib/hooks/use-land-titles';
+import { useDialogPresence } from '@/lib/hooks/use-dialog-presence';
 import type {
   AccountAwaitingTitle,
   LandTitle,
@@ -76,17 +80,7 @@ function InitialStagePrompt({ onSelectStage }: { onSelectStage: (tab: LegalTab) 
   );
 }
 
-export function TitleRecordsSection({
-  initialTitles,
-  initialAwaiting,
-}: {
-  initialTitles: LandTitle[];
-  initialAwaiting: AccountAwaitingTitle[];
-}) {
-  const { hasPermission } = useSession();
-  const canCreate = hasPermission('legal.create');
-  const canEdit = hasPermission('legal.update');
-
+function TitleRecordsContent() {
   const {
     counts,
     filteredTitles,
@@ -95,36 +89,14 @@ export function TitleRecordsSection({
     setSearch,
     tab,
     setTab,
-    createTitle,
-    updateTitle,
-    revertClearance,
-    updateTitleNumber,
-    loadDocuments,
-    uploadDocument,
-    removeDocument,
-    getDocumentUrl,
-    loadNotices,
-    recordNotice,
-    resolveNotice,
-    undoNoticeStatus,
-    uploadNoticeRts,
-    getNoticeRtsUrl,
-    getNoticeProofUrl,
-    deleteNoticeRts,
-  } = useLandTitles(initialTitles, initialAwaiting);
+    activeDialog,
+    openDialog,
+  } = useLandTitles();
 
-  const [selectedDialogItem, setSelectedDialogItem] = useState<
-    | { type: 'awaiting'; data: AccountAwaitingTitle }
-    | { type: 'title'; data: LandTitle }
-    | null
-  >(null);
+  const { rendered: renderedDialog, isOpen: isDialogOpen } = useDialogPresence(activeDialog);
 
   const cardItems = useMemo(() => {
-    const items: (
-      | { type: 'awaiting'; data: AccountAwaitingTitle }
-      | { type: 'title'; data: LandTitle }
-    )[] = [];
-
+    const items: TitleDialogItem[] = [];
     for (const a of filteredAwaiting) {
       items.push({ type: 'awaiting', data: a });
     }
@@ -158,42 +130,46 @@ export function TitleRecordsSection({
                 { value: 'clearance', label: 'Clearance', count: counts.clearance },
                 { value: 'ready', label: 'Ready for Claim', count: counts.ready },
                 { value: 'released', label: 'Released', count: counts.released },
-                { value: 'all', label: 'All', count: counts.all },
+                { value: 'all', label: 'All Titles', count: counts.all },
               ],
             }}
             search={{
               value: search,
-              onChange: (val) => {
-                if (isUnselected && val.trim() !== '') {
-                  setTab('all');
-                }
-                setSearch(val);
-              },
-              placeholder: 'Search client, lot or TCT number...',
-              ariaLabel: 'Search titles',
+              onChange: setSearch,
+              placeholder: 'Search client, location, block & lot, or TCT…',
+              ariaLabel: 'Search legal title records',
             }}
-            isFiltered={isSearching}
-            onClear={() => setSearch('')}
           />
         </CardStickyHeader>
 
-        <div className="p-4 sm:p-6">
+        <div className="p-4 sm:p-6 min-h-[400px]">
           {isUnselected && !isSearching ? (
             <InitialStagePrompt onSelectStage={setTab} />
           ) : cardItems.length === 0 ? (
             <EmptyState
-              isFiltered={isSearching && counts.all > 0}
+              isFiltered={isSearching || tab !== 'all'}
               message={
                 tab === 'intake'
-                  ? 'No accounts currently awaiting legal intake. Fully paid accounts will appear here once cleared by Billing.'
+                  ? 'No accounts currently cleared by Billing awaiting legal processing.'
+                  : tab === 'preparation'
+                  ? 'No titles currently undergoing document preparation.'
+                  : tab === 'review'
+                  ? 'No titles currently awaiting supervisor review or executive signature.'
+                  : tab === 'clearance'
+                  ? 'No titles currently within the 30-day clearance window.'
                   : tab === 'ready'
-                  ? 'No titles currently ready for pickup.'
-                  : 'No title records in this stage.'
+                  ? 'No titles currently stored in the vault awaiting claim.'
+                  : tab === 'released'
+                  ? 'No titles have been formally released yet.'
+                  : 'No land titles found.'
               }
-              onClear={() => setSearch('')}
+              onClear={() => {
+                setSearch('');
+                setTab('all');
+              }}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {cardItems.map((item) => (
                 <TitleRecordCard
                   key={
@@ -202,7 +178,7 @@ export function TitleRecordsSection({
                       : `title-${item.data.title_id}`
                   }
                   item={item}
-                  onClick={() => setSelectedDialogItem(item)}
+                  onClick={() => openDialog({ type: 'detail', item })}
                 />
               ))}
             </div>
@@ -220,46 +196,26 @@ export function TitleRecordsSection({
         </CardTableFooter>
       </Card>
 
-      <TitleDialog
-        open={selectedDialogItem !== null}
-        onOpenChange={(open) => !open && setSelectedDialogItem(null)}
-        selectedItem={selectedDialogItem}
-        canCreate={canCreate}
-        canEdit={canEdit}
-        onStartProcessing={async (account) => {
-          const res = await createTitle(account.property.property_id);
-          if (res.success) {
-            toast.success(`Legal processing started for ${lotRefLabel(account.property)}`);
-            return res.data;
-          }
-          toast.error(res.error);
-        }}
-        onReturnToBilling={async (account) => {
-          const res = await revertClearance(account.account_id);
-          if (res.success) {
-            toast.success(`Account for ${lotRefLabel(account.property)} returned to Billing`);
-          } else {
-            toast.error(res.error);
-          }
-        }}
-        onUpdateTitle={async (id, updates) => {
-          const res = await updateTitle(id, updates);
-          if (!res.success) throw new Error(res.error);
-        }}
-        onUpdateTitleNumber={updateTitleNumber}
-        loadDocuments={loadDocuments}
-        uploadDocument={uploadDocument}
-        removeDocument={removeDocument}
-        getDocumentUrl={getDocumentUrl}
-        loadNotices={loadNotices}
-        recordNotice={recordNotice}
-        resolveNotice={resolveNotice}
-        undoNoticeStatus={undoNoticeStatus}
-        uploadNoticeRts={uploadNoticeRts}
-        getNoticeRtsUrl={getNoticeRtsUrl}
-        getNoticeProofUrl={getNoticeProofUrl}
-        deleteNoticeRts={deleteNoticeRts}
-      />
+      {renderedDialog?.type === 'detail' && (
+        <TitleDialog
+          open={isDialogOpen}
+          dialogItem={renderedDialog.item}
+        />
+      )}
     </div>
+  );
+}
+
+export function TitleRecordsSection({
+  initialTitles,
+  initialAwaiting,
+}: {
+  initialTitles: LandTitle[];
+  initialAwaiting: AccountAwaitingTitle[];
+}) {
+  return (
+    <LandTitlesProvider initialTitles={initialTitles} initialAwaiting={initialAwaiting}>
+      <TitleRecordsContent />
+    </LandTitlesProvider>
   );
 }

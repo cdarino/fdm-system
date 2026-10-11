@@ -50,7 +50,6 @@ import { formatActivityTime } from '@/lib/format-activity-time';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
 import { ClientFloatingEditor } from './client-floating-editor';
 import {
-  CIVIL_STATUSES,
   GENDERS,
   type CivilStatus,
   type Gender,
@@ -78,7 +77,6 @@ export function ClientDetailSidebar() {
     updateAddress,
     updateTin,
     updateCivilStatus,
-    updateSpouseName,
     updateGender,
     addContact,
     updateContact,

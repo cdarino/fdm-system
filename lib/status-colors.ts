@@ -35,19 +35,19 @@ export const STATUS_PILL: Record<PropertyStatus, { pill: string; dot: string }> 
     dot: 'bg-row-accent',
   },
   Forfeited: {
-    pill: 'bg-[color-mix(in_srgb,var(--destructive)_10%,white)] text-destructive',
-    dot: 'bg-destructive',
+    pill: 'bg-[color-mix(in_srgb,#8B5CF6_12%,white)] text-[#7C3AED]',
+    dot: 'bg-[#8B5CF6]',
   },
 };
 
 export const PROPERTY_STATUS_VARIANT: Record<
   PropertyStatus,
-  'success' | 'info' | 'warning' | 'destructive'
+  'success' | 'info' | 'warning' | 'purple'
 > = {
   Open: 'success',
   Reserved: 'info',
   Sold: 'warning',
-  Forfeited: 'destructive',
+  Forfeited: 'purple',
 };
 
 export const PROPERTY_STATUS_COLOR = PROPERTY_STATUS_VARIANT;

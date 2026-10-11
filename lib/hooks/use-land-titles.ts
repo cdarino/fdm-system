@@ -1,14 +1,29 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { useStatusFilter } from '@/lib/hooks/use-status-filter';
+import { useSession } from '@/lib/hooks/use-session';
 import { undoBillingClearance } from '@/lib/actions/billing';
 import {
   createLandTitle,
   updateLandTitle,
+  recordLandTitleRelease,
   updatePropertyTitleNumber,
 } from '@/lib/actions/titles';
+import {
+  uploadAttachment,
+  getAttachmentUrl,
+} from '@/lib/actions/attachments';
 import {
   deleteReleaseDocument,
   getReleaseDocumentUrl,
@@ -26,10 +41,13 @@ import {
 import type { ActionResult } from '@/lib/actions/action-result';
 import type {
   AccountAwaitingTitle,
+  FileAttachment,
   LandTitle,
   LandTitleNotice,
+  RecordLandTitleReleaseInput,
   ReleaseDocumentType,
   TitleStatus,
+  UpdateLandTitleInput,
 } from '@/lib/types/title';
 import type { ClientDocument } from '@/lib/types/client';
 import type { LedgerAccount } from '@/lib/types/property';
@@ -57,7 +75,6 @@ const TABS: LegalTab[] = [
 
 type LotRef = { block_number: number; lot_number: number } | null | undefined;
 
-/** Lot identity as staff say it out loud: "Block 3 Lot 12". */
 export function lotRefLabel(lot: LotRef): string {
   return lot ? `Block ${lot.block_number} Lot ${lot.lot_number}` : 'Lot not found';
 }
@@ -69,16 +86,122 @@ function matchesSearch(fields: string[], query: string): boolean {
   return words.every((word) => haystack.some((field) => field.includes(word)));
 }
 
-/** Sole owner of the land title server actions for the Legal page. */
-export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: AccountAwaitingTitle[]) {
+export type TitleDialogItem =
+  | { type: 'awaiting'; data: AccountAwaitingTitle }
+  | { type: 'title'; data: LandTitle };
+
+export type TitleDialogState =
+  | { type: 'detail'; item: TitleDialogItem }
+  | null;
+
+export interface LandTitlesContextValue {
+  titles: LandTitle[];
+  awaiting: AccountAwaitingTitle[];
+  counts: {
+    all: number;
+    intake: number;
+    preparation: number;
+    review: number;
+    clearance: number;
+    ready: number;
+    released: number;
+  };
+  visibleTitles: LandTitle[];
+  visibleAwaiting: AccountAwaitingTitle[];
+  filteredTitles: LandTitle[];
+  filteredAwaiting: AccountAwaitingTitle[];
+  search: string;
+  setSearch: (query: string) => void;
+  tab: LegalTab;
+  setTab: (tab: LegalTab) => void;
+  activeDialog: TitleDialogState;
+  openDialog: (dialog: TitleDialogState) => void;
+  closeDialog: () => void;
+  updateActiveDialogItem: (item: TitleDialogItem) => void;
+  createTitle: (
+    propertyId: string,
+    options?: { is_legacy_transferred?: boolean; status?: TitleStatus }
+  ) => Promise<ActionResult<LandTitle>>;
+  updateTitle: (
+    titleId: string,
+    updates: UpdateLandTitleInput
+  ) => Promise<ActionResult<LandTitle>>;
+  recordRelease: (input: RecordLandTitleReleaseInput) => Promise<ActionResult<LandTitle>>;
+  uploadReleaseProof: (titleId: string, file: File) => Promise<FileAttachment>;
+  getAttachmentFileUrl: (attachmentId: string) => Promise<string>;
+  revertClearance: (accountId: string) => Promise<ActionResult<LedgerAccount>>;
+  updateTitleNumber: (propertyId: string, titleNumber: string) => Promise<void>;
+  loadDocuments: (titleId: string) => Promise<ClientDocument[]>;
+  uploadDocument: (titleId: string, documentType: ReleaseDocumentType, file: File) => Promise<ClientDocument>;
+  removeDocument: (document: ClientDocument) => Promise<void>;
+  getDocumentUrl: (documentId: string) => Promise<string>;
+  loadNotices: (titleId: string) => Promise<LandTitleNotice[]>;
+  recordNotice: (titleId: string, noticeNumber: number) => Promise<LandTitleNotice>;
+  resolveNotice: (
+    titleId: string,
+    noticeNumber: number,
+    status: 'received' | 'returned_to_sender',
+    file: File,
+    notes?: string | null
+  ) => Promise<LandTitleNotice>;
+  undoNoticeStatus: (titleId: string, noticeNumber: number) => Promise<void>;
+  uploadNoticeRts: (
+    titleId: string,
+    noticeNumber: number,
+    file: File,
+    reason?: string | null
+  ) => Promise<LandTitleNotice>;
+  getNoticeRtsUrl: (attachmentId: string) => Promise<string>;
+  getNoticeProofUrl: (attachmentId: string) => Promise<string>;
+  deleteNoticeRts: (titleId: string, noticeNumber: number) => Promise<void>;
+  canCreate: boolean;
+  canEdit: boolean;
+  isAdmin: boolean;
+}
+
+const LandTitlesContext = createContext<LandTitlesContextValue | null>(null);
+
+export function useLandTitles() {
+  const ctx = useContext(LandTitlesContext);
+  if (!ctx) throw new Error('useLandTitles must be used within LandTitlesProvider');
+  return ctx;
+}
+
+export function LandTitlesProvider({
+  initialTitles,
+  initialAwaiting,
+  children,
+}: {
+  initialTitles: LandTitle[];
+  initialAwaiting: AccountAwaitingTitle[];
+  children: ReactNode;
+}) {
   const router = useRouter();
+  const { hasPermission } = useSession();
+  const canCreate = hasPermission('legal.create');
+  const canEdit = hasPermission('legal.update');
+  const isAdmin = hasPermission('system.update');
+
   const [titles, setTitles] = useState(initialTitles);
   const [awaiting, setAwaiting] = useState(initialAwaiting);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useStatusFilter<LegalTab>(TABS, 'unselected');
+  const [activeDialog, setActiveDialog] = useState<TitleDialogState>(null);
 
   useEffect(() => setTitles(initialTitles), [initialTitles]);
   useEffect(() => setAwaiting(initialAwaiting), [initialAwaiting]);
+
+  const openDialog = useCallback((dialog: TitleDialogState) => {
+    setActiveDialog(dialog);
+  }, []);
+
+  const closeDialog = useCallback(() => {
+    setActiveDialog(null);
+  }, []);
+
+  const updateActiveDialogItem = useCallback((item: TitleDialogItem) => {
+    setActiveDialog({ type: 'detail', item });
+  }, []);
 
   const counts = useMemo(
     () => ({
@@ -170,6 +293,12 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
       if (result.success) {
         setAwaiting((prev) => prev.filter((a) => a.property.property_id !== propertyId));
         setTitles((prev) => [result.data, ...prev]);
+        setActiveDialog((prev) => {
+          if (prev?.type === 'detail' && prev.item.type === 'awaiting' && prev.item.data.property.property_id === propertyId) {
+            return { type: 'detail', item: { type: 'title', data: result.data } };
+          }
+          return prev;
+        });
         router.refresh();
       }
       return result;
@@ -180,11 +309,17 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
   const updateTitle = useCallback(
     async (
       titleId: string,
-      updates: { is_legacy_transferred?: boolean; status?: TitleStatus; clearance_started_at?: string | null }
+      updates: UpdateLandTitleInput
     ): Promise<ActionResult<LandTitle>> => {
       const result = await updateLandTitle(titleId, updates);
       if (result.success) {
         setTitles((prev) => prev.map((t) => (t.title_id === titleId ? result.data : t)));
+        setActiveDialog((prev) => {
+          if (prev?.type === 'detail' && prev.item.type === 'title' && prev.item.data.title_id === titleId) {
+            return { type: 'detail', item: { type: 'title', data: result.data } };
+          }
+          return prev;
+        });
         router.refresh();
       }
       return result;
@@ -192,11 +327,55 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
     [router]
   );
 
+  const recordRelease = useCallback(
+    async (input: RecordLandTitleReleaseInput): Promise<ActionResult<LandTitle>> => {
+      const result = await recordLandTitleRelease(input);
+      if (result.success) {
+        setTitles((prev) => prev.map((t) => (t.title_id === input.title_id ? result.data : t)));
+        setActiveDialog((prev) => {
+          if (prev?.type === 'detail' && prev.item.type === 'title' && prev.item.data.title_id === input.title_id) {
+            return { type: 'detail', item: { type: 'title', data: result.data } };
+          }
+          return prev;
+        });
+        router.refresh();
+      }
+      return result;
+    },
+    [router]
+  );
+
+  const uploadReleaseProof = useCallback(
+    async (titleId: string, file: File): Promise<FileAttachment> => {
+      const formData = new FormData();
+      formData.set('entity_type', 'land_title');
+      formData.set('entity_id', titleId);
+      formData.set('file_category', 'release_acknowledgment');
+      formData.set('file', file);
+
+      const result = await uploadAttachment(formData);
+      if (!result.success) throw new Error(result.error);
+      return result.data;
+    },
+    []
+  );
+
+  const getAttachmentFileUrl = useCallback(
+    (attachmentId: string) => getAttachmentUrl(attachmentId),
+    []
+  );
+
   const revertClearance = useCallback(
     async (accountId: string): Promise<ActionResult<LedgerAccount>> => {
       const result = await undoBillingClearance(accountId);
       if (result.success) {
         setAwaiting((prev) => prev.filter((a) => a.account_id !== accountId));
+        setActiveDialog((prev) => {
+          if (prev?.type === 'detail' && prev.item.type === 'awaiting' && prev.item.data.account_id === accountId) {
+            return null;
+          }
+          return prev;
+        });
         router.refresh();
       }
       return result;
@@ -215,6 +394,34 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
             : t
         )
       );
+      setActiveDialog((prev) => {
+        if (!prev || prev.type !== 'detail') return prev;
+        if (prev.item.type === 'title' && prev.item.data.property_id === propertyId && prev.item.data.property) {
+          return {
+            type: 'detail',
+            item: {
+              type: 'title',
+              data: {
+                ...prev.item.data,
+                property: { ...prev.item.data.property, title_number: titleNumber },
+              },
+            },
+          };
+        }
+        if (prev.item.type === 'awaiting' && prev.item.data.property.property_id === propertyId) {
+          return {
+            type: 'detail',
+            item: {
+              type: 'awaiting',
+              data: {
+                ...prev.item.data,
+                property: { ...prev.item.data.property, title_number: titleNumber },
+              },
+            },
+          };
+        }
+        return prev;
+      });
       router.refresh();
     },
     [router]
@@ -326,7 +533,7 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
     [router]
   );
 
-  return {
+  const value: LandTitlesContextValue = {
     titles,
     awaiting,
     counts,
@@ -338,8 +545,15 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
     setSearch,
     tab,
     setTab,
+    activeDialog,
+    openDialog,
+    closeDialog,
+    updateActiveDialogItem,
     createTitle,
     updateTitle,
+    recordRelease,
+    uploadReleaseProof,
+    getAttachmentFileUrl,
     revertClearance,
     updateTitleNumber,
     loadDocuments,
@@ -354,5 +568,10 @@ export function useLandTitles(initialTitles: LandTitle[], initialAwaiting: Accou
     getNoticeRtsUrl,
     getNoticeProofUrl,
     deleteNoticeRts,
+    canCreate,
+    canEdit,
+    isAdmin,
   };
+
+  return createElement(LandTitlesContext.Provider, { value }, children);
 }
