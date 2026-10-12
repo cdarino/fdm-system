@@ -78,6 +78,7 @@ export interface ClientLog {
   description: string | null;
   time: string;
   performed_by: string | null;
+  performer_name?: string;
 }
 
 export interface ClientWithDetails extends Client {

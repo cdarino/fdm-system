@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Check, ClipboardCheck, FileText, PenLine, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -29,6 +30,115 @@ import { TitlePacketTab } from './title-packet-tab';
 import { TitleClearanceTab } from './title-clearance-tab';
 import { TitleNoticesTab } from './title-notices-tab';
 import { TitleReleasedTab } from './title-released-tab';
+
+const COMPANY_WORKFLOW_STEPS = [
+  { label: 'Account settlement', shortLabel: 'Payment', icon: Wallet },
+  { label: 'Document preparation', shortLabel: 'Preparation', icon: FileText },
+  { label: 'Legal verification', shortLabel: 'Verification', icon: ClipboardCheck },
+  { label: 'Executive signature', shortLabel: 'Signature', icon: PenLine },
+  { label: 'Title release', shortLabel: 'Release', icon: Check },
+] as const;
+
+function getCompanyWorkflowStep(status: TitleStatus, isExecutiveSigned: boolean) {
+  switch (status) {
+    case 'Cleared by Billing':
+      return 0;
+    case 'Document Preparation':
+      return 1;
+    case 'For Review':
+      return 2;
+    case 'For Signature':
+      return isExecutiveSigned ? 4 : 3;
+    case 'Clearance Period':
+    case 'Ready for Claim':
+      return 4;
+    case 'Released':
+      return COMPANY_WORKFLOW_STEPS.length;
+  }
+}
+
+function CompanyWorkflowProgress({
+  status,
+  isExecutiveSigned,
+}: {
+  status: TitleStatus;
+  isExecutiveSigned: boolean;
+}) {
+  const currentStep = getCompanyWorkflowStep(status, isExecutiveSigned);
+  const detail =
+    status === 'Clearance Period'
+      ? 'Executive signature confirmed · 30-day internal clearance is underway'
+      : status === 'Ready for Claim'
+        ? 'Cleared for claim · title and DOAS are awaiting physical handover'
+        : status === 'Released'
+          ? 'Physical title packet has been handed over'
+          : status === 'For Review'
+            ? 'Legal supervisor is checking the document packet'
+            : status === 'For Signature'
+              ? isExecutiveSigned
+                ? 'Executive signature confirmed · start internal clearance to continue'
+                : 'Awaiting executive signature and notarization'
+              : status === 'Document Preparation'
+                ? 'Legal is compiling the buyer file and turnover documents'
+                : 'Billing has verified and cleared the account';
+
+  return (
+    <section aria-label="Title claim workflow" className="shrink-0 border-b border-border bg-muted/20 px-4 py-4 sm:px-6">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Title claim workflow
+        </p>
+        <p className="text-xs text-muted-foreground" aria-live="polite">{detail}</p>
+      </div>
+      <ol className="grid grid-cols-5 gap-1 sm:gap-3">
+        {COMPANY_WORKFLOW_STEPS.map((step, index) => {
+          const isComplete = index < currentStep;
+          const isCurrent = index === currentStep && currentStep < COMPANY_WORKFLOW_STEPS.length;
+          const Icon = isComplete ? Check : step.icon;
+
+          return (
+            <li
+              key={step.label}
+              aria-current={isCurrent ? 'step' : undefined}
+              className="relative min-w-0 text-center"
+            >
+              {index > 0 && (
+                <span
+                  aria-hidden="true"
+                  className={`absolute right-1/2 top-4 z-0 h-0.5 w-full ${isComplete ? 'bg-success' : 'bg-border'}`}
+                />
+              )}
+              <span
+                className={`relative z-10 mx-auto flex h-8 w-8 items-center justify-center rounded-full border bg-card ${
+                  isComplete
+                    ? 'border-success bg-success text-success-foreground'
+                    : isCurrent
+                      ? 'border-primary text-primary ring-4 ring-[color-mix(in_srgb,var(--primary)_12%,white)]'
+                      : 'border-border text-muted-foreground'
+                }`}
+              >
+                {currentStep === COMPANY_WORKFLOW_STEPS.length && index === COMPANY_WORKFLOW_STEPS.length - 1 ? (
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                )}
+              </span>
+              <span className={`mt-1.5 block truncate text-[10px] font-medium sm:hidden ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
+                {step.shortLabel}
+              </span>
+              <span className={`mt-1.5 hidden text-xs font-medium sm:block ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
+                {step.label}
+              </span>
+              <span className="sr-only">
+                {isComplete ? 'Complete' : isCurrent ? 'Current step' : 'Not started'}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
 
 interface TitleDialogProps {
   open: boolean;
@@ -249,8 +359,8 @@ export function TitleDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="bg-card border-border sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-6 sm:p-8 overflow-hidden">
-        <DialogHeader className="pb-4 border-b border-border shrink-0">
+      <DialogContent className="bg-card border-border sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-5 pt-5 pb-4 sm:px-7 sm:pt-7 shrink-0">
           <div className="flex items-center justify-between">
             <Badge
               variant={TITLE_STATUS_VARIANT[currentStageStatus] ?? 'muted'}
@@ -273,8 +383,13 @@ export function TitleDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <CompanyWorkflowProgress
+          status={activeTitle?.status ?? 'Cleared by Billing'}
+          isExecutiveSigned={isExecutiveSigned}
+        />
+
         {/* Mobile Tab Switcher */}
-        <div className="md:hidden flex-1 min-h-0 overflow-y-auto pt-2">
+        <div className="md:hidden flex-1 min-h-0 overflow-y-auto px-5 pt-2 pb-5">
           <Tabs
             value={mobileTab}
             onValueChange={(val) => setMobileTab(val as 'timeline' | 'content')}
@@ -311,7 +426,7 @@ export function TitleDialog({
         </div>
 
         {/* Desktop Two-Column Layout */}
-        <div className="hidden md:grid md:grid-cols-12 gap-8 flex-1 min-h-0 pt-4 overflow-hidden">
+        <div className="hidden md:grid md:grid-cols-12 gap-6 flex-1 min-h-0 px-6 py-5 overflow-hidden">
           <div className="md:col-span-5 lg:col-span-4 border-r border-border pr-4 lg:pr-6 overflow-y-auto h-full min-h-0">
             <TitleTimelineView
               item={activeItem}

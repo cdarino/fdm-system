@@ -20,9 +20,9 @@ async function LegalContent() {
   return (
     <div className="flex flex-col gap-6 pt-4 sm:pt-8 pb-6 sm:pb-8">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Contract &amp; Title Management</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Title releases</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Land titles for fully paid accounts, from Billing clearance to release.
+          Follow each billing-cleared account from document preparation to client handover.
         </p>
       </div>
       <TitleRecordsSection initialTitles={titles.data} initialAwaiting={awaiting} />

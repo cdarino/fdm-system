@@ -21,7 +21,7 @@ const features = [
   {
     icon: Target,
     title: 'Complete Solution',
-    description: 'Manage the entire property lifecycle, from acquisition and contract signing to BIR submission, Registry of Deeds processing, and title release.',
+    description: 'Manage the internal title-turnover process, from full-payment clearance and DOAS preparation through document release to the buyer.',
   },
 ];
 

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 // Encapsulates base border, surface, and elevation tokens across card archetypes.
 const cardVariants = cva(
-  "rounded-xl border bg-card text-card-foreground shadow",
+  "rounded-xl border bg-card text-card-foreground shadow-sm",
   {
     variants: {
       variant: {

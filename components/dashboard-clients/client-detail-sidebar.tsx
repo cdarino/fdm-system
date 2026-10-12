@@ -46,7 +46,7 @@ import {
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatActivityTime } from '@/lib/format-activity-time';
+import { ActivityTime } from '@/components/shared/activity-time';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
 import { ClientFloatingEditor } from './client-floating-editor';
 import {
@@ -224,9 +224,9 @@ export function ClientDetailSidebar() {
       : client.civil_status || '';
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
       {/* Sticky top region */}
-      <div className="sticky top-0 z-10 shrink-0 bg-background pb-3">
+      <div className="shrink-0 bg-background pb-3 lg:sticky lg:top-0 lg:z-10">
         {/* Top back navigation */}
         <div className="flex items-center pb-2">
           <Button
@@ -259,7 +259,8 @@ export function ClientDetailSidebar() {
       </div>
 
       {/* Scrollable body region */}
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+      <div className="pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">1. Identity &amp; contacts</p>
         {/* Structured Details and Contacts Card */}
         <Card variant="canvas" className="overflow-hidden">
         <div className="space-y-0.5 p-1.5">
@@ -643,12 +644,13 @@ export function ClientDetailSidebar() {
                       </span>
                       <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <Clock className="h-3 w-3" />
-                        {formatActivityTime(log.time)}
+                        <ActivityTime timestamp={log.time} />
                       </span>
                     </div>
                     <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
                       {log.description || 'No description provided'}
                     </p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">Recorded by {log.performer_name ?? (log.performed_by ? 'Staff member' : 'System')}</p>
                   </li>
                 ))}
               </ol>

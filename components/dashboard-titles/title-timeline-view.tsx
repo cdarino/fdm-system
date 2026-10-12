@@ -4,7 +4,7 @@ import { ArrowRight, CheckCircle2, Circle, Target } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { formatActivityTime } from '@/lib/format-activity-time';
+import { formatActivityTime, formatActivityTimestamp } from '@/lib/format-activity-time';
 import { getClearanceProgress } from './title-record-card';
 import {
   getMissingReleaseDocuments,
@@ -16,7 +16,6 @@ import type { ClientDocument } from '@/lib/types/client';
 import type { LandTitleNotice, TitleStatus } from '@/lib/types/title';
 
 const DATE_FORMAT = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' });
-const TIME_FORMAT = new Intl.DateTimeFormat('en-PH', { dateStyle: 'short', timeStyle: 'short' });
 
 export const LIFECYCLE_STAGES: { status: TitleStatus; label: string; desc: string }[] = [
   { status: 'Cleared by Billing', label: 'Cleared by Billing', desc: 'Account verified & cleared as fully paid' },
@@ -118,7 +117,7 @@ export function TitleTimelineView({
   function formatFullStageTime(timestamp: string | null): string | null {
     if (!timestamp) return null;
     const d = new Date(timestamp);
-    return Number.isNaN(d.getTime()) ? null : TIME_FORMAT.format(d);
+    return Number.isNaN(d.getTime()) ? null : formatActivityTimestamp(d);
   }
 
   function formatDaysAgo(date: Date): string {
@@ -330,7 +329,7 @@ export function TitleTimelineView({
                       className="text-xs text-muted-foreground font-medium"
                       title={fullTime ?? undefined}
                     >
-                      {formattedTime}
+                      {fullTime ?? formattedTime}
                     </p>
                   )}
                 </>

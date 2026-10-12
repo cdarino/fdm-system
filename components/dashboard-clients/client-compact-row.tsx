@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useSession } from '@/lib/hooks/use-session';
 import { getClientReportData } from '@/lib/actions/reports';
+import { downloadClientDocumentsPdf } from '@/lib/download-client-documents';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/ui/icon-box';
@@ -188,11 +189,20 @@ export function ClientCompactRow({
               Actions
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              icon={<FileDown className="h-4 w-4" />}
+              onSelect={(event) => {
+                event.preventDefault();
+                void downloadClientDocumentsPdf(client.client_id);
+              }}
+            >
+              Download uploaded files as PDF
+            </DropdownMenuItem>
             <DropdownMenuItem icon={<Activity className="h-4 w-4" />} onSelect={onOpenDetails}>
               View details
             </DropdownMenuItem>
             <DropdownMenuItem icon={<FileDown className="h-4 w-4" />} onSelect={handleExportPdf}>
-              Export PDF
+              Client summary PDF
             </DropdownMenuItem>
             <DropdownMenuItem icon={<Edit3 className="h-4 w-4" />} onSelect={onOpenEdit}>
               Edit client

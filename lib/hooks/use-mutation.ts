@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { UseFormSetError, FieldValues, Path } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { ActionResult } from '@/lib/actions/action-result';
+import { notifyActivityUpdated } from '@/lib/activity-events';
 
 export type MutationState =
   | { status: 'idle' }
@@ -73,11 +74,13 @@ export function useMutation<
         }
 
         setState({ status: 'success' });
+        notifyActivityUpdated();
         options?.onSuccess?.(actionResult.data as ExtractActionResultData<TResult>);
         return true;
       }
 
       setState({ status: 'success' });
+      notifyActivityUpdated();
       options?.onSuccess?.(result as ExtractActionResultData<TResult>);
       return true;
     } catch (err) {

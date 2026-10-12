@@ -1,204 +1,57 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { FileCheck2, FileText, LayoutDashboard, LandPlot, Settings, UserCog, Users } from 'lucide-react';
 import { useSession } from '@/lib/hooks/use-session';
+import { DASHBOARD_WORKFLOW } from '@/lib/dashboard-workflow';
 import { cn } from '@/lib/utils';
-import {
-  LayoutDashboard,
-  FileText,
-  Settings,
-  Receipt,
-  CreditCard,
-  FileCheck,
-  ClipboardList,
-  UserCog,
-  Users,
-  LandPlot,
-} from 'lucide-react';
-import { ComingSoonModal } from './coming-soon-modal';
 
-interface SidebarNavProps {
-  roleSections?: {
-    category: string;
-    tabs: { title: string; href: string; comingSoon?: true }[];
-  }[];
-}
+const icons = [Users, LandPlot, FileCheck2];
 
-const allNavigationItems: Array<{
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  comingSoon?: boolean;
-  systemAdminOnly?: boolean;
-}> = [
-  {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard,
-  },
-  {
-    title: 'Reports',
-    href: '/dashboard/reports',
-    icon: FileText,
-  },
-  {
-    title: 'Admin',
-    href: '/dashboard/admin',
-    icon: UserCog,
-    systemAdminOnly: true,
-  },
-  {
-    title: 'Account Settings',
-    href: '/dashboard/settings',
-    icon: Settings,
-  },
-];
-
-// Map role tab titles to icons
-const ROLE_TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  'Invoicing & Billing': Receipt,
-  'Accounts Payable':   CreditCard,
-  'Contract Management': FileCheck,
-  'Operations Log':     ClipboardList,
-  'Clients':              Users,
-  'Property Lots':      LandPlot,
-};
-
-/**
- * `text-left` matters: a <button> defaults to text-align:center, so a label
- * long enough to wrap (e.g. "Contract Management") renders its second line
- * centred while every shorter label looks fine.
- *
- * `items-start` keeps the icon on the first line of a wrapped label instead of
- * floating to the vertical centre of the whole block. The icon is h-5 (20px)
- * and text-sm's line-height is also 20px, so single-line items are unaffected.
- */
-function navItemClasses(isActive: boolean): string {
-  return cn(
-    'flex w-full items-start justify-start space-x-3 rounded px-4 py-2 text-left text-sm font-medium transition-colors',
-    isActive
-      ? 'bg-sidebar-accent text-accent-blue-foreground'
-      : 'text-muted-foreground hover:bg-background hover:text-foreground',
-  );
-}
-
-export function SidebarNav({ roleSections = [] }: SidebarNavProps) {
-  const { isSystemAdmin } = useSession();
+export function SidebarNav() {
+  const { hasPermission, isSystemAdmin } = useSession();
   const pathname = usePathname();
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean;
-    title: string;
-  }>({
-    isOpen: false,
-    title: 'Coming Soon!',
-  });
+  const workflow = DASHBOARD_WORKFLOW.filter(item => hasPermission(item.permission));
+  const tools = [
+    { title: 'Reports', href: '/dashboard/reports', icon: FileText, visible: workflow.length > 0 },
+    { title: 'Team & access', href: '/dashboard/admin', icon: UserCog, visible: isSystemAdmin },
+    { title: 'My account', href: '/dashboard/settings', icon: Settings, visible: true },
+  ].filter(item => item.visible);
 
-  const handleComingSoon = (title: string) => {
-    setModalState({ isOpen: true, title });
-  };
+  function isActive(href: string) {
+    const path = href === '/dashboard/properties/map' ? '/dashboard/properties' : href;
+    return pathname === path || (path !== '/dashboard' && pathname.startsWith(path + '/'));
+  }
 
-  const navigationItems = allNavigationItems.filter(
-    (item) => !item.systemAdminOnly || isSystemAdmin
-  );
+  function itemClasses(active: boolean) {
+    return cn('flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+      active ? 'bg-sidebar-accent text-accent-blue-foreground' : 'text-muted-foreground hover:bg-row-hover hover:text-foreground');
+  }
 
   return (
-    // flex-1 + min-h-0 lets this shrink inside the sidebar's flex column;
-    // without min-h-0 a flex child refuses to shrink below its content and
-    // the nav overflows the viewport instead of scrolling.
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* Navigation Items */}
-      <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 py-6 px-3">
-        {navigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-
-          const content = (
-            <>
-              <Icon className="w-5 h-5 shrink-0" />
-              <span>{item.title}</span>
-            </>
-          );
-
-          return (
-            <div key={item.href}>
-              {item.comingSoon ? (
-                <button
-                  type="button"
-                  onClick={() => handleComingSoon(item.title)}
-                  className={navItemClasses(isActive)}
-                  title={item.title}
-                >
-                  {content}
-                </button>
-              ) : (
-                <Link
-                  href={item.href}
-                  className={navItemClasses(isActive)}
-                  title={item.title}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                  {content}
-                </Link>
-              )}
-            </div>
-          );
+    <nav aria-label="Main navigation" className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-5">
+      <Link href="/dashboard" className={itemClasses(isActive('/dashboard'))} aria-current={isActive('/dashboard') ? 'page' : undefined}>
+        <LayoutDashboard className="h-4 w-4 shrink-0" /> Overview
+      </Link>
+      {workflow.length > 0 && <section className="mt-7 space-y-1">
+        <h2 className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Daily workflow</h2>
+        {workflow.map(item => {
+          const Icon = icons[DASHBOARD_WORKFLOW.indexOf(item)];
+          const active = isActive(item.href);
+          return <Link key={item.href} href={item.href} className={itemClasses(active)} aria-current={active ? 'page' : undefined}>
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="flex-1">{item.title}</span>
+            <span aria-hidden="true" className="text-[10px] tabular-nums text-muted-foreground">{item.step}</span>
+          </Link>;
         })}
-
-        {/* Role-based tabs, grouped under their department heading. */}
-        {roleSections.map((section) => (
-          <div key={section.category} className="pt-4 first:pt-2">
-            <p className="px-4 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {section.category}
-            </p>
-            {section.tabs.map((tab) => {
-              const Icon = ROLE_TAB_ICONS[tab.title] ?? FileText;
-              const isActive =
-                pathname === tab.href ||
-                pathname.startsWith(`${tab.href}/`) ||
-                (tab.href === '/dashboard/properties/map' && pathname.startsWith('/dashboard/properties'));
-
-              const content = (
-                <>
-                  <Icon className="w-5 h-5 shrink-0" />
-                  <span>{tab.title}</span>
-                </>
-              );
-
-              return (
-                <div key={tab.href}>
-                  {tab.comingSoon ? (
-                    <button
-                      type="button"
-                      onClick={() => handleComingSoon(tab.title)}
-                      className={navItemClasses(isActive)}
-                      title={tab.title}
-                    >
-                      {content}
-                    </button>
-                  ) : (
-                    <Link
-                      href={tab.href}
-                      className={navItemClasses(isActive)}
-                      title={tab.title}
-                      aria-current={isActive ? 'page' : undefined}
-                    >
-                      {content}
-                    </Link>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-
-      <ComingSoonModal
-        isOpen={modalState.isOpen}
-        onClose={() => setModalState({ ...modalState, isOpen: false })}
-        title={modalState.title}
-      />
-    </div>
+      </section>}
+      <section className="mt-auto space-y-1 pt-8">
+        <h2 className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Workspace tools</h2>
+        {tools.map(({ icon: Icon, ...item }) => <Link key={item.href} href={item.href} className={itemClasses(isActive(item.href))} aria-current={isActive(item.href) ? 'page' : undefined}>
+          <Icon className="h-4 w-4 shrink-0" />{item.title}
+        </Link>)}
+      </section>
+    </nav>
   );
 }

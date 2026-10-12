@@ -6,19 +6,20 @@ import { SidebarNav } from '@/components/dashboard-layout/sidebar-nav';
 import { DashboardTopBar } from '@/components/dashboard-layout/top-bar';
 import { FdmLogo } from '@/components/shared/fdm-logo';
 import { Button } from '@/components/ui/button';
+import type { RecentActivityItem } from '@/lib/actions/recent-activity';
 
 const MOBILE_QUERY = '(max-width: 1023px)';
 
 interface DashboardShellProps {
   children: React.ReactNode;
   user: Parameters<typeof DashboardTopBar>[0]['user'];
-  roleSections: Parameters<typeof SidebarNav>[0]['roleSections'];
+  recentActivity: RecentActivityItem[];
 }
 
 export function DashboardShell({
   children,
   user,
-  roleSections,
+  recentActivity,
 }: DashboardShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const hasLoadedSidebarPreference = React.useRef(false);
@@ -67,7 +68,7 @@ export function DashboardShell({
       {/* Dismissible mobile backdrop overlay */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs transition-opacity duration-200 lg:hidden"
+          className="fixed inset-0 z-30 bg-[color-mix(in_srgb,var(--foreground)_40%,transparent)] backdrop-blur-xs transition-opacity duration-200 lg:hidden"
           onClick={() => setIsSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -81,8 +82,8 @@ export function DashboardShell({
         aria-hidden={!isSidebarOpen}
         inert={!isSidebarOpen}
       >
-        <div className="shrink-0 border-b border-border p-2 lg:p-4">
-          <div className="relative flex flex-col items-center space-y-2">
+        <div className="shrink-0 border-b border-border px-5 py-5">
+          <div className="relative flex items-center gap-3">
             <Button
               type="button"
               variant="ghost"
@@ -94,15 +95,14 @@ export function DashboardShell({
             >
               <PanelLeftClose className="h-4 w-4" />
             </Button>
-            <FdmLogo className="h-12 w-12 shrink-0 object-contain lg:h-24 lg:w-40" />
-            <span className="hidden text-center font-bold text-foreground lg:block">
-              First Davao Millennium
-              <br />
-              Property Ventures Inc.
-            </span>
+            <FdmLogo className="h-11 w-11 shrink-0 object-contain" />
+            <div className="min-w-0 pr-6 lg:pr-0">
+              <p className="text-sm font-semibold tracking-tight text-foreground">First Davao Millennium</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Property operations workspace</p>
+            </div>
           </div>
         </div>
-        <SidebarNav roleSections={roleSections} />
+        <SidebarNav />
       </aside>
 
       <div
@@ -114,6 +114,7 @@ export function DashboardShell({
           user={user}
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+          recentActivity={recentActivity}
         />
         <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-clip">
           {children}

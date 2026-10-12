@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { PortfolioChart } from '@/components/dashboard-overview/portfolio-charts';
@@ -6,6 +6,9 @@ import { ClientFollowUps } from '@/components/dashboard-overview/client-follow-u
 import { reviewClientRecord } from '@/lib/client-record-review';
 import { PropertyMapCard } from '@/components/dashboard-overview/property-map-card';
 import { QuickLinks } from '@/components/dashboard-overview/quick-links';
+
+// Presentation tests render on the server; toast CSS must not use the map test's DOM shim.
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 describe('Dashboard overview presentation', () => {
   it('distinguishes unavailable property counts from an empty portfolio', () => {
@@ -75,15 +78,19 @@ describe('Dashboard overview presentation', () => {
     expect(empty).not.toContain('data-engine="maplibre"');
   });
 
-  it('offers only authorized tools, with settings available to everyone', () => {
-    const html = renderToStaticMarkup(createElement(QuickLinks, { canViewProperties: false, canViewClients: false, isSystemAdmin: false }));
-    expect(html).toContain('/dashboard/settings');
+  it('offers only authorized workflow destinations', () => {
+    const html = renderToStaticMarkup(createElement(QuickLinks, { canViewProperties: false, canViewClients: false }));
+    expect(html).toBe('');
     expect(html).not.toContain('/dashboard/admin');
     expect(html).not.toContain('/dashboard/clients');
     expect(html).not.toContain('/dashboard/properties');
-    const staff = renderToStaticMarkup(createElement(QuickLinks, { canViewProperties: true, canViewClients: true, isSystemAdmin: false }));
+    const staff = renderToStaticMarkup(createElement(QuickLinks, { canViewProperties: true, canViewClients: true }));
     expect(staff).toContain('/dashboard/clients');
     expect(staff).toContain('/dashboard/properties/map');
     expect(staff).not.toContain('/dashboard/admin');
+    expect(staff).not.toContain('/dashboard/legal');
+    const legal = renderToStaticMarkup(createElement(QuickLinks, { canViewProperties: false, canViewClients: false, canViewTitles: true }));
+    expect(legal).toContain('/dashboard/legal');
+    expect(legal).not.toContain('/dashboard/clients');
   });
 });

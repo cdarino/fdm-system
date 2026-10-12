@@ -256,7 +256,14 @@ export async function getClientById(clientId: string): Promise<ClientWithDetails
         throw new Error(`Client not found: ${error?.message ?? "Unknown error"}`);
       }
 
-      return { ...data, properties: await resolveClientProperties(supabase, validId) };
+      const names = await resolveUserNames(supabase, data.client_log.flatMap(log => log.performed_by ? [log.performed_by] : []));
+      return {
+        ...data,
+        client_log: data.client_log
+          .map(log => ({ ...log, performer_name: log.performed_by ? names.get(log.performed_by) ?? 'Staff member' : 'System' }))
+          .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()),
+        properties: await resolveClientProperties(supabase, validId),
+      };
     },
   });
 }
@@ -835,7 +842,8 @@ export async function createClientLog(
         throw new Error(`Failed to create client log: ${error?.message ?? "Unknown error"}`);
       }
 
-      return data;
+      const names = await resolveUserNames(supabase, userId ? [userId] : []);
+      return { ...data, performer_name: userId ? names.get(userId) ?? 'Staff member' : 'System' };
     },
   });
 }
@@ -856,7 +864,9 @@ export async function getClientLogs(clientId: string): Promise<ClientLog[]> {
         throw new Error(`Failed to fetch client logs: ${error.message}`);
       }
 
-      return data ?? [];
+      const logs = data ?? [];
+      const names = await resolveUserNames(supabase, logs.flatMap(log => log.performed_by ? [log.performed_by] : []));
+      return logs.map(log => ({ ...log, performer_name: log.performed_by ? names.get(log.performed_by) ?? 'Staff member' : 'System' }));
     },
   });
 }

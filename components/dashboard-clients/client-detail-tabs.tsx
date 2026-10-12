@@ -21,7 +21,7 @@ export function ClientDetailTabs({
   // Inactive and archived clients keep their records but cannot take new lots.
   const canAssign = client.status === 'Active';
   const [activeTab, setActiveTab] = useState<string>(
-    assignPropertyId && canAssign ? 'assign-property' : 'properties'
+    assignPropertyId && canAssign ? 'assign-property' : 'documents'
   );
   const [isAssignTabRevealed, setIsAssignTabRevealed] = useState<boolean>(
     Boolean(assignPropertyId) && canAssign
@@ -48,13 +48,13 @@ export function ClientDetailTabs({
       >
         <div className="border-b border-border px-6 pt-5">
           <TabsList variant="line">
-            <TabsTrigger variant="line" value="properties" className="gap-2">
-              <LandPlot className="h-4 w-4" />
-              Property Lots
-            </TabsTrigger>
             <TabsTrigger variant="line" value="documents" className="gap-2">
               <FileText className="h-4 w-4" />
-              Documents
+              2. Documents
+            </TabsTrigger>
+            <TabsTrigger variant="line" value="properties" className="gap-2">
+              <LandPlot className="h-4 w-4" />
+              3. Assigned lots
             </TabsTrigger>
             {isAssignTabRevealed && (
               <div className="relative flex items-center">
@@ -77,6 +77,12 @@ export function ClientDetailTabs({
               </div>
             )}
           </TabsList>
+          <div className="flex flex-wrap items-center justify-between gap-2 py-3">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {activeTab === 'documents' ? 'Check required documents after verifying the client’s identity and contact details.' : activeTab === 'properties' ? 'Review lot assignments and account clearance before starting a title release.' : 'Select an available lot, confirm ownership details, then review the assignment.'}
+            </p>
+            {activeTab === 'documents' && <Button variant="quiet" size="sm" onClick={() => setActiveTab('properties')}>Next: assigned lots</Button>}
+          </div>
         </div>
 
         <CardContent className="min-h-0 flex-1 overflow-y-auto p-6">

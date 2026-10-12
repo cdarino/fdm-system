@@ -1,3 +1,13 @@
+export function formatActivityTimestamp(timestamp: string | Date): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return 'Time unavailable';
+  return new Intl.DateTimeFormat('en-PH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Manila',
+  }).format(date) + ' PHT';
+}
+
 export function formatActivityTime(timestamp: string | Date): string {
   const date = new Date(timestamp);
   const now = new Date();

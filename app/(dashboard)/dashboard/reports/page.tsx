@@ -1,49 +1,53 @@
 import Link from 'next/link';
 import { PageContainer } from '@/components/dashboard-layout/page-container';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { hasPermission } from '@/lib/permissions';
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  const [clients, properties, titles] = await Promise.all([
+    hasPermission('clients.read'), hasPermission('properties.read'), hasPermission('legal.read'),
+  ]);
   return (
     <PageContainer>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Generate records from the source of truth, then use the browser print dialog to save or share PDFs.
+            Open a record and use its PDF export action. Review title progress in the release workspace.
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <ReportCard
-            title="Client & property report"
+          {clients && <ReportCard
+            title="Client record reports"
             description="Portfolio, documents, interactions, and active property records."
             href="/dashboard/clients"
             action="Open clients"
-          />
-          <ReportCard
-            title="Title processing report"
-            description="Monitor title-transfer queues, missing requirements, and target dates."
+          />}
+          {titles && <ReportCard
+            title="Title release overview"
+            description="Review the release stages, document requirements, and clearance dates."
             href="/dashboard/legal"
             action="Open title queue"
-          />
-          <ReportCard
-            title="Billing report"
-            description="Review active accounts and balances before issuing an account statement."
-            href="/dashboard/billing"
-            action="Open billing"
-          />
+          />}
+          {properties && <ReportCard
+            title="Property record reports"
+            description="Find a lot and choose Export PDF from its actions menu."
+            href="/dashboard/properties"
+            action="Open property records"
+          />}
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>FDM reporting principle</CardTitle>
+            <CardTitle>How to export a record</CardTitle>
             <CardDescription>
-              Reports draw from recorded transactions only. Pending agency requirements and &ldquo;For review&rdquo; financial records are visibly kept separate from completed work.
+              Client and property reports use the information saved in each record.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Use your browser&apos;s Print command to export an open report as PDF.
+              Find the client or lot, open its actions menu, then choose Export PDF. Complete any missing information before sharing the report.
             </p>
           </CardContent>
         </Card>
