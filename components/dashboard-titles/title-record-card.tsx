@@ -64,6 +64,15 @@ export function TitleRecordCard({ item, onClick }: TitleRecordCardProps) {
         variant="interactive"
         padding="none"
         onClick={onClick}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open title intake for ${clientName}`}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onClick();
+          }
+        }}
         className="group flex flex-col justify-between p-3.5 transition-all duration-150 hover:border-primary"
       >
         <div className="space-y-2.5">
@@ -155,6 +164,15 @@ export function TitleRecordCard({ item, onClick }: TitleRecordCardProps) {
       variant="interactive"
       padding="none"
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open title record for ${clientName}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick();
+        }
+      }}
       className="group flex flex-col justify-between p-3.5 transition-all duration-150 hover:border-primary"
     >
       <div className="space-y-2.5">

@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { notifyActivityUpdated } from '@/lib/activity-events';
 import {
   updateClient as updateClientAction,
   addContactInfo as addContactInfoAction,
@@ -95,6 +96,7 @@ export function ClientDetailProvider({
       if (!result.success) throw new Error(result.error);
 
       setClient((prev) => ({ ...prev, address: result.data.address }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -108,6 +110,7 @@ export function ClientDetailProvider({
       if (!result.success) throw new Error(result.error);
 
       setClient((prev) => ({ ...prev, tin_number: result.data.tin_number }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -128,6 +131,7 @@ export function ClientDetailProvider({
         civil_status: result.data.civil_status,
         spouse_name: result.data.spouse_name,
       }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -141,6 +145,7 @@ export function ClientDetailProvider({
       if (!result.success) throw new Error(result.error);
 
       setClient((prev) => ({ ...prev, spouse_name: result.data.spouse_name }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -153,6 +158,7 @@ export function ClientDetailProvider({
       if (!result.success) throw new Error(result.error);
 
       setClient((prev) => ({ ...prev, gender: result.data.gender }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -175,6 +181,7 @@ export function ClientDetailProvider({
         ...prev,
         contact_info: [result.data, ...prev.contact_info],
       }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -197,6 +204,7 @@ export function ClientDetailProvider({
             : c
         ),
       }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -212,6 +220,7 @@ export function ClientDetailProvider({
         ...prev,
         contact_info: prev.contact_info.filter((c) => c.contact_id !== contactId),
       }));
+      notifyActivityUpdated();
       router.refresh();
     },
     [router]
@@ -229,6 +238,7 @@ export function ClientDetailProvider({
           is_primary: c.contact_id === contactId,
         })),
       }));
+      notifyActivityUpdated();
       router.refresh();
     },
     [router]
@@ -241,6 +251,7 @@ export function ClientDetailProvider({
         ...prev,
         client_log: [created, ...prev.client_log],
       }));
+      notifyActivityUpdated();
       router.refresh();
       return created;
     },
@@ -256,6 +267,7 @@ export function ClientDetailProvider({
         ...prev,
         client_document: [result.data, ...prev.client_document],
       }));
+      notifyActivityUpdated();
       router.refresh();
       return result.data;
     },
@@ -271,6 +283,7 @@ export function ClientDetailProvider({
         ...prev,
         client_document: prev.client_document.filter((d) => d.document_id !== documentId),
       }));
+      notifyActivityUpdated();
       router.refresh();
     },
     [router]
@@ -300,6 +313,7 @@ export function ClientDetailProvider({
       if (!result.success) throw new Error(result.error);
 
       setAccountClearance(accountId, result.data.cleared_at ?? new Date().toISOString());
+      notifyActivityUpdated();
       router.refresh();
     },
     [router, setAccountClearance]
@@ -311,6 +325,7 @@ export function ClientDetailProvider({
       if (!result.success) throw new Error(result.error);
 
       setAccountClearance(accountId, null);
+      notifyActivityUpdated();
       router.refresh();
     },
     [router, setAccountClearance]
@@ -327,6 +342,7 @@ export function ClientDetailProvider({
           p.property_id === propertyId ? { ...p, status: 'Forfeited' } : p
         ),
       }));
+      notifyActivityUpdated();
       router.refresh();
     },
     [router]

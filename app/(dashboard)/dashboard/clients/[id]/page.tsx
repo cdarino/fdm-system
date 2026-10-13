@@ -55,7 +55,7 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
   const assignPropertyId = resolvedSearchParams?.assignProperty;
 
   return (
-    <PageContainer scrollable={false} className="h-full flex flex-col min-h-0">
+    <PageContainer className="lg:overflow-hidden">
       <Suspense fallback={<LoadingSkeleton />}>
         <ClientDetailContent clientId={clientId} assignPropertyId={assignPropertyId} />
       </Suspense>

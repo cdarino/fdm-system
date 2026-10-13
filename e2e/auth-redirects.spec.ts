@@ -33,6 +33,6 @@ test.describe('Role-gated navigation and auth redirects', () => {
     await loginAsAdmin(page);
     await page.goto('/dashboard/admin');
     await expect(page).toHaveURL(/\/dashboard\/admin/);
-    await expect(page.getByRole('heading', { name: 'Administration' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Team & access' })).toBeVisible();
   });
 });

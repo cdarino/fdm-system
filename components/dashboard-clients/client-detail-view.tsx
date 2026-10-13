@@ -13,12 +13,12 @@ interface ClientDetailViewProps {
 export function ClientDetailView({ initialClient, assignPropertyId }: ClientDetailViewProps) {
   return (
     <ClientDetailProvider initialClient={initialClient}>
-      <div className="grid flex-1 min-h-0 gap-6 lg:grid-cols-3">
-        <div className="h-full min-h-0 lg:col-span-1 lg:border-r lg:border-border-warm lg:pr-6">
+      <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3">
+        <div className="min-w-0 lg:h-full lg:min-h-0 lg:col-span-1 lg:border-r lg:border-border-warm lg:pr-6">
           <ClientDetailSidebar />
         </div>
 
-        <div className="h-full min-h-0 lg:col-span-2">
+        <div className="min-w-0 lg:h-full lg:min-h-0 lg:col-span-2">
           <ClientDetailTabs assignPropertyId={assignPropertyId} />
         </div>
       </div>

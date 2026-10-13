@@ -1,18 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Activity, Bell, ChevronRight, Clock3, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { logout as signOut } from '@/lib/auth';
 import type { AuthUser } from '@supabase/supabase-js';
 import type { SessionUser } from '@/lib/types/session';
-import { ComingSoonModal } from './coming-soon-modal';
+import type { RecentActivityItem } from '@/lib/actions/recent-activity';
+import { getRecentActivity } from '@/lib/actions/recent-activity';
+import { ActivityTime } from '@/components/shared/activity-time';
+import { ACTIVITY_UPDATED_EVENT } from '@/lib/activity-events';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -20,6 +26,7 @@ interface DashboardTopBarProps {
   user?: SessionUser | AuthUser | null;
   isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
+  recentActivity?: RecentActivityItem[];
 }
 
 export function useTopBar() {
@@ -45,15 +52,15 @@ export function useTopBar() {
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
-  clients: 'Clients',
-  properties: 'Property Lots',
+  clients: 'Client records',
+  properties: 'Property inventory',
   map: 'Site Map',
   reports: 'Reports',
   admin: 'Administration',
   settings: 'Account Settings',
   billing: 'Invoicing & Billing',
   accounting: 'Accounts Payable',
-  legal: 'Contract Management',
+  legal: 'Title releases',
   operations: 'Operations Log',
 };
 
@@ -128,27 +135,52 @@ export function DashboardTopBar({
   user,
   isSidebarOpen = true,
   onToggleSidebar,
+  recentActivity = [],
 }: DashboardTopBarProps) {
   const { isLoggingOut, logoutError, handleLogout } = useTopBar();
+  const [activityItems, setActivityItems] = useState(recentActivity);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  useEffect(() => {
+    let active = true;
+    async function syncActivity() {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const items = await getRecentActivity();
+        if (active) setActivityItems(items);
+      } catch {
+        // Background refresh keeps the last readable activity list on failure.
+      }
+    }
+    const refresh = () => void syncActivity();
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener(ACTIVITY_UPDATED_EVENT, refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener(ACTIVITY_UPDATED_EVENT, refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
   const metadata = user?.user_metadata as Record<string, string> | undefined;
   const displayName = [metadata?.first_name, metadata?.last_name]
     .filter(Boolean)
     .join(' ') || user?.email || 'Unknown';
   const avatarInitial = displayName[0]?.toUpperCase() ?? '?';
-  const [modalState, setModalState] = useState<{
-    isOpen: boolean;
-    title: string;
-  }>({
-    isOpen: false,
-    title: 'Coming Soon!'
-  });
 
-  const handleComingSoon = (title: string) => {
-    setModalState({ isOpen: true, title });
-  };
+  async function refreshActivity(isOpen: boolean) {
+    if (!isOpen) return;
+    setIsLoadingActivity(true);
+    try {
+      setActivityItems(await getRecentActivity());
+    } catch {
+      toast.error('Unable to refresh recent activity');
+    } finally {
+      setIsLoadingActivity(false);
+    }
+  }
 
   return (
-    <>
       <div className="bg-card border-b border-border sticky top-0 z-40">
         <div className="flex h-16 min-w-0 items-center justify-between gap-3 px-4 sm:px-6 sm:gap-6">
           {/* Left: Sidebar Toggle + Breadcrumbs */}
@@ -178,16 +210,55 @@ export function DashboardTopBar({
           {/* Right utility buttons */}
           <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           {/* Notifications */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:bg-background hover:text-foreground relative"
-            onClick={() => handleComingSoon('Notifications')}
-            aria-label="Notifications"
-            title="Notifications"
-          >
-            <Bell className="w-5 h-5" />
-          </Button>
+          <DropdownMenu onOpenChange={(open) => void refreshActivity(open)}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative text-muted-foreground hover:bg-background hover:text-foreground"
+                aria-label={`Recent activity${activityItems.length ? `, ${activityItems.length} items` : ''}`}
+                title="Recent activity"
+              >
+                <Bell className="h-5 w-5" />
+                {activityItems.length > 0 && (
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-card" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-1rem))] p-0">
+              <DropdownMenuLabel className="flex items-center gap-2 px-4 py-3 text-sm">
+                <Activity className="h-4 w-4 text-primary" />
+                Recent activity
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {isLoadingActivity ? (
+                <p className="px-4 py-7 text-center text-sm text-muted-foreground">Refreshing activity…</p>
+              ) : activityItems.length === 0 ? (
+                <p className="px-4 py-7 text-center text-sm text-muted-foreground">
+                  No recent activity is available for your role.
+                </p>
+              ) : (
+                <div className="max-h-[min(65vh,26rem)] overflow-y-auto p-1">
+                  {activityItems.map((item) => (
+                    <DropdownMenuItem key={`${item.kind}-${item.id}`} asChild className="cursor-pointer whitespace-normal px-3 py-2.5">
+                      <Link href={item.href} className="flex items-start gap-3">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sidebar-accent text-accent-blue-foreground">
+                          {item.kind === 'title' ? <Clock3 className="h-3.5 w-3.5" /> : <Activity className="h-3.5 w-3.5" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-semibold text-foreground">{item.label}</span>
+                          <span className="mt-0.5 block line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.detail}</span>
+                          <span className="mt-1 block text-[11px] text-muted-foreground">
+                            {item.actor} · <ActivityTime timestamp={item.timestamp} />
+                          </span>
+                        </span>
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* User Menu */}
           <DropdownMenu>
@@ -197,7 +268,7 @@ export function DashboardTopBar({
                 className="flex min-w-0 items-center space-x-2 text-foreground hover:bg-background hover:text-foreground"
               >
                 <span className="hidden max-w-40 min-w-0 truncate text-sm font-medium sm:block">{displayName}</span>
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-300 to-yellow-400 text-sm font-semibold text-white">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-accent-blue-foreground">
                   {avatarInitial}
                 </div>
               </Button>
@@ -225,12 +296,5 @@ export function DashboardTopBar({
         </div>
       </div>
     </div>
-
-      <ComingSoonModal 
-        isOpen={modalState.isOpen} 
-        onClose={() => setModalState({ ...modalState, isOpen: false })} 
-        title={modalState.title}
-      />
-    </>
   );
 }

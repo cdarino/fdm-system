@@ -5,7 +5,7 @@ test.describe('Client journeys: field validations, modal closure, and list updat
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/dashboard/clients');
-    await expect(page.getByRole('heading', { name: 'Clients' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Client records' })).toBeVisible();
   });
 
   test('displays field validation errors when submitting invalid client data', async ({ page }) => {

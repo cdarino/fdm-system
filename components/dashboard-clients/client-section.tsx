@@ -2,6 +2,7 @@
 
 import { DOC_TYPE_LABEL } from '@/lib/types/client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardStickyHeader } from '@/components/ui/card';
@@ -35,10 +36,10 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { getClientReportData } from '@/lib/actions/reports';
+import { downloadClientDocumentsPdf } from '@/lib/download-client-documents';
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
@@ -69,7 +70,6 @@ import { ArchiveClientDialog } from './client-archive-dialog';
 import { DocumentSearchDialog } from './document-search-dialog';
 import { MissingDocumentsDialog } from './missing-documents-dialog';
 import { ClientCompactRow, ClientStatusPill } from './client-compact-row';
-import { ClientRowsSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import type { ClientListItem, ContactInfo } from '@/lib/types/client';
 
 const GUTTER = 'px-4 sm:px-6';
@@ -242,91 +242,53 @@ function ClientRow({ client }: { client: ClientListItem }) {
     router.push(`/dashboard/clients/${client.client_id}`);
   }
 
-  return (
-    <TableRow
-      className="group transition-colors duration-150 hover:bg-row-hover cursor-pointer"
-      onClick={handleRowClick}
-    >
-      {/* Client identification */}
-      <TableCell className={`py-4 pr-3 ${GUTTER_L}`}>
-        <div className="flex items-center gap-3">
-          <IconBox size="md" shape="circle">
-            <UserRound className="h-4 w-4" />
-          </IconBox>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="truncate text-sm font-medium text-foreground">{client.full_name}</p>
-              {isIncomplete && (
-                <Badge
-                  variant="destructive"
-                  className="shrink-0 text-[10px]"
-                  title={
-                    isProfileIncomplete && hasDocIssues
-                      ? `Missing profile fields and documents: ${[...requirements.missingProfile, ...missingDocs.missing_documents.map((t) => DOC_TYPE_LABEL[t])].join(', ')}`
-                      : isProfileIncomplete
-                        ? `Incomplete profile (missing ${requirements.missingProfile.join(', ')})`
-                        : `Missing documents: ${missingDocs?.missing_documents.map((t) => DOC_TYPE_LABEL[t]).join(', ')}`
-                  }
-                >
-                  <ShieldAlert className="mr-1 h-2.5 w-2.5" />
-                  Incomplete
-                </Badge>
-              )}
-            </div>
-            <p className="truncate text-xs text-muted-foreground">
-              {client.address || 'No address recorded'}
-            </p>
-          </div>
-        </div>
-      </TableCell>
-
-      {/* Contact details */}
-      <TableCell className="px-3 py-4">
-        <ContactDetailsCell
-          contacts={client.contact_info}
-          onViewMore={handleRowClick}
-        />
-      </TableCell>
-
-      {/* Status */}
-      <TableCell className="px-3 py-4">
-        <ClientStatusPill status={client.status} />
-      </TableCell>
-
-      {/* Latest activity */}
-      <TableCell className="hidden px-3 py-4 sm:table-cell">
-        {client.latest_activity ? (
-          <div className="space-y-0.5 max-w-xs">
-            <p className="truncate text-xs font-medium text-foreground">
-              {client.latest_activity.description || 'Activity recorded'}
-            </p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              by {client.latest_activity.performer_name} · {formatActivityTime(client.latest_activity.time)}
-            </p>
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">No recent activity</span>
-        )}
-      </TableCell>
-
-      {/* Actions */}
-      <TableCell className={`py-4 pl-3 ${GUTTER_R}`} onClick={(e) => e.stopPropagation()}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              aria-label={`Actions for ${client.full_name}`}
-              className="opacity-70 group-hover:opacity-100"
-              size="icon"
-              variant="ghost"
+    return (
+      <Card className="group p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <IconBox size="md" shape="circle">
+          <UserRound className="h-4 w-4" />
+        </IconBox>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/dashboard/clients/${client.client_id}`}
+              onClick={(event) => event.stopPropagation()}
+              className="min-w-0 flex-1 truncate rounded text-sm font-semibold text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+              {client.full_name}
+            </Link>
+            <ClientStatusPill status={client.status} />
+          </div>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {client.address || 'No address recorded'}
+          </p>
+        </div>
+        <div onClick={(event) => event.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label={`Actions for ${client.full_name}`}
+                className="-mr-2 -mt-2 text-muted-foreground"
+                size="icon"
+                variant="ghost"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
             <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Actions
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              icon={<FileDown className="h-4 w-4" />}
+              onSelect={(event) => {
+                event.preventDefault();
+                  void downloadClientDocumentsPdf(client.client_id, client.full_name);
+              }}
+            >
+              Download uploaded files as PDF
+            </DropdownMenuItem>
             <DropdownMenuItem
               icon={<ExternalLink className="h-4 w-4" />}
               onSelect={() => router.push(`/dashboard/clients/${client.client_id}`)}
@@ -347,7 +309,7 @@ function ClientRow({ client }: { client: ClientListItem }) {
                 }
               }}
             >
-              Export PDF
+              Client summary PDF
             </DropdownMenuItem>
             <DropdownMenuItem
               icon={<Edit3 className="h-4 w-4" />}
@@ -384,10 +346,52 @@ function ClientRow({ client }: { client: ClientListItem }) {
             >
               Delete client
             </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
-    </TableRow>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3 border-t border-border pt-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
+            <ContactDetailsCell contacts={client.contact_info} onViewMore={handleRowClick} />
+          </div>
+          {isIncomplete && (
+            <Badge
+              variant="warning"
+              shape="pill"
+              title={
+                isProfileIncomplete && hasDocIssues
+                  ? `Missing profile fields and documents: ${[...requirements.missingProfile, ...missingDocs.missing_documents.map((type) => DOC_TYPE_LABEL[type])].join(', ')}`
+                  : isProfileIncomplete
+                    ? `Incomplete profile: ${requirements.missingProfile.join(', ')}`
+                    : `Missing documents: ${missingDocs?.missing_documents.map((type) => DOC_TYPE_LABEL[type]).join(', ')}`
+              }
+            >
+              <ShieldAlert className="mr-1 h-3 w-3" />
+              Needs attention
+            </Badge>
+          )}
+        </div>
+
+        <div className="rounded-md bg-muted/40 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Latest activity</p>
+          {client.latest_activity ? (
+            <>
+              <p className="mt-1 truncate text-xs font-medium text-foreground">
+                {client.latest_activity.description || 'Activity recorded'}
+              </p>
+              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                {client.latest_activity.performer_name} · {formatActivityTime(client.latest_activity.time)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">No activity logged</p>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -395,8 +399,6 @@ function ClientsContent() {
   const router = useRouter();
   const {
     controller,
-    isLoading,
-    error,
     activeDialog,
     openDialog,
     missingDocumentAlerts,
@@ -417,10 +419,10 @@ function ClientsContent() {
           <div className={`flex flex-wrap items-start justify-between gap-4 pb-5 pt-6 ${GUTTER}`}>
             <div className="space-y-1">
               <h2 className="text-lg font-semibold leading-none tracking-tight text-foreground">
-                Client Directory
+                Find a client
               </h2>
               <p className="text-sm text-muted-foreground">
-                Manage client records, contact information, and activity history.
+                Open a profile to review contacts, documents, lots, and follow-ups.
               </p>
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto">
@@ -458,6 +460,7 @@ function ClientsContent() {
 
           {/* Filters, search, and sort */}
           <FilterToolbar
+            variant="single-row"
             controller={controller}
             viewMode={{
               value: viewMode,
@@ -471,88 +474,59 @@ function ClientsContent() {
         </CardStickyHeader>
 
         {/* Table / rows */}
-          {error ? (
-            <div role="alert" className="flex flex-col items-center justify-center gap-2 px-6 py-20 text-center">
-              <p className="text-sm font-medium text-destructive">Could not load clients</p>
-              <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
-            </div>
-          ) : isLoading ? (
-            <ClientRowsSkeleton />
-          ) : controller.matchedItems.length === 0 ? (
+          {controller.matchedItems.length === 0 ? (
             <EmptyState
               controller={controller}
               onCreate={() => openDialog({ type: 'create' })}
             />
+          ) : viewMode === 'standard' ? (
+            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-6 xl:grid-cols-3">
+              {controller.truncatedItems.map((client) => (
+                <ClientRow key={client.client_id} client={client} />
+              ))}
+            </div>
           ) : (
             <Table>
               <TableHeader className="bg-card">
-                {viewMode === 'standard' ? (
-                  <TableRow className="bg-card hover:bg-card">
-                    <TableHead className={`h-11 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
-                      Client
-                    </TableHead>
-                    <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Contact Details
-                    </TableHead>
-                    <TableHead className="h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Status
-                    </TableHead>
-                    <TableHead className="hidden h-11 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:table-cell">
-                      Latest Activity
-                    </TableHead>
-                    <TableHead className={`h-11 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R} w-12`}>
-                      <span className="sr-only">Actions</span>
-                    </TableHead>
-                  </TableRow>
-                ) : (
-                  <TableRow className="bg-card hover:bg-card">
-                    <TableHead className={`h-9 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
-                      Client
-                    </TableHead>
-                    <TableHead className="h-9 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Address
-                    </TableHead>
-                    <TableHead className="h-9 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Status
-                    </TableHead>
-                    <TableHead className={`h-9 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R} w-12`}>
-                      <span className="sr-only">Actions</span>
-                    </TableHead>
-                  </TableRow>
-                )}
+                <TableRow className="bg-card hover:bg-card">
+                  <TableHead className={`h-9 pr-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_L}`}>
+                    Client
+                  </TableHead>
+                  <TableHead className="h-9 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Address
+                  </TableHead>
+                  <TableHead className="h-9 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Status
+                  </TableHead>
+                  <TableHead className={`h-9 pl-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground ${GUTTER_R} w-12`}>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
               </TableHeader>
               <TableBody>
-                {viewMode === 'standard'
-                  ? controller.truncatedItems.map((client) => (
-                      <ClientRow key={client.client_id} client={client} />
-                    ))
-                  : controller.truncatedItems.map((client) => (
-                      <ClientCompactRow
-                        key={client.client_id}
-                        client={client}
-                        gutterL={GUTTER_L}
-                        gutterR={GUTTER_R}
-                        onOpenDetails={() => router.push(`/dashboard/clients/${client.client_id}`)}
-                        onOpenEdit={() => openDialog({ type: 'edit', client })}
-                        onOpenArchive={() => openDialog({ type: 'archive', client })}
-                        onOpenRestore={() => void restoreClient(client.client_id)}
-                        onOpenDelete={() => openDialog({ type: 'delete', client })}
-                      />
-                    ))}
+                {controller.truncatedItems.map((client) => (
+                  <ClientCompactRow
+                    key={client.client_id}
+                    client={client}
+                    gutterL={GUTTER_L}
+                    gutterR={GUTTER_R}
+                    onOpenDetails={() => router.push(`/dashboard/clients/${client.client_id}`)}
+                    onOpenEdit={() => openDialog({ type: 'edit', client })}
+                    onOpenArchive={() => openDialog({ type: 'archive', client })}
+                    onOpenRestore={() => void restoreClient(client.client_id)}
+                    onOpenDelete={() => openDialog({ type: 'delete', client })}
+                  />
+                ))}
               </TableBody>
             </Table>
           )}
 
         {/* Summary footer */}
-        {!error && (
-          <ListPaginationFooter
-            controller={controller}
-            isLoading={isLoading}
-            singularLabel="client"
-            pluralLabel="clients"
-            loadingText="Loading clients…"
-          />
-        )}
+        <ListPaginationFooter
+          controller={controller}
+          singularLabel="client"
+          pluralLabel="clients"
+        />
       </Card>
 
       {/* Dialogs */}

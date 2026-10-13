@@ -6,64 +6,50 @@ import {
   CalendarDays,
   LandPlot,
   Users,
-  Archive,
-  BriefcaseBusiness,
-  ShieldCheck,
+  FileCheck2,
   type LucideIcon,
 } from 'lucide-react';
 import {
   checkIsSystemAdmin,
   getCurrentUserRoleNames,
-  getCurrentUserRoleSections,
-  type RoleSection,
 } from '@/lib/actions/check-user';
 import { getUserInfo } from '@/lib/user';
-import { roleLabel } from '@/lib/role-labels';
 import { QuickLinks } from '@/components/dashboard-overview/quick-links';
 import { PropertyMapCard } from '@/components/dashboard-overview/property-map-card';
 import { PortfolioChart } from '@/components/dashboard-overview/portfolio-charts';
 import { ClientFollowUps } from '@/components/dashboard-overview/client-follow-ups';
 import { PageError } from '@/components/dashboard-layout/page-status';
 import { getDashboardOverview } from '@/lib/actions/dashboard-overview';
+import { getAccountsAwaitingTitle, getLandTitles } from '@/lib/actions/titles';
+import { hasPermission } from '@/lib/permissions';
+import { getRecentActivity } from '@/lib/actions/recent-activity';
+import { ActivityFeed } from '@/components/dashboard-overview/activity-feed';
 import { DashboardSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import { PageContainer } from '@/components/dashboard-layout/page-container';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { DashboardStats } from '@/lib/types/dashboard';
 
-const ROLE_FOCUS: Record<string, { title: string; description: string }> = {
+const ROLE_FOCUS: Record<string, { description: string }> = {
   system_admin: {
-    title: 'A clear view across your organization',
     description:
       'Review incomplete records, monitor the property portfolio, and keep your team’s access up to date.',
   },
   admin_staff: {
-    title: 'Keep everyday operations moving',
     description:
       'Find longstanding client records, complete missing paperwork, and keep contact information ready for follow-ups.',
   },
   billing_staff: {
-    title: 'Start with the right client records',
     description:
       'Review client profiles and property assignments as you prepare for billing work.',
   },
   accounting_staff: {
-    title: 'Your records, ready for review',
     description:
       'Use client and property records to support your account reviews and reconciliation preparation.',
   },
   legal_staff: {
-    title: 'Keep client documentation in view',
     description:
-      'Open client profiles to review documents and verify their assigned properties.',
+      'Review the next title-processing stage, clear document requirements, and record each approval through physical handover.',
   },
 };
 
@@ -75,13 +61,6 @@ interface StatTile {
   icon: LucideIcon;
   visible: boolean;
   tint: string;
-}
-
-interface DashboardHeroProps {
-  roles: string[];
-  firstName: string;
-  focus: { title: string; description: string };
-  isSystemAdmin: boolean;
 }
 
 function DashboardHeader() {
@@ -108,51 +87,80 @@ function DashboardHeader() {
   );
 }
 
-function DashboardHero({ roles, firstName, focus, isSystemAdmin }: DashboardHeroProps) {
-  return (
-    <Card
-      variant="prominent"
-      padding="lg"
-      className="relative overflow-hidden bg-gradient-to-br from-sidebar-accent via-card to-[color-mix(in_srgb,var(--secondary)_12%,var(--card))]"
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full border-[32px] border-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
-      />
-      <div className="relative flex flex-wrap items-center justify-between gap-6">
-        <div className="max-w-2xl">
-          <div className="mb-4 flex flex-wrap gap-2">
-            {roles.length ? (
-              roles.map((role) => (
-                <Badge key={role} variant="outline" className="bg-card">
-                  {roleLabel(role)}
-                </Badge>
-              ))
-            ) : (
-              <Badge variant="outline">Your workspace</Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Welcome back{firstName ? `, ${firstName}` : ''}
-          </p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-            {focus.title}
-          </h2>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            {focus.description}
-          </p>
-        </div>
+function TitleWorkflowOverview({
+  stageCounts,
+  awaitingCount,
+}: {
+  stageCounts: Record<'preparation' | 'review' | 'signature' | 'clearance' | 'ready' | 'released', number>;
+  awaitingCount: number;
+}) {
+  const counts = [
+    { label: 'Needs preparation', value: stageCounts.preparation, status: 'preparation' },
+    { label: 'In verification', value: stageCounts.review, status: 'review' },
+    { label: 'Awaiting signature', value: stageCounts.signature, status: 'signature' },
+    { label: 'In clearance', value: stageCounts.clearance, status: 'clearance' },
+    { label: 'Ready for claim', value: stageCounts.ready, status: 'ready' },
+    { label: 'Released', value: stageCounts.released, status: 'released' },
+  ];
+  const openWork = awaitingCount + counts.slice(0, 5).reduce((total, stage) => total + stage.value, 0);
+  const nextQueue = [
+    { value: awaitingCount, label: 'Billing-cleared accounts', status: 'intake', detail: 'Create the title record to begin legal processing.' },
+    { value: stageCounts.preparation, label: 'Document preparation', status: 'preparation', detail: 'Complete the title number and required release packet.' },
+    { value: stageCounts.review, label: 'Supervisor verification', status: 'review', detail: 'Review the legal description and turnover documents.' },
+    { value: stageCounts.signature, label: 'Executive signature', status: 'signature', detail: 'Confirm signing and notarization before clearance.' },
+    { value: stageCounts.clearance, label: '30-day clearance', status: 'clearance', detail: 'Monitor titles until the internal clearance period ends.' },
+    { value: stageCounts.ready, label: 'Client claim follow-up', status: 'ready', detail: 'Contact clients and record notice delivery or title handover.' },
+  ].find((queue) => queue.value > 0);
 
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
-          {isSystemAdmin && (
-            <Button asChild size="lg">
-              <Link href="/dashboard/admin">
-                <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                Manage team
-              </Link>
-            </Button>
-          )}
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--primary)_16%,white)] text-accent-blue-foreground">
+            <FileCheck2 className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Land title processing</p>
+            <h2 className="mt-1 text-lg font-semibold">Title release pipeline</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {openWork} title{openWork === 1 ? '' : 's'} need attention before release.
+            </p>
+          </div>
         </div>
+        <Button asChild size="sm" className="gap-2">
+          <Link href="/dashboard/legal">
+            Open title processing
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+      {nextQueue && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-row-hover px-5 py-3 sm:px-6">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Next step · {nextQueue.label}</p>
+            <p className="mt-0.5 text-xs text-foreground">{nextQueue.detail}</p>
+          </div>
+          <Button asChild variant="quiet" size="sm" className="shrink-0 gap-1.5">
+            <Link href={`/dashboard/legal?status=${nextQueue.status}`}>
+              Open this queue
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+      )}
+      <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-4 xl:grid-cols-7 sm:divide-y-0">
+        <Link href="/dashboard/legal?status=intake" className="p-4 transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-5">
+          <p className="text-xs font-medium text-muted-foreground">Billing cleared</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">{awaitingCount.toLocaleString()}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Awaiting title record</p>
+        </Link>
+        {counts.map((stage) => (
+          <Link key={stage.label} href={`/dashboard/legal?status=${stage.status}`} className="p-4 transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-5">
+            <p className="text-xs font-medium text-muted-foreground">{stage.label}</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums">{stage.value.toLocaleString()}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Open queue</p>
+          </Link>
+        ))}
       </div>
     </Card>
   );
@@ -162,7 +170,7 @@ function DashboardStatTiles({ tiles }: { tiles: StatTile[] }) {
   if (tiles.length === 0) return null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
       {tiles.map(({ icon: Icon, ...tile }) => (
         <Link
           key={tile.label}
@@ -171,7 +179,7 @@ function DashboardStatTiles({ tiles }: { tiles: StatTile[] }) {
         >
           <Card
             variant="interactive"
-            padding="default"
+            padding="sm"
             className="h-full group-hover:border-primary"
           >
             <div className="flex items-center justify-between gap-3">
@@ -180,7 +188,7 @@ function DashboardStatTiles({ tiles }: { tiles: StatTile[] }) {
                 <Icon className="h-5 w-5" />
               </div>
             </div>
-            <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums">
+            <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
               {tile.value === null ? 'Unavailable' : tile.value.toLocaleString()}
             </p>
             <p className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -197,152 +205,6 @@ function DashboardStatTiles({ tiles }: { tiles: StatTile[] }) {
   );
 }
 
-function RecentClientsCard({
-  recentClients,
-}: {
-  recentClients: DashboardStats['recentClients'];
-}) {
-  return (
-    <Card className="lg:col-span-2">
-      <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
-        <div>
-          <CardTitle>Recently updated client records</CardTitle>
-          <CardDescription className="mt-2">
-            Resume reviewing recently maintained profiles
-          </CardDescription>
-        </div>
-        <Link
-          href="/dashboard/clients"
-          className="inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline"
-        >
-          View all
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </CardHeader>
-      <CardContent>
-        {recentClients === null ? (
-          <p className="py-8 text-sm text-muted-foreground">
-            Recent clients are temporarily unavailable.
-          </p>
-        ) : recentClients.length === 0 ? (
-          <p className="py-8 text-sm text-muted-foreground">
-            No clients yet. Client records will appear here as they are maintained.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {recentClients.map((client) => {
-              const initials = client.full_name
-                .split(/\s+/)
-                .slice(0, 2)
-                .map((word) => word[0])
-                .join('');
-              const formattedDate = new Date(client.updated_at).toLocaleDateString(
-                'en-PH',
-                {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  timeZone: 'Asia/Manila',
-                }
-              );
-
-              return (
-                <li
-                  key={client.client_id}
-                  className="flex flex-wrap items-center gap-3 py-3"
-                >
-                  <div
-                    aria-hidden="true"
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-accent-blue-foreground"
-                  >
-                    {initials}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      href={`/dashboard/clients?client=${encodeURIComponent(client.client_id)}`}
-                      className="inline-flex items-center gap-1 break-words rounded text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {client.full_name}
-                      <ArrowRight aria-hidden="true" className="h-3 w-3 shrink-0" />
-                    </Link>
-                    <p className="mt-1 text-xs text-muted-foreground">{formattedDate}</p>
-                  </div>
-                  <Badge variant="outline">{client.status}</Badge>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ArchivedClientsCard({ count }: { count: number | null }) {
-  const displayCount = count === null ? 'Unavailable' : count.toLocaleString();
-
-  return (
-    <Link
-      href="/dashboard/clients?status=Archived"
-      className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-    >
-      <Card
-        variant="interactive"
-        padding="default"
-        className="group-hover:border-primary"
-      >
-        <div className="flex items-center gap-2">
-          <Archive className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Archived records</h2>
-        </div>
-        <p className="mt-3 text-2xl font-semibold tabular-nums">{displayCount}</p>
-        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-          Review archived client records.
-        </p>
-        <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium">
-          Open archive
-          <ArrowRight aria-hidden="true" className="h-4 w-4" />
-        </span>
-      </Card>
-    </Link>
-  );
-}
-
-function DepartmentToolsCard({ departments }: { departments: RoleSection[] }) {
-  const comingSoonTabs = departments.flatMap((section) =>
-    section.tabs
-      .filter((tab) => tab.comingSoon)
-      .map((tab) => ({
-        ...tab,
-        category: section.category,
-      }))
-  );
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle size="sm">Department tools</CardTitle>
-        <CardDescription className="text-xs leading-relaxed">
-          Billing and payment workflows are not available yet. Use client profiles
-          for supporting records in the meantime.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-4">
-          {comingSoonTabs.map((tab) => (
-            <li key={tab.href}>
-              <p className="text-sm font-medium">{tab.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {tab.category} · Under development
-              </p>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
-  );
-}
-
 async function DashboardContent() {
   try {
     const user = await getUserInfo();
@@ -350,23 +212,39 @@ async function DashboardContent() {
       return <PageError message="Please log in to access the dashboard" />;
     }
 
-    const [isSystemAdmin, stats, roles, sections] = await Promise.all([
+    const [isSystemAdmin, stats, roles, canReadTitles, activity] = await Promise.all([
       checkIsSystemAdmin(user.id),
       getDashboardOverview(),
       getCurrentUserRoleNames(),
-      getCurrentUserRoleSections(),
+      hasPermission('legal.read', user.id),
+      getRecentActivity(),
     ]);
+
+    const titleOverview = canReadTitles
+      ? await Promise.all([
+          ...([
+            ['preparation', 'Document Preparation'],
+            ['review', 'For Review'],
+            ['signature', 'For Signature'],
+            ['clearance', 'Clearance Period'],
+            ['ready', 'Ready for Claim'],
+            ['released', 'Released'],
+          ] as const).map(async ([key, status]) => {
+            const result = await getLandTitles({ limit: 1, status, sortBy: 'created_at', sortOrder: 'desc' });
+            return [key, result.totalCount] as const;
+          }),
+          getAccountsAwaitingTitle(),
+        ])
+      : null;
 
     const focus = isSystemAdmin
       ? ROLE_FOCUS.system_admin
       : roles.length > 1
         ? {
-            title: 'Your work, all in one place',
             description:
               'Stay on top of client records and property activity across your assigned departments.',
           }
         : ROLE_FOCUS[roles[0]] ?? {
-            title: 'Welcome to your workspace',
             description:
               'Your assigned tools and accessible records will appear here. Contact your administrator if you need additional access.',
           };
@@ -396,20 +274,8 @@ async function DashboardContent() {
         visible: stats.canReadClients,
         tint: 'bg-sidebar-accent text-accent-blue-foreground',
       },
-      {
-        label: 'Active clients',
-        value: stats.activeClients,
-        href: '/dashboard/clients?status=Active',
-        detail: 'View active clients',
-        icon: BriefcaseBusiness,
-        visible: stats.canReadClients,
-        tint: 'bg-chart-4 text-accent-gold-foreground',
-      },
-    ].filter((tile) => tile.visible);
 
-    const departments = sections.filter((section) =>
-      section.tabs.some((tab) => tab.comingSoon)
-    );
+    ].filter((tile) => tile.visible);
 
     const hasOperationalSection = stats.canReadProperties || stats.canReadClients;
 
@@ -417,49 +283,41 @@ async function DashboardContent() {
       <div className="mx-auto w-full max-w-7xl space-y-6 pb-4">
         <DashboardHeader />
 
-        <DashboardHero
-          roles={roles}
-          firstName={firstName}
-          focus={focus}
-          isSystemAdmin={isSystemAdmin}
-        />
-
-        <DashboardStatTiles tiles={tiles} />
-
-        {hasOperationalSection && (
-          <div className="grid items-start gap-6 lg:grid-cols-2">
-            {stats.canReadClients && <ClientFollowUps items={stats.clientFollowUps} />}
-            {stats.canReadProperties && (
-              <div className="space-y-6">
-                <PropertyMapCard preview={stats.mapPreview} />
-                <PortfolioChart statuses={stats.lotStatuses} />
-              </div>
-            )}
-          </div>
-        )}
+        <div className="border-l-2 border-primary pl-4">
+          <p className="text-sm font-medium">Welcome back{firstName ? `, ${firstName}` : ''}</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{focus.description}</p>
+        </div>
 
         <QuickLinks
           canViewProperties={stats.canReadProperties}
           canViewClients={stats.canReadClients}
-          isSystemAdmin={isSystemAdmin}
+          canViewTitles={canReadTitles}
         />
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {stats.canReadClients && (
-            <RecentClientsCard recentClients={stats.recentClients} />
-          )}
+        <DashboardStatTiles tiles={tiles} />
 
-          <div
-            className={`space-y-6 ${!stats.canReadClients ? 'lg:col-span-3' : ''}`}
-          >
-            {stats.canReadClients && (
-              <ArchivedClientsCard count={stats.archivedClients} />
-            )}
-            {departments.length > 0 && (
-              <DepartmentToolsCard departments={departments} />
-            )}
-          </div>
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          {stats.canReadClients && <ClientFollowUps items={stats.clientFollowUps} />}
+          <ActivityFeed initialItems={activity} />
         </div>
+
+        {titleOverview && (
+          <TitleWorkflowOverview
+            stageCounts={Object.fromEntries(titleOverview.slice(0, 6)) as Record<'preparation' | 'review' | 'signature' | 'clearance' | 'ready' | 'released', number>}
+            awaitingCount={titleOverview[6].length}
+          />
+        )}
+
+        {hasOperationalSection && stats.canReadProperties && (
+          <details className="group">
+            <summary className="cursor-pointer rounded-lg px-1 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Property portfolio · map and availability</summary>
+            <div className="mt-3 grid gap-6 lg:grid-cols-2">
+              <PropertyMapCard preview={stats.mapPreview} />
+              <PortfolioChart statuses={stats.lotStatuses} />
+            </div>
+          </details>
+        )}
+
       </div>
     );
   } catch (error) {

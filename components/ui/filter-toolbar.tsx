@@ -164,7 +164,7 @@ export interface FilterToolbarProps<
   V extends string = string,
   S extends string = string,
 > {
-  variant?: 'default' | 'stacked';
+  variant?: 'default' | 'stacked' | 'single-row';
   /** Pass the `useListController` instance directly to auto-bind tabs, search, filters, sort, and clear */
   controller?: FilterToolbarControllerBinding<S>;
   tabs?: FilterToolbarTabsConfig<T>;
@@ -700,11 +700,29 @@ export function FilterToolbar<
     );
   }
 
+  const isSingleRow = variant === 'single-row';
+
   return (
-    <CardToolbar className={className}>
-      {resolvedTabs && <FilterToolbarTabs {...resolvedTabs} />}
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {resolvedSearch && <FilterToolbarSearch {...resolvedSearch} />}
+    <CardToolbar className={cn(isSingleRow && 'flex-row items-center gap-3 overflow-x-auto', className)}>
+      {resolvedTabs && (
+        <FilterToolbarTabs
+          {...resolvedTabs}
+          className={isSingleRow ? 'shrink-0 flex-nowrap whitespace-nowrap [&>button]:px-2' : undefined}
+        />
+      )}
+      <div className={cn(
+        'flex min-w-0 items-center gap-2',
+        isSingleRow ? 'flex-1 flex-nowrap [&>*]:shrink-0' : 'flex-wrap'
+      )}>
+        {resolvedSearch && (
+          <FilterToolbarSearch
+            {...resolvedSearch}
+            className={cn(
+              resolvedSearch.className,
+              isSingleRow && 'min-w-40 flex-1 sm:flex-1 [&_input]:w-full'
+            )}
+          />
+        )}
         {resolvedFilters?.map((filter) => (
           <FilterToolbarFilterControl key={filter.id} filter={filter} />
         ))}

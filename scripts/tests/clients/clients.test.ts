@@ -245,10 +245,15 @@ describe("Client Management Actions", () => {
 
     expect(logEntry.log_id).toBeDefined();
     expect(logEntry.event_type).toBe("CLIENT_REGISTERED");
+    expect(logEntry.performer_name).toBeTruthy();
+    expect(logEntry.performer_name).not.toBe("System");
 
     const logs = await getClientLogs(client.client_id);
     expect(logs.length).toBeGreaterThanOrEqual(1);
     expect(logs[0].event_type).toBe("CLIENT_REGISTERED");
+    expect(logs[0].performer_name).toBe(logEntry.performer_name);
+    const profile = await getClientById(client.client_id);
+    expect(profile.client_log.find(log => log.log_id === logEntry.log_id)?.performer_name).toBe(logEntry.performer_name);
 
     const listResult = await getClients({ search: client.full_name });
     const clientItem = listResult.data.find((c) => c.client_id === client.client_id);
