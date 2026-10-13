@@ -12,6 +12,7 @@ import {
 } from "@/lib/self-protection";
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 import { formatActivityTime } from "@/lib/format-activity-time";
+import { getWelcomeActions } from "@/lib/welcome-actions";
 
 describe("Utility and Pure Guard Functions", () => {
   it("getPaginationOffsets computes SQL query range and clamps page/limit", () => {
@@ -120,4 +121,53 @@ describe("Utility and Pure Guard Functions", () => {
     }).format(twentyDaysAgo);
     expect(formatActivityTime(twentyDaysAgo)).toBe(expectedFormatted);
   });
+
+  it("getWelcomeActions maps system_admin to Team & access", () => {
+    const actions = getWelcomeActions(true, ["system_admin"]);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].label).toBe("Team & access");
+    expect(actions[0].href).toBe("/dashboard/admin");
+    expect(actions[0].variant).toBe("default");
+  });
+
+  it("getWelcomeActions maps legal_staff to Title releases", () => {
+    const actions = getWelcomeActions(false, ["legal_staff"]);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].label).toBe("Title releases");
+    expect(actions[0].href).toBe("/dashboard/legal");
+    expect(actions[0].variant).toBe("default");
+  });
+
+  it("getWelcomeActions maps admin_staff and billing_staff to Client records and Property inventory", () => {
+    const adminActions = getWelcomeActions(false, ["admin_staff"]);
+    expect(adminActions).toHaveLength(2);
+    expect(adminActions[0].label).toBe("Client records");
+    expect(adminActions[0].href).toBe("/dashboard/clients");
+    expect(adminActions[0].variant).toBe("default");
+    expect(adminActions[1].label).toBe("Property inventory");
+    expect(adminActions[1].href).toBe("/dashboard/properties/map");
+    expect(adminActions[1].variant).toBe("outline");
+
+    const billingActions = getWelcomeActions(false, ["billing_staff"]);
+    expect(billingActions).toHaveLength(2);
+    expect(billingActions[0].label).toBe("Client records");
+    expect(billingActions[1].label).toBe("Property inventory");
+  });
+
+  it("getWelcomeActions returns empty array for accounting_staff and unknown roles", () => {
+    expect(getWelcomeActions(false, ["accounting_staff"])).toEqual([]);
+    expect(getWelcomeActions(false, ["unknown_role"])).toEqual([]);
+    expect(getWelcomeActions(false, [])).toEqual([]);
+  });
+
+  it("getWelcomeActions respects role precedence", () => {
+    // system_admin takes precedence over legal_staff
+    const adminWithLegal = getWelcomeActions(true, ["legal_staff", "admin_staff"]);
+    expect(adminWithLegal[0].label).toBe("Team & access");
+
+    // legal_staff takes precedence over admin_staff
+    const legalWithAdmin = getWelcomeActions(false, ["legal_staff", "admin_staff"]);
+    expect(legalWithAdmin[0].label).toBe("Title releases");
+  });
 });
+

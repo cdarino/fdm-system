@@ -24,6 +24,7 @@ import { getDashboardOverview } from '@/lib/actions/dashboard-overview';
 import { getAccountsAwaitingTitle, getLandTitles } from '@/lib/actions/titles';
 import { hasPermission } from '@/lib/permissions';
 import { getRecentActivity } from '@/lib/actions/recent-activity';
+import { getWelcomeActions } from '@/lib/welcome-actions';
 import { ActivityFeed } from '@/components/dashboard-overview/activity-feed';
 import { DashboardSkeleton } from '@/components/dashboard-layout/page-skeletons';
 import { PageContainer } from '@/components/dashboard-layout/page-container';
@@ -254,6 +255,8 @@ async function DashboardContent() {
               'Your assigned tools and accessible records will appear here. Contact your administrator if you need additional access.',
           };
 
+    const welcomeActions = getWelcomeActions(isSystemAdmin, roles);
+
     const fullName =
       typeof user.user_metadata?.full_name === 'string'
         ? user.user_metadata.full_name.trim()
@@ -296,9 +299,26 @@ async function DashboardContent() {
       <div className="mx-auto w-full max-w-7xl space-y-6 pb-4">
         <DashboardHeader />
 
-        <Card className="border-l-4 border-l-primary p-4 sm:p-5">
-          <p className="text-sm font-semibold text-foreground">Welcome back{firstName ? `, ${firstName}` : ''}</p>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{focus.description}</p>
+        <Card className="flex flex-col gap-4 border-l-4 border-l-primary p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Welcome back{firstName ? `, ${firstName}` : ''}</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{focus.description}</p>
+          </div>
+          {welcomeActions.length > 0 && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {welcomeActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Button key={action.href} asChild size="sm" variant={action.variant}>
+                    <Link href={action.href}>
+                      <Icon className="h-4 w-4" />
+                      <span>{action.label}</span>
+                    </Link>
+                  </Button>
+                );
+              })}
+            </div>
+          )}
         </Card>
 
         <QuickLinks
