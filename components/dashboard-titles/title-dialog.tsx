@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check, ClipboardCheck, FileText, PenLine, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,28 @@ function getCompanyWorkflowStep(status: TitleStatus, isExecutiveSigned: boolean)
   }
 }
 
+function getWorkflowDetail(status: TitleStatus, isExecutiveSigned: boolean): string {
+  switch (status) {
+    case 'Clearance Period':
+      return 'Executive signature confirmed · 30-day internal clearance underway';
+    case 'Ready for Claim':
+      return 'Cleared for claim · title and DOAS awaiting physical handover';
+    case 'Released':
+      return 'Physical title packet handed over to client';
+    case 'For Review':
+      return 'Legal supervisor checking the document packet';
+    case 'For Signature':
+      return isExecutiveSigned
+        ? 'Executive signature confirmed · start internal clearance'
+        : 'Awaiting executive signature and notarization';
+    case 'Document Preparation':
+      return 'Legal compiling buyer file and turnover documents';
+    case 'Cleared by Billing':
+    default:
+      return 'Billing verified and cleared the account';
+  }
+}
+
 function CompanyWorkflowProgress({
   status,
   isExecutiveSigned,
@@ -65,77 +88,61 @@ function CompanyWorkflowProgress({
   isExecutiveSigned: boolean;
 }) {
   const currentStep = getCompanyWorkflowStep(status, isExecutiveSigned);
-  const detail =
-    status === 'Clearance Period'
-      ? 'Executive signature confirmed · 30-day internal clearance is underway'
-      : status === 'Ready for Claim'
-        ? 'Cleared for claim · title and DOAS are awaiting physical handover'
-        : status === 'Released'
-          ? 'Physical title packet has been handed over'
-          : status === 'For Review'
-            ? 'Legal supervisor is checking the document packet'
-            : status === 'For Signature'
-              ? isExecutiveSigned
-                ? 'Executive signature confirmed · start internal clearance to continue'
-                : 'Awaiting executive signature and notarization'
-              : status === 'Document Preparation'
-                ? 'Legal is compiling the buyer file and turnover documents'
-                : 'Billing has verified and cleared the account';
+  const detail = getWorkflowDetail(status, isExecutiveSigned);
 
   return (
-    <section aria-label="Title claim workflow" className="shrink-0 border-b border-border bg-muted/20 px-4 py-4 sm:px-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Title claim workflow
-        </p>
-        <p className="text-xs text-muted-foreground" aria-live="polite">{detail}</p>
-      </div>
-      <ol className="grid grid-cols-5 gap-1 sm:gap-3">
+    <section aria-label="Title claim workflow" className="flex flex-col items-start lg:items-end gap-1">
+      <ol className="flex items-center gap-1 sm:gap-1.5">
         {COMPANY_WORKFLOW_STEPS.map((step, index) => {
           const isComplete = index < currentStep;
           const isCurrent = index === currentStep && currentStep < COMPANY_WORKFLOW_STEPS.length;
-          const Icon = isComplete ? Check : step.icon;
+          const isFinalDone = currentStep === COMPANY_WORKFLOW_STEPS.length;
 
           return (
             <li
               key={step.label}
               aria-current={isCurrent ? 'step' : undefined}
-              className="relative min-w-0 text-center"
+              className="flex items-center gap-1"
             >
-              {index > 0 && (
-                <span
-                  aria-hidden="true"
-                  className={`absolute right-1/2 top-4 z-0 h-0.5 w-full ${isComplete ? 'bg-success' : 'bg-border'}`}
-                />
-              )}
-              <span
-                className={`relative z-10 mx-auto flex h-8 w-8 items-center justify-center rounded-full border bg-card ${
-                  isComplete
-                    ? 'border-success bg-success text-success-foreground'
+              <div
+                title={`${step.label}: ${isComplete || isFinalDone ? 'Complete' : isCurrent ? 'Current step' : 'Pending'}`}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs transition-colors',
+                  isComplete || isFinalDone
+                    ? 'bg-row-hover text-success font-medium'
                     : isCurrent
-                      ? 'border-primary text-primary ring-4 ring-[color-mix(in_srgb,var(--primary)_12%,white)]'
-                      : 'border-border text-muted-foreground'
-                }`}
-              >
-                {currentStep === COMPANY_WORKFLOW_STEPS.length && index === COMPANY_WORKFLOW_STEPS.length - 1 ? (
-                  <Check className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Icon className="h-4 w-4" aria-hidden="true" />
+                      ? 'bg-sidebar-accent text-primary font-semibold ring-1 ring-primary'
+                      : 'text-muted-foreground opacity-60'
                 )}
-              </span>
-              <span className={`mt-1.5 block truncate text-[10px] font-medium sm:hidden ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
-                {step.shortLabel}
-              </span>
-              <span className={`mt-1.5 hidden text-xs font-medium sm:block ${isCurrent ? 'text-foreground' : 'text-muted-foreground'}`}>
-                {step.label}
-              </span>
-              <span className="sr-only">
-                {isComplete ? 'Complete' : isCurrent ? 'Current step' : 'Not started'}
-              </span>
+              >
+                <span
+                  className={cn(
+                    'flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px]',
+                    isComplete || isFinalDone
+                      ? 'bg-success text-success-foreground'
+                      : isCurrent
+                        ? 'bg-primary text-primary-foreground font-bold'
+                        : 'border border-border text-muted-foreground'
+                  )}
+                >
+                  {isComplete || isFinalDone ? (
+                    <Check className="h-2.5 w-2.5 stroke-[3]" aria-hidden="true" />
+                  ) : (
+                    <span>{index + 1}</span>
+                  )}
+                </span>
+                <span className="hidden xl:inline">{step.shortLabel}</span>
+              </div>
+              {index < COMPANY_WORKFLOW_STEPS.length - 1 && (
+                <span className="text-border text-xs select-none">›</span>
+              )}
             </li>
           );
         })}
       </ol>
+      <p className="text-[11px] text-muted-foreground text-left lg:text-right" aria-live="polite">
+        {detail}
+      </p>
     </section>
   );
 }
@@ -360,33 +367,42 @@ export function TitleDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="bg-card border-border sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="px-5 pt-5 pb-4 sm:px-7 sm:pt-7 shrink-0">
-          <div className="flex items-center justify-between">
-            <Badge
-              variant={TITLE_STATUS_VARIANT[currentStageStatus] ?? 'muted'}
-              shape="pill"
-              dot
-            >
-              {currentStageStatus}
-            </Badge>
-            {activeTitle?.is_legacy_transferred && (
-              <Badge variant="outline" className="text-xs">
-                Legacy Pre-Transferred
-              </Badge>
-            )}
-          </div>
-          <DialogTitle className="text-xl">
-            {propertyRef} <span className="text-muted-foreground font-normal">• {propertyLocation}</span>
-          </DialogTitle>
-          <DialogDescription className="text-sm">
-            {clientName}
-          </DialogDescription>
-        </DialogHeader>
+        <DialogHeader className="shrink-0 border-b border-border bg-card px-5 py-3 pr-12 sm:px-6 sm:pr-14 text-left sm:text-left gap-0">
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="text-base font-bold text-foreground sm:text-lg leading-tight">
+                  {propertyRef}
+                </DialogTitle>
+                <span className="text-xs text-muted-foreground hidden sm:inline">• {propertyLocation}</span>
+                <Badge
+                  variant={TITLE_STATUS_VARIANT[currentStageStatus] ?? 'muted'}
+                  shape="pill"
+                  dot
+                  className="shrink-0 text-xs"
+                >
+                  {currentStageStatus}
+                </Badge>
+                {activeTitle?.is_legacy_transferred && (
+                  <Badge variant="outline" className="text-[11px] shrink-0">
+                    Legacy Pre-Transferred
+                  </Badge>
+                )}
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Client: <span className="font-medium text-foreground">{clientName}</span>
+                <span className="sm:hidden"> • {propertyLocation}</span>
+              </DialogDescription>
+            </div>
 
-        <CompanyWorkflowProgress
-          status={activeTitle?.status ?? 'Cleared by Billing'}
-          isExecutiveSigned={isExecutiveSigned}
-        />
+            <div className="shrink-0">
+              <CompanyWorkflowProgress
+                status={activeTitle?.status ?? 'Cleared by Billing'}
+                isExecutiveSigned={isExecutiveSigned}
+              />
+            </div>
+          </div>
+        </DialogHeader>
 
         {/* Mobile Tab Switcher */}
         <div className="md:hidden flex-1 min-h-0 overflow-y-auto px-5 pt-2 pb-5">
@@ -427,7 +443,7 @@ export function TitleDialog({
 
         {/* Desktop Two-Column Layout */}
         <div className="hidden md:grid md:grid-cols-12 gap-6 flex-1 min-h-0 px-6 py-5 overflow-hidden">
-          <div className="md:col-span-5 lg:col-span-4 border-r border-border pr-4 lg:pr-6 overflow-y-auto h-full min-h-0">
+          <div className="md:col-span-5 lg:col-span-4 border-r border-border pr-6 overflow-y-auto h-full min-h-0">
             <TitleTimelineView
               item={activeItem}
               selectedStage={selectedStage}
@@ -437,7 +453,7 @@ export function TitleDialog({
               isExecutiveSigned={isExecutiveSigned}
             />
           </div>
-          <div className="md:col-span-7 lg:col-span-8 pl-1 lg:pl-3 pr-2 overflow-y-auto h-full min-h-0">
+          <div className="md:col-span-7 lg:col-span-8 overflow-y-auto h-full min-h-0 pr-1">
             {activeContent}
           </div>
         </div>

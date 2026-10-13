@@ -292,8 +292,8 @@ export function TitleTimelineView({
               className={cn(
                 'rounded-xl border p-4 space-y-2 bg-card transition-shadow',
                 isCurrent
-                  ? 'border-border shadow-2xs ring-1 ring-border/60'
-                  : 'border-border/70'
+                  ? 'border-border shadow-2xs ring-1 ring-border'
+                  : 'border-border'
               )}
             >
               <div className="flex items-center justify-between gap-2">

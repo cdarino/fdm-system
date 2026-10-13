@@ -36,7 +36,7 @@ export function ClientDetailProperties({
     <div className="space-y-6">
       {/* Property List */}
       {properties.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 py-12">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-row-hover py-12">
           <IconBox size="lg">
             <LandPlot className="h-6 w-6" />
           </IconBox>

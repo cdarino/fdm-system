@@ -260,7 +260,7 @@ export function ClientDetailSidebar() {
 
       {/* Scrollable body region */}
       <div className="pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-        <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">1. Identity &amp; contacts</p>
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">1. Identity &amp; contacts</p>
         {/* Structured Details and Contacts Card */}
         <Card variant="canvas" className="overflow-hidden">
         <div className="space-y-0.5 p-1.5">
@@ -627,7 +627,7 @@ export function ClientDetailSidebar() {
 
           <div>
             {client.client_log.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border-warm bg-muted/40 px-3 py-6 text-center text-xs text-muted-foreground">
+              <p className="rounded-xl border border-dashed border-border-warm bg-row-hover px-3 py-6 text-center text-xs text-muted-foreground">
                 No activity recorded yet
               </p>
             ) : (

@@ -243,7 +243,11 @@ function ClientRow({ client }: { client: ClientListItem }) {
   }
 
     return (
-      <Card className="group p-4 sm:p-5">
+      <Card
+        variant="interactive"
+        onClick={handleRowClick}
+        className="group flex flex-col justify-between p-4 sm:p-5 hover:border-primary"
+      >
       <div className="flex items-start gap-3">
         <IconBox size="md" shape="circle">
           <UserRound className="h-4 w-4" />
@@ -275,7 +279,7 @@ function ClientRow({ client }: { client: ClientListItem }) {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Actions
             </DropdownMenuLabel>
@@ -354,7 +358,7 @@ function ClientRow({ client }: { client: ClientListItem }) {
       <div className="mt-4 space-y-3 border-t border-border pt-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Contact</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact</p>
             <ContactDetailsCell contacts={client.contact_info} onViewMore={handleRowClick} />
           </div>
           {isIncomplete && (
@@ -375,14 +379,14 @@ function ClientRow({ client }: { client: ClientListItem }) {
           )}
         </div>
 
-        <div className="rounded-md bg-muted/40 px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Latest activity</p>
+        <div className="rounded-md bg-row-hover px-3 py-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Latest activity</p>
           {client.latest_activity ? (
             <>
               <p className="mt-1 truncate text-xs font-medium text-foreground">
                 {client.latest_activity.description || 'Activity recorded'}
               </p>
-              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {client.latest_activity.performer_name} · {formatActivityTime(client.latest_activity.time)}
               </p>
             </>
@@ -460,7 +464,6 @@ function ClientsContent() {
 
           {/* Filters, search, and sort */}
           <FilterToolbar
-            variant="single-row"
             controller={controller}
             viewMode={{
               value: viewMode,

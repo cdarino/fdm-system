@@ -271,7 +271,7 @@ export function TitleNoticesTab({
     <div className="space-y-4">
       {/* Release Status Banner */}
       {isReleased && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5 text-sm text-foreground">
+        <div className="flex items-center gap-2.5 rounded-lg border border-border bg-row-hover px-3.5 py-2.5 text-sm text-foreground">
           <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
           <span>Title released{releasedDateStr ? ` on ${releasedDateStr}` : ''}.</span>
         </div>
@@ -588,7 +588,7 @@ export function TitleNoticesTab({
             <>
               {sortedNotices.length === 0 ? (
                 isReleased ? (
-                  <div className="rounded-lg border border-border p-3.5 bg-muted/20 text-xs text-muted-foreground">
+                  <div className="rounded-lg border border-border p-3.5 bg-row-hover text-xs text-muted-foreground">
                     No notice letters dispatched. Title was claimed directly.
                   </div>
                 ) : (

@@ -134,7 +134,7 @@ export function TitleReleaseDialog({
             </div>
           )}
 
-          <div className="rounded-lg border border-border p-3.5 space-y-3 bg-muted/20">
+          <div className="rounded-lg border border-border p-3.5 space-y-3 bg-row-hover">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="is-principal-buyer"

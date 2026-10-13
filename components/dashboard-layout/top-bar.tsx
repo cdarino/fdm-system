@@ -56,7 +56,7 @@ const ROUTE_LABELS: Record<string, string> = {
   properties: 'Property inventory',
   map: 'Site Map',
   reports: 'Reports',
-  admin: 'Administration',
+  admin: 'Team & access',
   settings: 'Account Settings',
   billing: 'Invoicing & Billing',
   accounting: 'Accounts Payable',
@@ -181,41 +181,41 @@ export function DashboardTopBar({
   }
 
   return (
-      <div className="bg-card border-b border-border sticky top-0 z-40">
-        <div className="flex h-16 min-w-0 items-center justify-between gap-3 px-4 sm:px-6 sm:gap-6">
-          {/* Left: Sidebar Toggle + Breadcrumbs */}
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            {onToggleSidebar && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 shrink-0 text-muted-foreground hover:bg-background hover:text-foreground"
-                onClick={onToggleSidebar}
-                aria-label={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
-                aria-expanded={isSidebarOpen}
-                aria-controls="dashboard-navigation"
-                title={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
-              >
-                {isSidebarOpen ? (
-                  <PanelLeftClose className="h-5 w-5" />
-                ) : (
-                  <PanelLeftOpen className="h-5 w-5" />
-                )}
-              </Button>
-            )}
-            <DashboardBreadcrumbs />
-          </div>
+    <div className="bg-card border-b border-border sticky top-0 z-40">
+      <div className="flex h-16 min-w-0 items-center justify-between gap-3 px-4 sm:px-6 sm:gap-6">
+        {/* Left: Sidebar Toggle + Breadcrumbs */}
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          {onToggleSidebar && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-background hover:text-foreground"
+              onClick={onToggleSidebar}
+              aria-label={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
+              aria-expanded={isSidebarOpen}
+              aria-controls="dashboard-navigation"
+              title={isSidebarOpen ? 'Hide navigation menu' : 'Show navigation menu'}
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose className="h-5 w-5" />
+              ) : (
+                <PanelLeftOpen className="h-5 w-5" />
+              )}
+            </Button>
+          )}
+          <DashboardBreadcrumbs />
+        </div>
 
-          {/* Right utility buttons */}
-          <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+        {/* Right utility buttons */}
+        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           {/* Notifications */}
           <DropdownMenu onOpenChange={(open) => void refreshActivity(open)}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative text-muted-foreground hover:bg-background hover:text-foreground"
+                className="relative h-9 w-9 text-muted-foreground hover:bg-background hover:text-foreground"
                 aria-label={`Recent activity${activityItems.length ? `, ${activityItems.length} items` : ''}`}
                 title="Recent activity"
               >

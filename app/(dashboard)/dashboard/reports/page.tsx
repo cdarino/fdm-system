@@ -11,7 +11,7 @@ export default async function ReportsPage() {
     <PageContainer>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Reports</h1>
+          <h1 className="text-2xl font-bold text-foreground">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Open a record and use its PDF export action. Review title progress in the release workspace.
           </p>

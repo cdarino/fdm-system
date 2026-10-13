@@ -9,13 +9,36 @@ export function QuickLinks({ canViewProperties, canViewClients, canViewTitles = 
   const visible = [canViewClients, canViewProperties, canViewTitles];
   const links = DASHBOARD_WORKFLOW.filter((_, index) => visible[index]);
   if (!links.length) return null;
-  return <Card>
-    <CardHeader className="px-5 py-4"><CardTitle role="heading" aria-level={2}>Your daily workflow</CardTitle><CardDescription>Open a workspace to continue.</CardDescription></CardHeader>
-    <CardContent className="grid gap-3 px-5 pb-5 md:grid-cols-3">
-      {links.map(link => <Link key={link.href} href={link.href} className="group flex flex-col gap-2 rounded-lg border border-border p-4 transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="flex items-center justify-between text-xs font-semibold text-primary"><span>STEP {link.step}</span><ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></span>
-        <span><span className="block text-sm font-semibold tracking-tight">{link.title}</span><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{link.description}</span></span>
-      </Link>)}
-    </CardContent>
-  </Card>;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle role="heading" aria-level={2}>
+          Your daily workflow
+        </CardTitle>
+        <CardDescription>Open a workspace to continue.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-3">
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="group flex flex-col justify-between gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-row-hover hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="flex items-center justify-between text-xs font-semibold text-primary">
+              <span>STEP {link.step}</span>
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </span>
+            <div>
+              <span className="block text-sm font-semibold tracking-tight text-foreground">
+                {link.title}
+              </span>
+              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                {link.description}
+              </span>
+            </div>
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
+  );
 }

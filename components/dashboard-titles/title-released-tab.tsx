@@ -194,7 +194,7 @@ export function TitleReleasedTab({ title }: TitleReleasedTabProps) {
             </p>
           </div>
 
-          <div className="col-span-2 space-y-1 pt-1 border-t border-border/60">
+          <div className="col-span-2 space-y-1 pt-1 border-t border-border">
             <span className="text-xs text-muted-foreground">Operational Remarks &amp; Receipts:</span>
             <p className="text-foreground text-sm whitespace-pre-wrap">
               {title.release_remarks || <span className="text-muted-foreground italic">None recorded</span>}
@@ -204,7 +204,7 @@ export function TitleReleasedTab({ title }: TitleReleasedTabProps) {
       </div>
 
       {/* Property & Title Summary */}
-      <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/20">
+      <div className="rounded-lg border border-border p-4 space-y-3 bg-row-hover">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Property Specifications
         </h4>
@@ -249,7 +249,7 @@ export function TitleReleasedTab({ title }: TitleReleasedTabProps) {
         </div>
 
         {title.release_attachment ? (
-          <div className="flex items-center justify-between rounded-lg border border-border/80 p-3 bg-muted/10 text-sm">
+          <div className="flex items-center justify-between rounded-lg border border-border p-3 bg-row-hover text-sm">
             <div className="flex items-center gap-2.5 min-w-0">
               <FileText className="h-5 w-5 text-primary shrink-0" />
               <div className="min-w-0">

@@ -221,7 +221,7 @@ export function TitlePacketTab({
     <div className="space-y-5">
       {/* Release Status Banner */}
       {isReleased && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5 text-sm text-foreground">
+        <div className="flex items-center gap-2.5 rounded-lg border border-border bg-row-hover px-3.5 py-2.5 text-sm text-foreground">
           <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
           <span>Title released{releasedDateStr ? ` on ${releasedDateStr}` : ''}.</span>
         </div>
@@ -315,7 +315,7 @@ export function TitlePacketTab({
           {/* Stage: For Signature */}
           {title.status === 'For Signature' && (
             <div className="space-y-3 pt-1">
-              <div className="flex items-start gap-2.5 p-3 rounded-lg border border-border/80 bg-muted/20">
+              <div className="flex items-start gap-2.5 p-3 rounded-lg border border-border bg-row-hover">
                 <Checkbox
                   id="stage-exec-signed"
                   checked={isExecutiveSigned}
@@ -390,7 +390,7 @@ export function TitlePacketTab({
 
         <div className="space-y-3 pt-1">
           {/* Step 1: Release Packet Complete */}
-          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/70 bg-card">
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-card">
             <div className="flex items-start gap-3 min-w-0">
               <div className="mt-0.5 shrink-0">
                 {step1Done ? (
@@ -420,7 +420,7 @@ export function TitlePacketTab({
           </div>
 
           {/* Step 2: Submitted for Review */}
-          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/70 bg-card">
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-card">
             <div className="flex items-start gap-3 min-w-0">
               <div className="mt-0.5 shrink-0">
                 {step2Done ? (
@@ -459,7 +459,7 @@ export function TitlePacketTab({
           </div>
 
           {/* Step 3: Legal Supervisor Review Approved */}
-          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/70 bg-card">
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-card">
             <div className="flex items-start gap-3 min-w-0">
               <div className="mt-0.5 shrink-0">
                 {step3Done ? (
@@ -500,7 +500,7 @@ export function TitlePacketTab({
           </div>
 
           {/* Step 4: Executive Management Signature */}
-          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/70 bg-card">
+          <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border bg-card">
             <div className="flex items-start gap-3 min-w-0">
               <div className="mt-0.5 shrink-0">
                 {step4Done ? (

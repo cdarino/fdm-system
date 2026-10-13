@@ -22,32 +22,64 @@ import type {
 } from '@/lib/types/title';
 
 function EmptyState({
-  isFiltered,
+  isSearching,
+  searchQuery,
+  title,
   message,
-  onClear,
+  canViewAll,
+  totalCount,
+  onClearSearch,
+  onViewAll,
 }: {
-  isFiltered: boolean;
+  isSearching: boolean;
+  searchQuery?: string;
+  title: string;
   message: string;
-  onClear: () => void;
+  canViewAll?: boolean;
+  totalCount?: number;
+  onClearSearch: () => void;
+  onViewAll: () => void;
 }) {
-  const Icon = isFiltered ? SearchX : FileCheck;
+  if (isSearching) {
+    return (
+      <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-row-hover">
+          <SearchX className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold text-foreground">
+            No matching records
+          </p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            {searchQuery
+              ? `No records match "${searchQuery}". Try a different keyword or check spelling.`
+              : 'Try a different search term.'}
+          </p>
+        </div>
+        <Button variant="quiet" onClick={onClearSearch} className="gap-1.5">
+          <X className="h-3.5 w-3.5" />
+          Clear search
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-[300px] flex-col items-center justify-center gap-4 px-6 py-12 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-row-hover">
-        <Icon className="h-5 w-5 text-muted-foreground" />
+        <FileCheck className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="space-y-1.5">
         <p className="text-sm font-semibold text-foreground">
-          {isFiltered ? 'No matches' : 'Nothing here yet'}
+          {title}
         </p>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          {isFiltered ? 'Try a different search term.' : message}
+        <p className="max-w-md text-sm text-muted-foreground leading-relaxed">
+          {message}
         </p>
       </div>
-      {isFiltered && (
-        <Button variant="quiet" onClick={onClear} className="gap-1.5">
-          <X className="h-3.5 w-3.5" />
-          Clear search
+      {canViewAll && (
+        <Button variant="quiet" onClick={onViewAll} className="gap-1.5 text-xs">
+          View all records{typeof totalCount === 'number' && totalCount > 0 ? ` (${totalCount})` : ''}
         </Button>
       )}
     </div>
@@ -116,23 +148,43 @@ function TitleRecordsContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <WorkflowSteps items={stages} value={tab} onChange={setTab} ariaLabel="Title release workflow" />
-      </div>
+      <Card className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Workflow Stage
+          </span>
+          <WorkflowSteps
+            items={stages}
+            value={tab}
+            onChange={setTab}
+            ariaLabel="Title release workflow"
+            fallbackLabel="All stages"
+          />
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {tab === 'all'
+            ? `All records (${counts.all} total across 7 stages)`
+            : `Step ${stages.findIndex((s) => s.value === tab) + 1} of ${stages.length}`}
+        </span>
+      </Card>
 
       <Card variant="section">
         <CardStickyHeader>
-          <div className="px-4 pt-4 sm:px-6 sm:pt-5">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-base font-semibold tracking-tight">{currentStage?.label ?? 'All title records'}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{currentStage?.description ?? 'Search and review records across the release workflow.'}</p>
+          <div className="px-4 py-4 sm:px-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1 space-y-1">
+                <h2 className="text-lg font-semibold leading-none tracking-tight text-foreground">
+                  {currentStage?.label ?? 'All title records'}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {currentStage?.description ?? 'Search and review records across the release workflow.'}
+                </p>
               </div>
-              <Button variant="quiet" size="sm" onClick={() => setTab(tab === 'all' ? 'intake' : 'all')}>
-                {tab === 'all' ? 'Start at billing clearance' : 'All records'}
-              </Button>
-              <div className="relative min-w-0 border-t border-border py-3 xl:w-64 xl:flex-none xl:border-l xl:border-t-0 xl:py-0 xl:pl-4">
-                <div className="relative">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button variant="quiet" size="sm" onClick={() => setTab(tab === 'all' ? 'intake' : 'all')}>
+                  {tab === 'all' ? 'Start at billing clearance' : 'All records'}
+                </Button>
+                <div className="relative w-full sm:w-64">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
                   <Input
                     type="search"
@@ -146,7 +198,7 @@ function TitleRecordsContent() {
                     aria-label="Search legal title records"
                     aria-expanded={isSuggestionListOpen && suggestions.length > 0}
                     aria-controls="title-search-suggestions"
-                    className="pl-9 pr-9"
+                    className="h-9 pl-9 pr-9"
                   />
                   {search && (
                     <button
@@ -161,32 +213,32 @@ function TitleRecordsContent() {
                       <X className="h-3.5 w-3.5" />
                     </button>
                   )}
+                  {isSuggestionListOpen && suggestions.length > 0 && (
+                    <ul
+                      id="title-search-suggestions"
+                      role="listbox"
+                      aria-label="Matching title records"
+                      className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
+                    >
+                      {suggestions.map((suggestion) => (
+                        <li key={suggestion.key} role="option" aria-selected="false">
+                          <button
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              setSearch(suggestion.clientName);
+                              setIsSuggestionListOpen(false);
+                            }}
+                            className="w-full rounded-sm px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                          >
+                            <span className="block truncate text-sm font-medium">{suggestion.clientName}</span>
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                {isSuggestionListOpen && suggestions.length > 0 && (
-                  <ul
-                    id="title-search-suggestions"
-                    role="listbox"
-                    aria-label="Matching title records"
-                    className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md xl:left-4"
-                  >
-                    {suggestions.map((suggestion) => (
-                      <li key={suggestion.key} role="option" aria-selected="false">
-                        <button
-                          type="button"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={() => {
-                            setSearch(suggestion.clientName);
-                            setIsSuggestionListOpen(false);
-                          }}
-                          className="w-full rounded-sm px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                        >
-                          <span className="block truncate text-sm font-medium">{suggestion.clientName}</span>
-                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">{suggestion.detail}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
             </div>
           </div>
@@ -195,7 +247,15 @@ function TitleRecordsContent() {
         <div className="p-4 sm:p-6 min-h-[400px]">
           {cardItems.length === 0 ? (
             <EmptyState
-              isFiltered={isSearching || tab !== 'all'}
+              isSearching={isSearching}
+              searchQuery={search}
+              title={
+                tab === 'intake'
+                  ? 'No accounts awaiting legal intake'
+                  : tab === 'all'
+                  ? 'No title records found'
+                  : `No records in ${currentStage?.label ?? 'this stage'}`
+              }
               message={
                 tab === 'intake'
                   ? 'No accounts currently cleared by Billing awaiting legal processing.'
@@ -213,13 +273,16 @@ function TitleRecordsContent() {
                   ? 'No titles have been formally released yet.'
                   : 'No land titles found.'
               }
-              onClear={() => {
+              canViewAll={tab !== 'all' && counts.all > 0}
+              totalCount={counts.all}
+              onClearSearch={() => setSearch('')}
+              onViewAll={() => {
                 setSearch('');
                 setTab('all');
               }}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {cardItems.map((item) => (
                 <TitleRecordCard
                   key={

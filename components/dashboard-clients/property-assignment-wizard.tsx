@@ -623,7 +623,7 @@ export function PropertyAssignmentWizard({
                     !isManualMetricsEditable && 'opacity-50'
                   )}
                 >
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Area (sqm)
                   </p>
                   {isManualMetricsEditable && editingMetric === 'area' ? (
@@ -671,7 +671,7 @@ export function PropertyAssignmentWizard({
                     !isManualMetricsEditable && 'opacity-50'
                   )}
                 >
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Price / sqm
                   </p>
                   {isManualMetricsEditable && editingMetric === 'price' ? (
@@ -719,7 +719,7 @@ export function PropertyAssignmentWizard({
                     computedTotalPrice === null && 'opacity-50'
                   )}
                 >
-                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     Total Price
                   </p>
                   <p className="mt-0.5 text-sm font-bold tabular-nums text-foreground">
@@ -830,7 +830,7 @@ export function PropertyAssignmentWizard({
                     />
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-lg border border-border bg-row-hover px-4 py-3">
                     <span className="text-sm text-muted-foreground">Auto-calculated from lot area</span>
                     <span className="text-lg font-bold text-foreground">
                       ₱{parseFloat(totalContractPrice || '0').toLocaleString()}

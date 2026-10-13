@@ -6,6 +6,7 @@ import {
   CalendarDays,
   LandPlot,
   Users,
+  BriefcaseBusiness,
   FileCheck2,
   type LucideIcon,
 } from 'lucide-react';
@@ -77,7 +78,7 @@ function DashboardHeader() {
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           FDM workspace
         </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="mt-1 text-2xl font-bold text-foreground">Dashboard</h1>
       </div>
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
         <CalendarDays className="h-4 w-4" />
@@ -137,7 +138,7 @@ function TitleWorkflowOverview({
       {nextQueue && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-row-hover px-5 py-3 sm:px-6">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Next step · {nextQueue.label}</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Next step · {nextQueue.label}</p>
             <p className="mt-0.5 text-xs text-foreground">{nextQueue.detail}</p>
           </div>
           <Button asChild variant="quiet" size="sm" className="shrink-0 gap-1.5">
@@ -148,17 +149,17 @@ function TitleWorkflowOverview({
           </Button>
         </div>
       )}
-      <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-4 xl:grid-cols-7 sm:divide-y-0">
-        <Link href="/dashboard/legal?status=intake" className="p-4 transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-5">
+      <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4 lg:grid-cols-7">
+        <Link href="/dashboard/legal?status=intake" className="bg-card p-4 transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-5">
           <p className="text-xs font-medium text-muted-foreground">Billing cleared</p>
           <p className="mt-2 text-2xl font-semibold tabular-nums">{awaitingCount.toLocaleString()}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">Awaiting title record</p>
+          <p className="mt-1 text-xs text-muted-foreground">Awaiting title record</p>
         </Link>
         {counts.map((stage) => (
-          <Link key={stage.label} href={`/dashboard/legal?status=${stage.status}`} className="p-4 transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-5">
+          <Link key={stage.label} href={`/dashboard/legal?status=${stage.status}`} className="bg-card p-4 transition-colors hover:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-5">
             <p className="text-xs font-medium text-muted-foreground">{stage.label}</p>
             <p className="mt-2 text-2xl font-semibold tabular-nums">{stage.value.toLocaleString()}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">Open queue</p>
+            <p className="mt-1 text-xs text-muted-foreground">Open queue</p>
           </Link>
         ))}
       </div>
@@ -170,7 +171,12 @@ function DashboardStatTiles({ tiles }: { tiles: StatTile[] }) {
   if (tiles.length === 0) return null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+    <div
+      className={cn(
+        'grid gap-4 sm:grid-cols-2',
+        tiles.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-2'
+      )}
+    >
       {tiles.map(({ icon: Icon, ...tile }) => (
         <Link
           key={tile.label}
@@ -179,8 +185,7 @@ function DashboardStatTiles({ tiles }: { tiles: StatTile[] }) {
         >
           <Card
             variant="interactive"
-            padding="sm"
-            className="h-full group-hover:border-primary"
+            className="h-full p-5 sm:p-6 group-hover:border-primary"
           >
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium text-muted-foreground">{tile.label}</p>
@@ -274,7 +279,15 @@ async function DashboardContent() {
         visible: stats.canReadClients,
         tint: 'bg-sidebar-accent text-accent-blue-foreground',
       },
-
+      {
+        label: 'Active clients',
+        value: stats.activeClients,
+        href: '/dashboard/clients?status=Active',
+        detail: 'View active clients',
+        icon: BriefcaseBusiness,
+        visible: stats.canReadClients,
+        tint: 'bg-chart-4 text-accent-gold-foreground',
+      },
     ].filter((tile) => tile.visible);
 
     const hasOperationalSection = stats.canReadProperties || stats.canReadClients;
@@ -283,10 +296,10 @@ async function DashboardContent() {
       <div className="mx-auto w-full max-w-7xl space-y-6 pb-4">
         <DashboardHeader />
 
-        <div className="border-l-2 border-primary pl-4">
-          <p className="text-sm font-medium">Welcome back{firstName ? `, ${firstName}` : ''}</p>
+        <Card className="border-l-4 border-l-primary p-4 sm:p-5">
+          <p className="text-sm font-semibold text-foreground">Welcome back{firstName ? `, ${firstName}` : ''}</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{focus.description}</p>
-        </div>
+        </Card>
 
         <QuickLinks
           canViewProperties={stats.canReadProperties}
@@ -309,15 +322,21 @@ async function DashboardContent() {
         )}
 
         {hasOperationalSection && stats.canReadProperties && (
-          <details className="group">
-            <summary className="cursor-pointer rounded-lg px-1 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Property portfolio · map and availability</summary>
-            <div className="mt-3 grid gap-6 lg:grid-cols-2">
+          <section aria-labelledby="property-portfolio-heading" className="space-y-4">
+            <div>
+              <h2 id="property-portfolio-heading" className="text-lg font-semibold tracking-tight text-foreground">
+                Property portfolio
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Map layout and inventory availability across company sites.
+              </p>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
               <PropertyMapCard preview={stats.mapPreview} />
               <PortfolioChart statuses={stats.lotStatuses} />
             </div>
-          </details>
+          </section>
         )}
-
       </div>
     );
   } catch (error) {

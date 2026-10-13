@@ -187,7 +187,8 @@ export function LandTitlesProvider({
   const [titles, setTitles] = useState(initialTitles);
   const [awaiting, setAwaiting] = useState(initialAwaiting);
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useStatusFilter<LegalTab>(TABS, 'intake');
+  const defaultTab: LegalTab = initialAwaiting.length > 0 ? 'intake' : 'all';
+  const [tab, setTab] = useStatusFilter<LegalTab>(TABS, defaultTab);
   const [activeDialog, setActiveDialog] = useState<TitleDialogState>(null);
 
   useEffect(() => setTitles(initialTitles), [initialTitles]);

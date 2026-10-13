@@ -263,7 +263,7 @@ export function ClientDetailDocuments() {
 
       {/* Documents List */}
       {visibleDocuments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 py-12">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-row-hover py-12">
           <IconBox size="lg">
             <FileText className="h-6 w-6" />
           </IconBox>
@@ -314,10 +314,10 @@ export function ClientDetailDocuments() {
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="danger"
                   onClick={() => void handleDelete(doc.document_id)}
                   disabled={deletingId === doc.document_id}
-                  className="h-8 gap-1.5 text-xs text-destructive hover:bg-destructive/10"
+                  className="h-8 gap-1.5 text-xs"
                 >
                   {deletingId === doc.document_id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

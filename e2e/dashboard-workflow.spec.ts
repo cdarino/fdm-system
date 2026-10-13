@@ -35,6 +35,20 @@ test.describe('Sprint 3 dashboard workflow', () => {
     await page.getByRole('menuitem', { name: /Ready for claim/ }).click();
     await expect(page.getByRole('heading', { name: 'Ready for claim', exact: true })).toBeVisible();
     await expect(page.getByText('Contact the client, issue a claim notice, and record delivery and follow-ups.')).toBeVisible();
+    await page.screenshot({ path: '/tmp/fdm-legal-desktop.png', fullPage: true });
+
+    const titleCard = page.locator('[role="button"][aria-label^="Open title record"]').first();
+    if (await titleCard.isVisible()) {
+      await titleCard.click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.waitForTimeout(350);
+      await page.screenshot({ path: '/tmp/fdm-title-dialog-desktop.png' });
+      await page.keyboard.press('Escape');
+    }
+
+    await nav.getByRole('link', { name: 'Client records' }).click();
+    await expect(page.getByRole('heading', { name: 'Client records', exact: true })).toBeVisible();
+    await page.screenshot({ path: '/tmp/fdm-clients-desktop.png', fullPage: true });
   });
 
   test('keeps stage navigation accessible on a phone', async ({ page }) => {
