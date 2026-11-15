@@ -26,9 +26,10 @@ import { toast } from 'sonner';
 import {
   getPropertyLotById,
   createPropertyLot,
-  assignPropertyParties,
   assignPropertyFullyPaid,
 } from '@/lib/actions/properties';
+import { createBillingLedger } from '@/lib/actions/billing';
+import { formatCurrency } from '@/lib/billing/ledger-engine';
 import { getProjectAreas, getProjectAreaWithLots } from '@/lib/actions/project-areas';
 import { getClientRequirements, formatMissingRequirements } from '@/lib/utils/client-requirements';
 import { PROPERTY_STATUS_VARIANT } from '@/lib/status-colors';
@@ -106,9 +107,34 @@ export function PropertyAssignmentWizard({
   const [selectedStage, setSelectedStage] = useState<AssignmentStage>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Account Settlement stage state
+  // Account Settlement stage state (Contract Ledger)
   const [totalContractPrice, setTotalContractPrice] = useState<string>('');
   const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [downpayment, setDownpayment] = useState<string>('0');
+  const [dpPaidAtSigning, setDpPaidAtSigning] = useState<boolean>(true);
+  const [termMonths, setTermMonths] = useState<number>(36);
+  const [firstDueDate, setFirstDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-25`;
+  });
+  const [dueDay, setDueDay] = useState<number>(25);
+  const [penaltyRate, setPenaltyRate] = useState<number>(3.5);
+
+  const numericTcp = parseFloat(totalContractPrice) || 0;
+  const numericDp = parseFloat(downpayment) || 0;
+  const financedPrincipal = Math.max(0, numericTcp - numericDp);
+  const computedMonthly = termMonths > 0 ? +(financedPrincipal / termMonths).toFixed(2) : 0;
+
+  const handleFirstDueDateChange = (dateVal: string) => {
+    setFirstDueDate(dateVal);
+    const day = Number(dateVal.split('-')[2]);
+    if (day && day >= 1 && day <= 31) {
+      setDueDay(day);
+    }
+  };
 
   // For Release stage state
   const [titleNumber, setTitleNumber] = useState<string>('');
@@ -354,27 +380,39 @@ export function PropertyAssignmentWizard({
           return;
         }
 
-        const result = await assignPropertyParties(
-          targetPropertyId,
-          [
-            {
-              client_id: client.client_id,
-              role: 'Principal Buyer',
-              ownership_percentage: 100,
-              is_primary: true,
-            },
-          ],
-          'Reserved',
-          { total_contract_price: tcp }
-        );
+        const dp = parseFloat(downpayment) || 0;
+        if (dp < 0) {
+          toast.error('Downpayment cannot be negative');
+          return;
+        }
+        if (termMonths < 1 || termMonths > 120) {
+          toast.error('Terms must be between 1 and 120 months');
+          return;
+        }
+        if (!firstDueDate) {
+          toast.error('First due date is required');
+          return;
+        }
 
-        if (!result) {
-          throw new Error('Failed to assign property');
+        const result = await createBillingLedger({
+          clientId: client.client_id,
+          propertyId: targetPropertyId,
+          contractPrice: tcp,
+          downpayment: dp,
+          dpPaidAtSigning,
+          termMonths,
+          firstDueDate,
+          dueDay,
+          penaltyRate,
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create contract ledger');
         }
 
         const actionText = selectedLotDetails.isUnopenedPlot
-          ? `Opened Block ${selectedLotDetails.blockNumber} Lot ${selectedLotDetails.lotNumber} and assigned under Account Settlement`
-          : `Property assigned under Account Settlement with installment plan`;
+          ? `Opened Block ${selectedLotDetails.blockNumber} Lot ${selectedLotDetails.lotNumber} and created contract ledger`
+          : `Property assigned and contract ledger created with ${termMonths}-month installment schedule`;
         toast.success(actionText);
       } else if (selectedStage === 'legal-processing') {
         const result = await assignPropertyFullyPaid(targetPropertyId, client.client_id);
@@ -417,6 +455,12 @@ export function PropertyAssignmentWizard({
       setSelectedStage(null);
       setTitleNumber('');
       setIsLegacyTransferred(false);
+      setTotalContractPrice('');
+      setIsEditingPrice(false);
+      setDownpayment('0');
+      setDpPaidAtSigning(true);
+      setTermMonths(36);
+      setPenaltyRate(3.5);
 
       router.refresh();
 
@@ -796,52 +840,189 @@ export function PropertyAssignmentWizard({
             3. {selectedStageOption?.title} Details
           </Label>
 
-          {/* Account Settlement Stage Form */}
+          {/* Account Settlement Stage Form (Contract Ledger) */}
           {selectedStage === 'account-settlement' && (
             <div className="space-y-4 rounded-lg border border-border bg-card p-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="total-contract-price" className="text-sm font-medium">
-                    Total Contract Price
-                  </Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsEditingPrice(!isEditingPrice)}
-                    className="h-7 text-xs"
-                  >
-                    {isEditingPrice ? 'Use Calculated' : 'Edit Manually'}
-                  </Button>
+              <div className="border-b border-border pb-3">
+                <h4 className="text-sm font-semibold text-foreground">
+                  Contract Ledger Configuration
+                </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Configure contract price, reservation downpayment, and installment schedule terms.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="total-contract-price" className="text-xs font-medium">
+                      Total Contract Price (PHP)
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsEditingPrice(!isEditingPrice)}
+                      className="h-7 text-xs"
+                    >
+                      {isEditingPrice ? 'Use Calculated' : 'Edit Manually'}
+                    </Button>
+                  </div>
+
+                  {isEditingPrice ? (
+                    <div className="relative">
+                      <PhilippinePeso className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="total-contract-price"
+                        type="number"
+                        min={1}
+                        step="any"
+                        value={totalContractPrice}
+                        onChange={(e) => setTotalContractPrice(e.target.value)}
+                        placeholder="Enter total contract price"
+                        className="pl-9 font-mono text-xs tabular-nums"
+                        disabled={needsRequirements}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-row-hover px-4 py-2.5">
+                      <span className="text-xs text-muted-foreground">Auto-calculated from lot area</span>
+                      <span className="text-base font-bold font-mono text-foreground tabular-nums">
+                        {formatCurrency(numericTcp)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {isEditingPrice ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="ledger-downpayment" className="text-xs font-medium">
+                    Downpayment / Reservation (PHP)
+                  </Label>
                   <div className="relative">
-                    <PhilippinePeso className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <PhilippinePeso className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      id="total-contract-price"
+                      id="ledger-downpayment"
                       type="number"
-                      value={totalContractPrice}
-                      onChange={(e) => setTotalContractPrice(e.target.value)}
-                      placeholder="Enter total contract price"
-                      className="pl-9"
+                      min={0}
+                      step="any"
+                      value={downpayment}
+                      onChange={(e) => setDownpayment(e.target.value)}
+                      placeholder="0"
+                      className="pl-9 font-mono text-xs tabular-nums"
                       disabled={needsRequirements}
                     />
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between rounded-lg border border-border bg-row-hover px-4 py-3">
-                    <span className="text-sm text-muted-foreground">Auto-calculated from lot area</span>
-                    <span className="text-lg font-bold text-foreground">
-                      ₱{parseFloat(totalContractPrice || '0').toLocaleString()}
-                    </span>
-                  </div>
-                )}
+                  {numericDp > 0 && (
+                    <label className="flex items-center space-x-2 mt-1.5 text-xs text-muted-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={dpPaidAtSigning}
+                        onChange={(e) => setDpPaidAtSigning(e.target.checked)}
+                        className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                      />
+                      <span>Paid at signing (CR#INIT-DP)</span>
+                    </label>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ledger-terms" className="text-xs font-medium">
+                    Terms (Months)
+                  </Label>
+                  <Input
+                    id="ledger-terms"
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={termMonths}
+                    onChange={(e) => setTermMonths(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="font-mono text-xs tabular-nums"
+                    disabled={needsRequirements}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ledger-first-due" className="text-xs font-medium">
+                    First Due Date
+                  </Label>
+                  <Input
+                    id="ledger-first-due"
+                    type="date"
+                    value={firstDueDate}
+                    onChange={(e) => handleFirstDueDateChange(e.target.value)}
+                    className="text-xs"
+                    disabled={needsRequirements}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ledger-due-day" className="text-xs font-medium">
+                    Monthly Due Day
+                  </Label>
+                  <Input
+                    id="ledger-due-day"
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={dueDay}
+                    onChange={(e) => setDueDay(Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+                    className="font-mono text-xs tabular-nums"
+                    disabled={needsRequirements}
+                  />
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="ledger-penalty" className="text-xs font-medium">
+                    Monthly Late Penalty (%)
+                  </Label>
+                  <Input
+                    id="ledger-penalty"
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    max={100}
+                    value={penaltyRate}
+                    onChange={(e) => setPenaltyRate(parseFloat(e.target.value) || 0)}
+                    className="font-mono text-xs tabular-nums"
+                    disabled={needsRequirements}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-muted/40 border border-border rounded-lg p-4 text-xs space-y-2">
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2 font-semibold">
+                  Payment Breakdown
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Contract Price:</span>
+                  <span className="tabular-nums font-mono font-medium text-foreground">
+                    {formatCurrency(numericTcp)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Less Downpayment:</span>
+                  <span className="tabular-nums font-mono font-medium text-foreground">
+                    {formatCurrency(numericDp)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground border-t border-border pt-1">
+                  <span>Balance to Finance:</span>
+                  <span className="tabular-nums font-mono font-medium text-foreground">
+                    {formatCurrency(financedPrincipal)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-foreground font-semibold border-t border-border pt-2 text-sm">
+                  <span>Monthly Installment:</span>
+                  <span className="tabular-nums font-mono text-primary font-bold">
+                    {formatCurrency(computedMonthly)} / mo
+                  </span>
+                </div>
               </div>
 
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription className="text-xs">
-                  A ledger account will be created for this client with status &quot;Reserved&quot;. The client will be marked as having an active installment plan.
+                  A contract ledger account will be created for this client with status &quot;Reserved&quot;. The installment plan and any signing downpayment will be immediately active in Billing.
                 </AlertDescription>
               </Alert>
             </div>
@@ -932,6 +1113,10 @@ export function PropertyAssignmentWizard({
             setIsLegacyTransferred(false);
             setTotalContractPrice('');
             setIsEditingPrice(false);
+            setDownpayment('0');
+            setDpPaidAtSigning(true);
+            setTermMonths(36);
+            setPenaltyRate(3.5);
           }}
           disabled={!hasAnyInput && !isSubmitting}
         >

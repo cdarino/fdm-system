@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { StatusBar } from '@/components/ui/status-bar';
-import { getCallingCardStatus, isStageReachable } from '@/lib/title-progress';
+import { isStageReachable } from '@/lib/title-progress';
 import { useLandTitles, type TitleDialogItem } from '@/lib/hooks/use-land-titles';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import type { ClientDocument } from '@/lib/types/client';
@@ -183,8 +182,6 @@ export function TitleDialog({
     setSelectedStage('Released');
   }
 
-  const currentStatus = getCallingCardStatus(activeItem);
-
   /*
     Which stage's page the right column shows.
 
@@ -264,22 +261,6 @@ export function TitleDialog({
           <TitleDialogHeader item={activeItem} />
         </DialogHeader>
 
-        {/*
-          The status band is `md:hidden` here, and `hidden md:block` below.
-          Two instances rather than one because the band has to sit inside the
-          scrolling column on desktop and outside it on a phone; before this it
-          existed only on desktop, so removing the header badge would have left
-          the mobile layout with no status at all.
-        */}
-        <div className="shrink-0 border-b border-border px-5 pt-3 pb-1 md:hidden">
-          <StatusBar
-            tone={currentStatus.tone}
-            status={currentStatus.label}
-            detail={currentStatus.detail}
-            progress={currentStatus.progress}
-          />
-        </div>
-
         {/* Mobile Tab Switcher */}
         <div className="md:hidden flex-1 min-h-0 overflow-y-auto px-5 pt-2 pb-5">
           <Tabs
@@ -349,25 +330,8 @@ export function TitleDialog({
               isExecutiveSigned={isExecutiveSigned}
             />
           </div>
-          {/*
-            The status band is pinned above the scrolling page rather than
-            scrolled with it. A stage page is long — the preparation page alone
-            runs to a checklist, a title-number editor and a six-row document
-            list — and the record's status and its one actionable number are the
-            two facts a reader wants while working down it. The band is the same
-            `StatusBar` the grid cards use, so the dialog and the card behind it
-            cannot describe the title differently.
-          */}
-          <div className="flex h-full min-h-0 flex-col md:col-span-7 lg:col-span-8">
-            <div className="hidden shrink-0 pb-5 md:block">
-              <StatusBar
-                tone={currentStatus.tone}
-                status={currentStatus.label}
-                detail={currentStatus.detail}
-                progress={currentStatus.progress}
-              />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">{activeContent}</div>
+          <div className="md:col-span-7 lg:col-span-8 overflow-y-auto h-full min-h-0 pr-1">
+            {activeContent}
           </div>
         </div>
       </DialogContent>

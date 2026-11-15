@@ -67,16 +67,17 @@ export function TitleDialogHeader({ item }: { item: TitleDialogItem }) {
         */}
         <div className="flex flex-wrap items-center gap-2">
           {property ? (
-            <PropertyCallingCard property={property} tier="compact" />
+            <PropertyCallingCard property={property} tier="compact" className="max-w-sm" />
           ) : (
             <span className="text-sm font-semibold">{propertyRef}</span>
           )}
           {client ? (
-            <ClientCallingCard client={client} tier="compact" />
+            <ClientCallingCard client={client} tier="compact" className="max-w-sm" />
           ) : (
             <ClientCallingCard
               client={{ full_name: clientName, client_id: null }}
               tier="compact"
+              className="max-w-sm"
             />
           )}
         </div>

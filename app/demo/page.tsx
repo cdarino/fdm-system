@@ -28,21 +28,21 @@ export default function Page() {
             {/* Design Concept Labs */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Link
-                    href="/demo/billing"
+                    href="/dashboard/billing"
                     className="p-4 rounded-xl border border-primary/40 bg-card hover:bg-muted/30 transition-all flex flex-col justify-between"
                 >
                     <div>
                         <div className="flex items-center justify-between mb-1">
-                            <Badge variant="default" className="text-[10px]">Feature 005</Badge>
+                            <Badge variant="default" className="text-[10px]">Billing</Badge>
                             <Receipt className="h-4 w-4 text-primary" />
                         </div>
-                        <h3 className="font-bold text-sm text-foreground">Billing Cashier &amp; Waterfall</h3>
+                        <h3 className="font-bold text-sm text-foreground">Billing &amp; Ledgers</h3>
                         <p className="text-xs text-muted-foreground mt-1">
-                            Interactive concepts: D1 Split-Pane, D2 Stepper, D3 Compact Accordion.
+                            Live contract ledgers, late penalties, SOA export, and notices.
                         </p>
                     </div>
                     <span className="text-xs font-semibold text-primary flex items-center gap-1 mt-3">
-                        Open Billing Lab <ArrowRight className="h-3 w-3" />
+                        Open Billing <ArrowRight className="h-3 w-3" />
                     </span>
                 </Link>
 

@@ -273,32 +273,37 @@ async function cleanupTestData() {
     if (!prop) return true;
 
     // Check location pattern
-    if (prop.location && TEST_LOCATION_PATTERNS.some((p) => p.test(prop.location))) return true;
+    const propLoc = prop.location;
+    if (propLoc && TEST_LOCATION_PATTERNS.some((p) => p.test(propLoc))) return true;
 
     // Check project area pattern
-    if (prop.project_area?.name && TEST_PROJECT_AREA_PATTERNS.some((p) => p.test(prop.project_area.name))) return true;
+    const paName = prop.project_area?.name;
+    if (paName && TEST_PROJECT_AREA_PATTERNS.some((p) => p.test(paName))) return true;
 
     // Check baseline notes or forfeiture reason
     if (la.baseline_notes && /test/i.test(la.baseline_notes)) return true;
     if (la.forfeiture_reason && /test/i.test(la.forfeiture_reason)) return true;
 
     // Check party clients
-    const hasTestParty = parties?.some(
-      (p) =>
-        (p.client?.full_name && TEST_CLIENT_PATTERNS.some((tcp) => tcp.test(p.client.full_name))) ||
+    const hasTestParty = parties?.some((p) => {
+      const clientName = p.client?.full_name;
+      return (
+        (clientName && TEST_CLIENT_PATTERNS.some((tcp) => tcp.test(clientName))) ||
         (p.client_id && testUserIds.has(p.client_id))
-    );
+      );
+    });
     if (hasTestParty) return true;
 
     // Not in sample project areas and has no legitimate client
     const isSample =
-      (prop.project_area?.name && SAMPLE_PROJECT_AREAS.includes(prop.project_area.name)) ||
-      (prop.location && SAMPLE_PROJECT_AREAS.includes(prop.location));
+      (paName && SAMPLE_PROJECT_AREAS.includes(paName)) ||
+      (propLoc && SAMPLE_PROJECT_AREAS.includes(propLoc));
 
     if (!isSample) {
-      const hasLegitClient = parties?.some(
-        (p) => p.client?.full_name && !TEST_CLIENT_PATTERNS.some((tcp) => tcp.test(p.client.full_name))
-      );
+      const hasLegitClient = parties?.some((p) => {
+        const clientName = p.client?.full_name;
+        return clientName && !TEST_CLIENT_PATTERNS.some((tcp) => tcp.test(clientName));
+      });
       if (!hasLegitClient) return true;
     }
 
