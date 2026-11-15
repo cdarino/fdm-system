@@ -33,7 +33,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { formatDocumentName } from '@/lib/format-document-name';
 import { formatMediumDate } from '@/lib/format-date';
-import { useLandTitles, lotRefLabel } from '@/lib/hooks/use-land-titles';
+import { useLandTitles } from '@/lib/hooks/use-land-titles';
+import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { getDocPrepState, getReleasedDate } from '@/lib/title-progress';
 import { DOCUMENT_FILE_ACCEPT } from '@/lib/validations/document';
@@ -73,6 +74,7 @@ export function TitlePacketTab({
     updateTitleNumber,
     canEdit,
   } = useLandTitles();
+  const { enqueueFile } = useOcrQueue();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingTypeRef = useRef<ReleaseDocumentType | null>(null);
@@ -145,6 +147,15 @@ export function TitlePacketTab({
       const saved = await uploadDocument(title.title_id, type, file);
       onDocumentsChange([saved, ...documents.filter((d) => d.document_id !== saved.document_id)]);
       toast.success(`${DOC_TYPE_LABEL[type]} uploaded`);
+
+      // Enqueue document into background OCR worker for search indexing.
+      enqueueFile({
+        attachmentId: saved.document_id,
+        file,
+        fileName: file.name,
+        entityType: 'land_title',
+        keywords: [DOC_TYPE_LABEL[type], title.client?.full_name].filter(Boolean).join(' '),
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -176,8 +187,6 @@ export function TitlePacketTab({
       toast.error('Failed to open document');
     }
   }
-
-  const propertyRef = lotRefLabel(title.property);
 
   return (
     <div className="space-y-4">
@@ -476,7 +485,7 @@ export function TitlePacketTab({
                       title="Generate editable Word Deed of Sale (.docx)"
                     >
                       <FileText className="h-3 w-3" />
-                      Generate (.docx)
+                      Template (.docx)
                     </Button>
                   )}
                   {!isSkipped && canEdit && !isReleased && (

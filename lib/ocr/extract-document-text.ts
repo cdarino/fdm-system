@@ -22,8 +22,54 @@ const PDF_RENDER_SCALE = 2;
 export interface ExtractionResult {
   text: string;
   pageCount: number;
-  /** True when a PDF was longer than `MAX_PDF_PAGES` and was read only in part. */
   truncated: boolean;
+  isNativeText?: boolean;
+}
+
+export type OcrProgressCallback = (progress: number, page?: number, totalPages?: number) => void;
+
+// Fast-path text extraction for native digital PDFs without rasterizing to canvas.
+export async function tryExtractNativePdfText(file: File): Promise<ExtractionResult | null> {
+  if (file.type !== 'application/pdf') return null;
+
+  try {
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+    const pageCount = Math.min(pdf.numPages, MAX_PDF_PAGES);
+    const pages: string[] = [];
+
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item) => ('str' in item ? item.str : ''))
+        .join(' ')
+        .trim();
+      if (pageText) pages.push(pageText);
+    }
+
+    const combined = pages.join('\n\n').trim();
+    // Only return if meaningful alphanumeric text was found.
+    const alphanumericCount = (combined.match(/[a-z0-9]/gi) || []).length;
+    if (alphanumericCount > 40) {
+      return {
+        text: tidyExtractedText(combined),
+        pageCount,
+        truncated: pdf.numPages > MAX_PDF_PAGES,
+        isNativeText: true,
+      };
+    }
+  } catch (error) {
+    console.warn('Native PDF text extraction skipped, falling back to OCR:', error);
+  }
+
+  return null;
 }
 
 async function renderPdfToCanvases(file: File): Promise<HTMLCanvasElement[]> {
@@ -68,13 +114,25 @@ async function renderPdfToCanvases(file: File): Promise<HTMLCanvasElement[]> {
  */
 export async function extractDocumentText(
   file: File,
-  onProgress?: (fraction: number) => void
+  onProgress?: OcrProgressCallback
 ): Promise<ExtractionResult> {
+  const nativeResult = await tryExtractNativePdfText(file);
+  if (nativeResult) {
+    onProgress?.(1, nativeResult.pageCount, nativeResult.pageCount);
+    return nativeResult;
+  }
+
+  let currentPage = 1;
+  let totalPages = 1;
+
   const { createWorker } = await import('tesseract.js');
   const worker = await createWorker('eng', undefined, {
     logger: onProgress
       ? (message: { status: string; progress: number }) => {
-          if (message.status === 'recognizing text') onProgress(message.progress);
+          if (message.status === 'recognizing text') {
+            const overall = ((currentPage - 1) + message.progress) / totalPages;
+            onProgress(Math.min(1, Math.max(0, overall)), currentPage, totalPages);
+          }
         }
       : undefined,
   });
@@ -82,22 +140,33 @@ export async function extractDocumentText(
   try {
     if (file.type === 'application/pdf') {
       const canvases = await renderPdfToCanvases(file);
+      totalPages = canvases.length;
       const pages: string[] = [];
 
-      for (const canvas of canvases) {
-        const { data } = await worker.recognize(canvas);
+      for (let i = 0; i < canvases.length; i++) {
+        currentPage = i + 1;
+        const { data } = await worker.recognize(canvases[i]);
         pages.push(data.text.trim());
       }
 
+      const combinedText = pages.filter(Boolean).join('\n\n');
       return {
-        text: pages.filter(Boolean).join('\n\n'),
+        text: tidyExtractedText(combinedText),
         pageCount: canvases.length,
         truncated: canvases.length === MAX_PDF_PAGES,
+        isNativeText: false,
       };
     }
 
+    totalPages = 1;
+    currentPage = 1;
     const { data } = await worker.recognize(file);
-    return { text: data.text.trim(), pageCount: 1, truncated: false };
+    return {
+      text: tidyExtractedText(data.text.trim()),
+      pageCount: 1,
+      truncated: false,
+      isNativeText: false,
+    };
   } finally {
     await worker.terminate();
   }

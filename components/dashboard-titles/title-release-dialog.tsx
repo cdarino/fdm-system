@@ -17,6 +17,7 @@ import { FilePicker } from '@/components/ui/file-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLandTitles } from '@/lib/hooks/use-land-titles';
+import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { calculateStorageFee } from '@/lib/storage-fee';
 import type { LandTitle } from '@/lib/types/title';
 
@@ -34,6 +35,7 @@ export function TitleReleaseDialog({
   onReleased,
 }: TitleReleaseDialogProps) {
   const { recordRelease, uploadReleaseProof } = useLandTitles();
+  const { enqueueFile } = useOcrQueue();
   const buyerName = title.client?.full_name ?? '';
   const storageFee = calculateStorageFee(title);
 
@@ -77,6 +79,15 @@ export function TitleReleaseDialog({
       if (file) {
         const attachment = await uploadReleaseProof(title.title_id, file);
         attachmentId = attachment.attachment_id;
+
+        // Enqueue release proof into background OCR worker for search indexing.
+        enqueueFile({
+          attachmentId: attachment.attachment_id,
+          file,
+          fileName: file.name,
+          entityType: 'land_title',
+          keywords: ['Release Proof', title.client?.full_name].filter(Boolean).join(' '),
+        });
       }
 
       // Combine relation tag with notes if claimed by representative

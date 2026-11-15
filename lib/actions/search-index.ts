@@ -5,6 +5,7 @@ import type {
   SearchIndexEntry,
   IndexEntityInput,
   DocumentSearchHit,
+  UnindexedDocument,
 } from "@/lib/types/search";
 import {
   indexEntityInputSchema,
@@ -156,14 +157,14 @@ export async function searchDocumentText(
         supabase
           .from("search_index")
           .select("entity_id, content, keywords")
-          .eq("entity_type", "client_document")
+          .in("entity_type", ["client_document", "land_title", "land_title_notice"])
           .textSearch("search_vector", anyWord, { type: "websearch" })
           .limit(searchLimit * 3)
           .returns<RawIndexRow[]>(),
         supabase
           .from("search_index")
           .select("entity_id, content, keywords")
-          .eq("entity_type", "client_document")
+          .in("entity_type", ["client_document", "land_title", "land_title_notice"])
           .or(ilikeFilter)
           .limit(searchLimit * 3)
           .returns<RawIndexRow[]>(),
@@ -222,5 +223,43 @@ export async function searchDocumentText(
           excerpt: buildExcerpt(contentById.get(doc.attachment_id) ?? null, words),
         }));
     },
+  });
+}
+
+// Queries file attachments that have not yet been indexed in search_index.
+export async function getUnindexedDocuments(limit = 20): Promise<UnindexedDocument[]> {
+  return searchRead.query(async ({ supabase }) => {
+    const { data: attachments, error: attachError } = await supabase
+      .from("file_attachment")
+      .select("attachment_id, file_name, file_path, file_category, mime_type, entity_type, client_id, uploaded_at, client:client_id(full_name)")
+      .order("uploaded_at", { ascending: false })
+      .limit(100);
+
+    if (attachError || !attachments || attachments.length === 0) return [];
+
+    const { data: indexedRows } = await supabase
+      .from("search_index")
+      .select("entity_id")
+      .in(
+        "entity_id",
+        attachments.map((a) => a.attachment_id)
+      );
+
+    const indexedSet = new Set((indexedRows ?? []).map((r) => r.entity_id));
+
+    return attachments
+      .filter((a) => !indexedSet.has(a.attachment_id))
+      .slice(0, limit)
+      .map((a) => ({
+        attachment_id: a.attachment_id,
+        file_name: a.file_name,
+        file_path: a.file_path,
+        file_category: a.file_category,
+        mime_type: a.mime_type,
+        entity_type: a.entity_type,
+        client_id: a.client_id,
+        client_name: (a.client as { full_name?: string } | null)?.full_name,
+        uploaded_at: a.uploaded_at,
+      }));
   });
 }

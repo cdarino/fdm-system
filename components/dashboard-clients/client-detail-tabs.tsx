@@ -126,6 +126,9 @@ export function ClientDetailTabs({
                 onSuccess={() => {
                   handleCloseAssign();
                 }}
+                onNavigateToDocuments={() => {
+                  setActiveTab('documents');
+                }}
               />
             </TabsContent>
           )}

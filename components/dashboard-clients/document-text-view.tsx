@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, ExternalLink, FileWarning } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, FileWarning, Sparkles } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
+import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { humanizeDocumentName } from '@/lib/format-document-name';
 import { toast } from 'sonner';
 
@@ -65,11 +66,16 @@ export function DocumentTextView({
   onBack,
 }: DocumentTextViewProps) {
   const { getDocumentText, getDocumentUrl } = useClients();
+  const { jobs, enqueueRemoteAttachment } = useOcrQueue();
 
   const [text, setText] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOpeningFile, setIsOpeningFile] = useState(false);
+  const [isEnqueuing, setIsEnqueuing] = useState(false);
+
+  // Check if this document is currently in the OCR queue
+  const queueJob = jobs.find((j) => j.attachmentId === documentId);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,7 +98,29 @@ export function DocumentTextView({
     return () => {
       cancelled = true;
     };
-  }, [documentId, getDocumentText]);
+  }, [documentId, getDocumentText, queueJob?.status]);
+
+  async function handleRunOcr() {
+    setIsEnqueuing(true);
+    try {
+      await enqueueRemoteAttachment({
+        attachment_id: documentId,
+        file_name: humanizeDocumentName(filePath),
+        file_path: filePath,
+        file_category: documentType,
+        mime_type: 'application/pdf',
+        entity_type: 'client_document',
+        client_id: null,
+        client_name: clientName,
+        uploaded_at: new Date().toISOString(),
+      });
+      toast.success('Document queued for OCR text extraction');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to queue OCR');
+    } finally {
+      setIsEnqueuing(false);
+    }
+  }
 
   const body = useMemo(
     () => (text ? highlight(text, highlightWords) : null),
@@ -161,14 +189,38 @@ export function DocumentTextView({
         ) : error ? (
           <p className="py-12 text-center text-sm text-destructive">{error}</p>
         ) : !text ? (
-          <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <div className="flex flex-col items-center gap-2.5 py-12 text-center">
             <FileWarning className="h-5 w-5 text-muted-foreground" />
             <p className="text-sm font-medium text-foreground">No text captured</p>
             <p className="max-w-sm text-xs text-muted-foreground">
-              Either this document was uploaded before text reading was switched
-              on, or the scan was too faint to read. Re-uploading it will run the
-              reader again.
+              Either this document was uploaded before text reading was enabled, or the scan was interrupted.
             </p>
+            {queueJob ? (
+              <div className="mt-2 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>
+                  {queueJob.status === 'processing'
+                    ? `Reading text (${queueJob.page && queueJob.totalPages ? `page ${queueJob.page}/${queueJob.totalPages}` : `${Math.round(queueJob.progress * 100)}%`})...`
+                    : 'Queued in background OCR...'}
+                </span>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isEnqueuing}
+                onClick={() => void handleRunOcr()}
+                className="mt-2 gap-1.5 border-border bg-card text-xs text-foreground hover:bg-row-hover"
+              >
+                {isEnqueuing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                )}
+                Extract text (Run OCR)
+              </Button>
+            )}
           </div>
         ) : (
           <p className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-foreground">

@@ -9,7 +9,7 @@ import {
   deleteLandTitle,
   updatePropertyTitleNumber,
 } from "@/lib/actions/titles";
-import { markAccountClearedByBilling, undoBillingClearance } from "@/lib/actions/billing";
+import { markAccountClearedByBilling, undoBillingClearance, postBillingPayment } from "@/lib/actions/billing";
 import {
   createPropertyLot,
   assignPropertyClient,
@@ -141,6 +141,17 @@ describe("Land Title Management Actions", () => {
     });
     expect(notCleared.success).toBe(false);
     if (!notCleared.success) expect(notCleared.error).toMatch(/not cleared/i);
+
+    // Settle balance first so account clearance validation passes
+    unwrap(
+      await postBillingPayment({
+        accountId,
+        amount: lot.area_size * lot.price_per_sqm,
+        paymentDate: new Date().toISOString().slice(0, 10),
+        paymentMethod: "cash",
+        receiptNumber: `SETTLE-${Date.now()}`,
+      })
+    );
 
     // Billing clears it: the lot becomes Sold and a title can be created
     unwrap(await markAccountClearedByBilling(accountId));

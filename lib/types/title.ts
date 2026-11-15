@@ -1,4 +1,4 @@
-import type { ClientDocument, ContactInfo, DocType } from '@/lib/types/client';
+import type { ContactInfo, DocType } from '@/lib/types/client';
 import type { PropertyStatus } from '@/lib/types/property';
 
 /** The internal release steps, in order. A new title starts at the first one. */

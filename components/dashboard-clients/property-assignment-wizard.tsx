@@ -17,10 +17,10 @@ import {
   Loader2,
   AlertTriangle,
   Info,
-  DollarSign,
   Pencil,
   PhilippinePeso,
 } from 'lucide-react';
+import { DOC_TYPE_LABEL, type DocType } from '@/lib/types/client';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -84,11 +84,13 @@ const STAGE_OPTIONS: StageOption[] = [
 interface PropertyAssignmentWizardProps {
   preSelectedPropertyId?: string;
   onSuccess?: () => void;
+  onNavigateToDocuments?: (docType?: DocType) => void;
 }
 
 export function PropertyAssignmentWizard({
   preSelectedPropertyId,
   onSuccess,
+  onNavigateToDocuments,
 }: PropertyAssignmentWizardProps) {
   const { client } = useClientDetail();
   const router = useRouter();
@@ -475,9 +477,18 @@ export function PropertyAssignmentWizard({
     }
   }
 
+  function handleNavigateToUpload(type?: DocType) {
+    if (onNavigateToDocuments) {
+      onNavigateToDocuments(type);
+    }
+    const params = new URLSearchParams();
+    params.set('tab', 'documents');
+    if (type) params.set('uploadType', type);
+    router.push(`/dashboard/clients/${client.client_id}?${params.toString()}`);
+  }
+
   const canProceed = Boolean(selectedLotDetails) && Boolean(selectedStage);
   const selectedStageOption = STAGE_OPTIONS.find((opt) => opt.id === selectedStage);
-  const needsRequirements = selectedStageOption?.requiresComplete && !requirements.isComplete;
   const needsTitleNumber = selectedStage === 'for-release' && !titleNumber.trim();
   const hasAnyInput = Boolean(blockInput || lotInput || areaInput || priceInput || selectedStage);
 
@@ -488,17 +499,45 @@ export function PropertyAssignmentWizard({
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="space-y-1">
             <p className="font-semibold text-foreground">Client requirements incomplete</p>
-            <p className="text-xs">
-              Missing: <span className="font-medium">{formatMissingRequirements(requirements)}</span>
-            </p>
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
+              <span>Missing:</span>
+              {requirements.missingProfile.map((field, idx) => (
+                <span key={field} className="font-medium">
+                  {field}
+                  {idx < requirements.missingProfile.length - 1 || requirements.missingDocuments.length > 0 ? ',' : ''}
+                </span>
+              ))}
+              {requirements.missingDocuments.map((type, idx) => (
+                <span key={type} className="inline-flex items-center gap-1 font-medium">
+                  <span>{DOC_TYPE_LABEL[type]}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateToUpload(type)}
+                    className="font-medium text-primary underline underline-offset-2 hover:text-[color-mix(in_srgb,var(--primary)_85%,black)]"
+                    aria-label={`Upload ${DOC_TYPE_LABEL[type]}`}
+                  >
+                    Upload
+                  </button>
+                  {idx < requirements.missingDocuments.length - 1 ? ',' : ''}
+                </span>
+              ))}
+            </div>
             <p className="text-xs text-muted-foreground">
-              You can prepare the assignment details below, but finalizing the assignment is locked until these requirements are completed.
+              Property assignment is locked until these requirements are completed.
             </p>
           </AlertDescription>
         </Alert>
       )}
 
-      {/* 1. Inline Property Lot Chooser */}
+      <div
+        className={cn(
+          'space-y-5 transition-opacity',
+          !requirements.isComplete && 'pointer-events-none opacity-50 select-none'
+        )}
+        aria-disabled={!requirements.isComplete}
+        inert={!requirements.isComplete ? true : undefined}
+      >
+        {/* 1. Inline Property Lot Chooser */}
       <div className="space-y-3">
         <Label className="text-sm font-semibold text-foreground">
           1. Choose Property Lot
@@ -881,7 +920,6 @@ export function PropertyAssignmentWizard({
                         onChange={(e) => setTotalContractPrice(e.target.value)}
                         placeholder="Enter total contract price"
                         className="pl-9 font-mono text-xs tabular-nums"
-                        disabled={needsRequirements}
                       />
                     </div>
                   ) : (
@@ -909,7 +947,6 @@ export function PropertyAssignmentWizard({
                       onChange={(e) => setDownpayment(e.target.value)}
                       placeholder="0"
                       className="pl-9 font-mono text-xs tabular-nums"
-                      disabled={needsRequirements}
                     />
                   </div>
                   {numericDp > 0 && (
@@ -937,7 +974,6 @@ export function PropertyAssignmentWizard({
                     value={termMonths}
                     onChange={(e) => setTermMonths(Math.max(1, parseInt(e.target.value, 10) || 1))}
                     className="font-mono text-xs tabular-nums"
-                    disabled={needsRequirements}
                   />
                 </div>
 
@@ -951,7 +987,6 @@ export function PropertyAssignmentWizard({
                     value={firstDueDate}
                     onChange={(e) => handleFirstDueDateChange(e.target.value)}
                     className="text-xs"
-                    disabled={needsRequirements}
                   />
                 </div>
 
@@ -967,7 +1002,6 @@ export function PropertyAssignmentWizard({
                     value={dueDay}
                     onChange={(e) => setDueDay(Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)))}
                     className="font-mono text-xs tabular-nums"
-                    disabled={needsRequirements}
                   />
                 </div>
 
@@ -984,7 +1018,6 @@ export function PropertyAssignmentWizard({
                     value={penaltyRate}
                     onChange={(e) => setPenaltyRate(parseFloat(e.target.value) || 0)}
                     className="font-mono text-xs tabular-nums"
-                    disabled={needsRequirements}
                   />
                 </div>
               </div>
@@ -1125,8 +1158,8 @@ export function PropertyAssignmentWizard({
         <Button
           type="button"
           onClick={handleSubmit}
-          disabled={!canProceed || needsRequirements || needsTitleNumber || isSubmitting}
-          title={needsRequirements ? `Cannot assign: Missing ${formatMissingRequirements(requirements)}` : undefined}
+          disabled={!canProceed || !requirements.isComplete || needsTitleNumber || isSubmitting}
+          title={!requirements.isComplete ? `Cannot assign: Missing ${formatMissingRequirements(requirements)}` : undefined}
           className="gap-2"
         >
           {isSubmitting ? (
@@ -1138,6 +1171,7 @@ export function PropertyAssignmentWizard({
             'Assign Property'
           )}
         </Button>
+      </div>
       </div>
     </div>
   );

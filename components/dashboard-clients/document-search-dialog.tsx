@@ -156,8 +156,8 @@ export function DocumentSearchDialog({
               <SearchX className="h-5 w-5 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">No documents match</p>
               <p className="max-w-sm text-xs text-muted-foreground">
-                Only documents uploaded since text reading was switched on are
-                searchable. Older files need re-uploading to be read.
+                Only indexed documents are searchable. Text is automatically
+                processed upon upload or on-demand.
               </p>
             </div>
           ) : (

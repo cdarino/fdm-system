@@ -45,6 +45,7 @@ import {
 import { SectionCard } from '@/components/ui/section-card';
 import { formatMediumDate } from '@/lib/format-date';
 import { useLandTitles, lotRefLabel } from '@/lib/hooks/use-land-titles';
+import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { TitleReleaseDialog } from './title-release-dialog';
 import { generateNoticePdf } from '@/lib/reports/pdf-notice-letter';
@@ -82,6 +83,7 @@ export function TitleNoticesTab({
     deleteNoticeRts,
     canEdit,
   } = useLandTitles();
+  const { enqueueFile } = useOcrQueue();
 
   const statusFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -163,20 +165,21 @@ export function TitleNoticesTab({
   const { state: resolveState, execute: runResolveNotice } = useMutation(
     async (noticeNumber: 1 | 2 | 3) => {
       if (!statusFileInput) return;
+      const fileToUpload = statusFileInput;
       let updated: LandTitleNotice;
       if (resolveNotice) {
         updated = await resolveNotice(
           title.title_id,
           noticeNumber,
           noticeStatusChoice,
-          statusFileInput,
+          fileToUpload,
           statusNotesInput.trim() || null
         );
       } else {
         updated = await uploadNoticeRts(
           title.title_id,
           noticeNumber,
-          statusFileInput,
+          fileToUpload,
           statusNotesInput.trim() || null
         );
       }
@@ -186,6 +189,18 @@ export function TitleNoticesTab({
       ]);
       setStatusFileInput(null);
       setStatusNotesInput('');
+
+      // Enqueue notice attachment into background OCR worker for search indexing.
+      if (updated.rts_attachment_id) {
+        enqueueFile({
+          attachmentId: updated.rts_attachment_id,
+          file: fileToUpload,
+          fileName: fileToUpload.name,
+          entityType: 'land_title_notice',
+          keywords: [`Notice ${noticeNumber} RTS`, title.client?.full_name].filter(Boolean).join(' '),
+        });
+      }
+
       return updated;
     },
     {

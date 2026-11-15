@@ -13,6 +13,7 @@ import type { RecentActivityItem } from '@/lib/actions/recent-activity';
 import { getRecentActivity } from '@/lib/actions/recent-activity';
 import { ActivityTime } from '@/components/shared/activity-time';
 import { ACTIVITY_UPDATED_EVENT } from '@/lib/activity-events';
+import { TopBarOcrStatus } from '@/components/dashboard-layout/top-bar-ocr-status';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -209,6 +210,8 @@ export function DashboardTopBar({
 
         {/* Right utility buttons */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+          <TopBarOcrStatus />
+
           {/* Notifications */}
           <DropdownMenu onOpenChange={(open) => void refreshActivity(open)}>
             <DropdownMenuTrigger asChild>

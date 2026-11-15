@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { FilePicker } from '@/components/ui/file-picker';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +28,7 @@ import {
 import { toast } from 'sonner';
 import { formatActivityTime } from '@/lib/format-activity-time';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
+import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import {
   DOC_TYPES,
   DOC_TYPE_LABEL,
@@ -40,9 +42,19 @@ const ALL_LOTS = 'all-lots';
 
 export function ClientDetailDocuments() {
   const { client, uploadDocument, deleteDocument, getDocumentUrl } = useClientDetail();
+  const { enqueueFile } = useOcrQueue();
+  const searchParams = useSearchParams();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   // Empty until the user picks a type, so nothing is filed under the wrong type by default.
   const [documentType, setDocumentType] = useState<DocType | ''>('');
+
+  useEffect(() => {
+    const uploadParam = searchParams.get('uploadType');
+    if (uploadParam && DOCUMENT_TYPES.includes(uploadParam as DocType)) {
+      setDocumentType(uploadParam as DocType);
+      setIsUploadOpen(true);
+    }
+  }, [searchParams]);
   const [lotId, setLotId] = useState<string>(ALL_LOTS);
   const [categoryFilter, setCategoryFilter] = useState<DocType | 'all'>('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -79,18 +91,29 @@ export function ClientDetailDocuments() {
 
     setIsUploading(true);
     try {
+      const fileToUpload = selectedFile;
+      const categoryToUpload = documentType;
       const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('document_type', documentType);
+      formData.append('file', fileToUpload);
+      formData.append('document_type', categoryToUpload);
       if (lotId !== ALL_LOTS) formData.append('property_id', lotId);
 
-      await uploadDocument(formData);
+      const created = await uploadDocument(formData);
 
       setSelectedFile(null);
       setDocumentType('');
       setLotId(ALL_LOTS);
       setIsUploadOpen(false);
       toast.success('Document uploaded');
+
+      // Hand file over to background OCR queue for text indexing.
+      enqueueFile({
+        attachmentId: created.document_id,
+        file: fileToUpload,
+        fileName: fileToUpload.name,
+        entityType: 'client_document',
+        keywords: [categoryToUpload, client.full_name].filter(Boolean).join(' '),
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to upload document');
     } finally {
@@ -155,6 +178,17 @@ export function ClientDetailDocuments() {
                 <span className={isPresent ? 'text-foreground' : 'text-destructive'}>
                   {DOC_TYPE_LABEL[type]}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDocumentType(type);
+                    setIsUploadOpen(true);
+                  }}
+                  className="font-medium text-primary underline underline-offset-2 hover:text-[color-mix(in_srgb,var(--primary)_85%,black)]"
+                  aria-label={`Upload ${DOC_TYPE_LABEL[type]}`}
+                >
+                  Upload
+                </button>
               </li>
             );
           })}

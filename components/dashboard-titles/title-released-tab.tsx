@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SectionCard, SectionHeader } from '@/components/ui/section-card';
 import { lotRefLabel, useLandTitles } from '@/lib/hooks/use-land-titles';
+import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { formatMediumDate, formatMediumDateTime } from '@/lib/format-date';
 import { calculateStorageFee } from '@/lib/storage-fee';
 import { getReleasedDate } from '@/lib/title-progress';
@@ -45,6 +46,7 @@ interface TitleReleasedTabProps {
 
 export function TitleReleasedTab({ title }: TitleReleasedTabProps) {
   const { canEdit, updateTitle, uploadReleaseProof, getAttachmentFileUrl } = useLandTitles();
+  const { enqueueFile } = useOcrQueue();
   const storageFee = calculateStorageFee(title);
 
   const releasedDate = getReleasedDate(title);
@@ -103,6 +105,15 @@ export function TitleReleasedTab({ title }: TitleReleasedTabProps) {
       if (newFile) {
         const uploaded = await uploadReleaseProof(title.title_id, newFile);
         attachmentId = uploaded.attachment_id;
+
+        // Enqueue release proof into background OCR worker for search indexing.
+        enqueueFile({
+          attachmentId: uploaded.attachment_id,
+          file: newFile,
+          fileName: newFile.name,
+          entityType: 'land_title',
+          keywords: ['Release Proof', title.client?.full_name].filter(Boolean).join(' '),
+        });
       }
 
       const result = await updateTitle(title.title_id, {

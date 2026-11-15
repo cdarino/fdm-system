@@ -2,6 +2,7 @@ import { DashboardShell } from '@/components/dashboard-layout/dashboard-shell';
 import { getUserSession } from '@/lib/session';
 import { SessionProvider } from '@/lib/hooks/use-session';
 import { getRecentActivity } from '@/lib/actions/recent-activity';
+import { OcrQueueProvider } from '@/lib/hooks/use-ocr-queue';
 
 export default async function DashboardLayout({
   children,
@@ -15,12 +16,14 @@ export default async function DashboardLayout({
 
   return (
     <SessionProvider session={session}>
-      <DashboardShell
-        user={session.user}
-        recentActivity={recentActivity}
-      >
-        {children}
-      </DashboardShell>
+      <OcrQueueProvider>
+        <DashboardShell
+          user={session.user}
+          recentActivity={recentActivity}
+        >
+          {children}
+        </DashboardShell>
+      </OcrQueueProvider>
     </SessionProvider>
   );
 }

@@ -2,7 +2,7 @@
  * The `SearchIndex` from the domain model: extracted text for any entity,
  * keyed by type so land titles (MVP 2) can index into the same table.
  */
-export type IndexableEntity = 'client_document' | 'land_title';
+export type IndexableEntity = 'client_document' | 'land_title' | 'land_title_notice';
 
 export interface SearchIndexEntry {
   index_id: string;
@@ -28,6 +28,18 @@ export interface DocumentSearchHit {
   file_path: string;
   /** Text around the match, so a result shows why it was returned. */
   excerpt: string | null;
+}
+
+export interface UnindexedDocument {
+  attachment_id: string;
+  file_name: string;
+  file_path: string;
+  file_category: string;
+  mime_type: string;
+  entity_type: string;
+  client_id: string | null;
+  client_name?: string;
+  uploaded_at: string;
 }
 
 /** Where a document is in the OCR pipeline, tracked in the browser only. */
