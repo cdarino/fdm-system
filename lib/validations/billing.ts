@@ -48,6 +48,16 @@ export const recordBillingNoticeSchema = z.object({
   penaltyDue: z.number().min(0).default(0),
 });
 
+export const updateBillingNoticeSchema = z.object({
+  noticeId: z.string().uuid("Invalid notice ID"),
+  stage: z.enum(["first_notice", "second_notice", "final_demand", "forfeited"]),
+  noticeNumber: z.number().int().min(1).max(4),
+  noticeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Notice date must be YYYY-MM-DD"),
+  title: z.string().min(1, "Notice title is required"),
+  trackingNumber: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 export const forfeitBillingAccountSchema = z.object({
   accountId: z.string().uuid("Invalid account ID"),
   reason: z.string().optional(),
@@ -67,4 +77,5 @@ export type PostBillingPaymentInput = z.infer<typeof postBillingPaymentSchema>;
 export type VoidBillingPaymentInput = z.infer<typeof voidBillingPaymentSchema>;
 export type UpdateBillingPoliciesInput = z.infer<typeof updateBillingPoliciesSchema>;
 export type RecordBillingNoticeInput = z.infer<typeof recordBillingNoticeSchema>;
+export type UpdateBillingNoticeInput = z.infer<typeof updateBillingNoticeSchema>;
 export type ForfeitBillingAccountInput = z.infer<typeof forfeitBillingAccountSchema>;

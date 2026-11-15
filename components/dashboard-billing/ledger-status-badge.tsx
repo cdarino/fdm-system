@@ -57,7 +57,7 @@ export function LedgerStatusBadge({ summary, compact = true }: LedgerStatusBadge
 
   if (summary.status === "settled") {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground border border-border">
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-card text-muted-foreground border border-border-warm shadow-2xs">
         <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
         {compact ? "Settled" : "Fully Settled"}
       </span>

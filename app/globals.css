@@ -289,3 +289,40 @@
   background-color: var(--row-hover);
   color: var(--foreground);
 }
+
+/* Print styling: isolates documents, hides navigation/shell, resets page backgrounds */
+@media print {
+  @page {
+    margin: 12mm 14mm;
+    size: auto;
+  }
+
+  aside,
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+

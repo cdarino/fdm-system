@@ -29,7 +29,7 @@ const badgeVariants = cva(
           "border-transparent bg-primary text-primary-foreground shadow hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)]",
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-[color-mix(in_srgb,var(--secondary)_80%,black)]",
-        outline: "border-border text-foreground",
+        outline: "border-border-warm text-foreground",
         "outline-warm": "border-border-warm text-foreground",
         canvas: "border-border-warm bg-card text-foreground",
         success:

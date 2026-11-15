@@ -20,6 +20,7 @@ import {
   voidBillingPaymentSchema,
   updateBillingPoliciesSchema,
   recordBillingNoticeSchema,
+  updateBillingNoticeSchema,
   forfeitBillingAccountSchema,
 } from "@/lib/validations/billing";
 
@@ -401,7 +402,7 @@ export async function createBillingLedger(
   return billingCreate.run({
     schema: createBillingLedgerSchema,
     input,
-    handler: async (validatedInput, { supabase, userId }) => {
+    handler: async (validatedInput, { supabase }) => {
       const {
         clientId,
         propertyId,
@@ -664,6 +665,45 @@ export async function recordBillingNotice(
         .eq("account_id", accountId);
 
       return { noticeId: data.notice_id };
+    },
+  });
+}
+
+export async function updateBillingNotice(
+  input: unknown
+): Promise<ActionResult<{ noticeId: string }>> {
+  return billingUpdate.run({
+    schema: updateBillingNoticeSchema,
+    input,
+    handler: async (validatedInput, { supabase }) => {
+      const {
+        noticeId,
+        stage,
+        noticeNumber,
+        noticeDate,
+        title,
+        trackingNumber,
+        notes,
+      } = validatedInput;
+
+      // Update notice record details
+      const { error } = await supabase
+        .from("billing_notice_event")
+        .update({
+          stage,
+          notice_number: noticeNumber,
+          notice_date: noticeDate,
+          title,
+          tracking_number: trackingNumber?.trim() || null,
+          notes: notes?.trim() || null,
+        })
+        .eq("notice_id", noticeId);
+
+      if (error) {
+        throw new Error(`Failed to update notice event: ${error.message}`);
+      }
+
+      return { noticeId };
     },
   });
 }

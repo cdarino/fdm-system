@@ -207,7 +207,7 @@ export function BillingDashboardView({
         </div>
 
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1.5 text-xs text-muted-foreground bg-card border border-border px-3 py-1.5 rounded-lg shadow-2xs">
+          <div className="flex items-center space-x-1.5 text-xs text-muted-foreground bg-card border border-border-warm px-3 py-1.5 rounded-lg shadow-xs">
             <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
             <span className="uppercase font-medium text-[11px]">
               As-of
@@ -221,7 +221,7 @@ export function BillingDashboardView({
               type="date"
               value={asOfDate}
               onChange={(e) => setAsOfDate(e.target.value)}
-              className="text-xs bg-muted/50 border border-border rounded px-2 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              className="text-xs bg-card border border-border-warm rounded px-2 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
@@ -229,7 +229,7 @@ export function BillingDashboardView({
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card p-4 rounded-xl border border-border shadow-2xs">
+        <div className="bg-card p-4 rounded-xl border border-border-warm shadow-xs">
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1 flex items-center font-medium">
             <span>Total Due Now</span>
             <HelpTip
@@ -246,7 +246,7 @@ export function BillingDashboardView({
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-xl border border-border shadow-2xs">
+        <div className="bg-card p-4 rounded-xl border border-border-warm shadow-xs">
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1 font-medium">
             Late Penalties
           </div>
@@ -259,7 +259,7 @@ export function BillingDashboardView({
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-xl border border-border shadow-2xs">
+        <div className="bg-card p-4 rounded-xl border border-border-warm shadow-xs">
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1 flex items-center font-medium">
             <span>Contract Balance</span>
             <HelpTip
@@ -275,7 +275,7 @@ export function BillingDashboardView({
           </div>
         </div>
 
-        <div className="bg-card p-4 rounded-xl border border-border shadow-2xs">
+        <div className="bg-card p-4 rounded-xl border border-border-warm shadow-xs">
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1 font-medium">
             Total Collected
           </div>
@@ -289,7 +289,7 @@ export function BillingDashboardView({
       </div>
 
       {/* Control Bar: Tabs & Search */}
-      <div className="bg-card p-3 rounded-xl border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+      <div className="bg-card p-3 rounded-xl border border-border-warm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center space-x-1 overflow-x-auto text-xs">
           <button
             onClick={() => setFilterStatus("all")}
@@ -372,17 +372,17 @@ export function BillingDashboardView({
             placeholder="Search client or property..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full text-xs pl-8 pr-3 py-1.5 border border-border rounded-lg bg-muted/40 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full text-xs pl-8 pr-3 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
       {/* Primary Identifier: Client and Property composition table */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden shadow-2xs">
+      <div className="bg-card rounded-xl border border-border-warm overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <tr className="border-b border-border-warm bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <th className="py-2.5 px-4 w-36">
                   <div className="flex items-center space-x-1">
                     <span>Status</span>
@@ -413,7 +413,7 @@ export function BillingDashboardView({
                 </th>
                 <th
                   onClick={() => toggleSort("payable")}
-                  className="py-2.5 px-4 text-right cursor-pointer hover:text-foreground bg-muted/30 border-l border-border"
+                  className="py-2.5 px-4 text-right cursor-pointer hover:text-foreground bg-muted/30 border-l border-border-warm"
                 >
                   <div className="flex items-center justify-end space-x-1">
                     <span>
@@ -428,7 +428,7 @@ export function BillingDashboardView({
                 </th>
                 <th
                   onClick={() => toggleSort("balance")}
-                  className="py-2.5 px-4 text-right cursor-pointer hover:text-foreground border-l border-border"
+                  className="py-2.5 px-4 text-right cursor-pointer hover:text-foreground border-l border-border-warm"
                 >
                   <div className="flex items-center justify-end space-x-1">
                     <span>Contract Balance</span>
@@ -438,7 +438,7 @@ export function BillingDashboardView({
                 <th className="py-2.5 px-4 w-10"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border text-xs">
+            <tbody className="divide-y divide-border-warm text-xs">
               {filteredSummaries.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-muted-foreground">
@@ -483,7 +483,7 @@ export function BillingDashboardView({
                         ? formatDate(s.currentTermDueDate)
                         : "-"}
                     </td>
-                    <td className="py-3 px-4 align-top text-right bg-muted/20 border-l border-border">
+                    <td className="py-3 px-4 align-top text-right bg-muted/20 border-l border-border-warm">
                       <div
                         className={`text-sm font-mono font-bold tabular-nums ${
                           s.status === "overdue"
@@ -499,7 +499,7 @@ export function BillingDashboardView({
                       </div>
                       <div className="text-[11px] mt-0.5">{renderDueBreakdown(s)}</div>
                     </td>
-                    <td className="py-3 px-4 align-top text-right border-l border-border">
+                    <td className="py-3 px-4 align-top text-right border-l border-border-warm">
                       <div className="font-mono font-semibold tabular-nums text-foreground/90">
                         {formatCurrency(s.tspOutstandingBalance)}
                       </div>

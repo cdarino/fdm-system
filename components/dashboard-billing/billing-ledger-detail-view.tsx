@@ -15,6 +15,7 @@ import {
   voidBillingPayment,
   updateBillingPolicies,
   recordBillingNotice,
+  updateBillingNotice,
   forfeitBillingAccount,
   markAccountClearedByBilling,
   undoBillingClearance,
@@ -42,7 +43,6 @@ import {
   ArrowLeft,
   PlusCircle,
   CheckCircle2,
-  Clock,
   Printer,
   History,
   FileSpreadsheet,
@@ -54,12 +54,20 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   ArrowRight,
-  Eye,
   Ban,
   Scale,
   Undo2,
+  Pencil,
+  Plus,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  downloadBillingNoticePdf,
+  BillingNoticePdfParams,
+} from "@/lib/reports/pdf-billing-notice";
+import { downloadSoaPdf } from "@/lib/reports/pdf-soa";
+import { printElement } from "@/lib/utils/print";
 
 const NOTICE_STAGES: {
   stage: OverdueNoticeStage;
@@ -114,9 +122,7 @@ export function BillingLedgerDetailView({
 }: BillingLedgerDetailViewProps) {
   const router = useRouter();
   const [ledger, setLedger] = useState<Ledger>(initialLedger);
-  const [asOfDate, setAsOfDate] = useState<string>(
-    () => initialAsOfDate || new Date().toISOString().split("T")[0]
-  );
+  const asOfDate = initialAsOfDate || new Date().toISOString().split("T")[0];
 
   const [activeTab, setActiveTab] = useState<"journal" | "payments" | "notices">("journal");
   const [journalFilter, setJournalFilter] = useState<"all" | "recent" | "payments">("all");
@@ -136,10 +142,23 @@ export function BillingLedgerDetailView({
   const [polEnablePostMaturityRate, setPolEnablePostMaturityRate] = useState<boolean>(false);
   const [polPostMaturityRate, setPolPostMaturityRate] = useState<number>(2.0);
 
-  const [showStepUpModal, setShowStepUpModal] = useState(false);
-  const [stepUpDate, setStepUpDate] = useState(asOfDate);
-  const [stepUpTracking, setStepUpTracking] = useState("");
-  const [stepUpNotes, setStepUpNotes] = useState("");
+  const [showRecordNoticeModal, setShowRecordNoticeModal] = useState(false);
+  const [recordNoticeStage, setRecordNoticeStage] = useState<"first_notice" | "second_notice" | "final_demand">("first_notice");
+  const [recordNoticeDate, setRecordNoticeDate] = useState(asOfDate);
+  const [recordNoticeTracking, setRecordNoticeTracking] = useState("");
+  const [recordNoticeNotes, setRecordNoticeNotes] = useState("");
+
+  const [showEditNoticeModal, setShowEditNoticeModal] = useState(false);
+  const [editingNotice, setEditingNotice] = useState<OverdueNoticeEvent | null>(null);
+  const [editNoticeStage, setEditNoticeStage] = useState<"first_notice" | "second_notice" | "final_demand">("first_notice");
+  const [editNoticeDate, setEditNoticeDate] = useState(asOfDate);
+  const [editNoticeTracking, setEditNoticeTracking] = useState("");
+  const [editNoticeNotes, setEditNoticeNotes] = useState("");
+
+  const [showForfeitModal, setShowForfeitModal] = useState(false);
+  const [forfeitDate, setForfeitDate] = useState(asOfDate);
+  const [forfeitReason, setForfeitReason] = useState("");
+
   const [showDocModal, setShowDocModal] = useState(false);
   const [showSoaModal, setShowSoaModal] = useState(false);
   const [showClearanceModal, setShowClearanceModal] = useState(false);
@@ -355,105 +374,89 @@ export function BillingLedgerDetailView({
     return ledger.overdueEscalation?.currentStage || "first_notice";
   }, [ledger, summary.status]);
 
-  const currentStageIndex = useMemo(() => {
-    const idx = NOTICE_STAGES.findIndex((s) => s.stage === currentNoticeStage);
-    return idx === -1 ? 0 : idx;
-  }, [currentNoticeStage]);
-
-  const currentStageConfig = NOTICE_STAGES[currentStageIndex];
-
-  const isCurrentStageLogged = useMemo(() => {
-    return noticeHistory.some((h) => h.stage === currentNoticeStage);
-  }, [noticeHistory, currentNoticeStage]);
-
   const handleOpenDocModal = (notice?: OverdueNoticeEvent) => {
     setSelectedDocNotice(notice || null);
     setShowDocModal(true);
   };
 
-  const handleOpenStepUpModal = () => {
-    setStepUpDate(asOfDate);
-    setStepUpTracking("");
-    setStepUpNotes("");
-    setShowStepUpModal(true);
+  const handlePrintNotice = () => {
+    printElement("notice-printable-sheet", `Notice Letter — ${ledger.client.fullName}`);
   };
 
-  const handleConfirmStepUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDownloadNoticePdf = () => {
+    const docDate = selectedDocNotice ? selectedDocNotice.date : asOfDate;
+    const resolvedStage = selectedDocNotice
+      ? selectedDocNotice.stage
+      : currentNoticeStage === "none"
+      ? "first_notice"
+      : currentNoticeStage;
+    const docStage = resolvedStage as BillingNoticePdfParams["docStage"];
+    const totalDue = selectedDocNotice ? selectedDocNotice.overdueAmount : summary.totalPayableNow;
+    const arrears = selectedDocNotice ? selectedDocNotice.arrearsPrincipal : summary.arrearsPrincipal;
+    const penalty = selectedDocNotice ? selectedDocNotice.penaltyDue : summary.totalPenaltyDue;
+    const trackingNo = selectedDocNotice?.trackingNo;
+
+    downloadBillingNoticePdf({
+      clientName: ledger.client.fullName,
+      projectArea: ledger.property.projectArea,
+      blockNumber: ledger.property.blockNumber,
+      lotNumber: ledger.property.lotNumber,
+      termMonths: ledger.termMonths,
+      monthlyAmortization: ledger.monthlyAmortization,
+      docDate,
+      docStage,
+      totalDue,
+      arrears,
+      penalty,
+      penaltyRate: ledger.penaltyRate,
+      trackingNo,
+    });
+  };
+
+  const openRecordNoticeModal = () => {
+    setRecordNoticeDate(asOfDate);
+    setRecordNoticeTracking("");
+    setRecordNoticeNotes("");
+    if (noticeHistory.some((h) => h.stage === "second_notice")) {
+      setRecordNoticeStage("final_demand");
+    } else if (noticeHistory.some((h) => h.stage === "first_notice")) {
+      setRecordNoticeStage("second_notice");
+    } else {
+      setRecordNoticeStage("first_notice");
+    }
+    setShowRecordNoticeModal(true);
+  };
+
+  const handleRecordNotice = async (andPrint = false) => {
     setIsSubmitting(true);
     try {
-      let targetStageConfig = currentStageConfig;
-      if (isCurrentStageLogged && currentStageIndex < NOTICE_STAGES.length - 1) {
-        targetStageConfig = NOTICE_STAGES[currentStageIndex + 1];
-      }
-
-      // If advancing to forfeiture stage, call forfeit action to execute property forfeiture
-      if (targetStageConfig.stage === "forfeited") {
-        const forfeitRes = await forfeitBillingAccount({
-          accountId: ledger.id,
-          reason: stepUpNotes.trim() || "Unsettled contract arrears following final demand",
-          forfeitedAt: stepUpDate || asOfDate,
-        });
-
-        if (!forfeitRes.success) {
-          toast.error(forfeitRes.error || "Failed to forfeit contract");
-          return;
-        }
-
-        const newNotice: OverdueNoticeEvent = {
-          id: `notif-${Date.now()}`,
-          stage: "forfeited",
-          noticeNumber: 4,
-          date: stepUpDate || asOfDate,
-          title: targetStageConfig.docTitle,
-          trackingNo: stepUpTracking.trim() || undefined,
-          notes: stepUpNotes.trim() || undefined,
-          overdueAmount: summary.totalPayableNow,
-          arrearsPrincipal: summary.arrearsPrincipal,
-          penaltyDue: summary.totalPenaltyDue,
-        };
-
-        setLedger((prev) => ({
-          ...prev,
-          status: "Forfeited",
-          overdueEscalation: {
-            currentStage: "forfeited",
-            history: [newNotice, ...(prev.overdueEscalation?.history || [])],
-          },
-        }));
-
-        setShowStepUpModal(false);
-        toast.success("Contract cancelled and property ownership forfeited");
-        router.refresh();
-        return;
-      }
-
-      const noticeRes = await recordBillingNotice({
+      const stageConfig = NOTICE_STAGES.find((s) => s.stage === recordNoticeStage) || NOTICE_STAGES[0];
+      const res = await recordBillingNotice({
         accountId: ledger.id,
-        stage: targetStageConfig.stage,
-        noticeNumber: targetStageConfig.num,
-        noticeDate: stepUpDate || asOfDate,
-        title: targetStageConfig.docTitle,
-        trackingNumber: stepUpTracking.trim() || undefined,
-        notes: stepUpNotes.trim() || undefined,
+        stage: stageConfig.stage,
+        noticeNumber: stageConfig.num,
+        noticeDate: recordNoticeDate || asOfDate,
+        title: stageConfig.docTitle,
+        trackingNumber: recordNoticeTracking.trim() || undefined,
+        notes: recordNoticeNotes.trim() || undefined,
         overdueAmount: summary.totalPayableNow,
         arrearsPrincipal: summary.arrearsPrincipal,
         penaltyDue: summary.totalPenaltyDue,
       });
 
-      if (!noticeRes.success) {
-        toast.error(noticeRes.error || "Failed to record notice");
+      if (!res.success) {
+        toast.error(res.error || "Failed to record notice");
         return;
       }
 
       const newNotice: OverdueNoticeEvent = {
-        id: noticeRes.data.noticeId,
-        stage: targetStageConfig.stage,
-        noticeNumber: targetStageConfig.num,
-        date: stepUpDate || asOfDate,
-        title: targetStageConfig.docTitle,
-        trackingNo: stepUpTracking.trim() || undefined,
-        notes: stepUpNotes.trim() || undefined,
+        id: res.data.noticeId,
+        stage: stageConfig.stage,
+        noticeNumber: stageConfig.num,
+        date: recordNoticeDate || asOfDate,
+        title: stageConfig.docTitle,
+        trackingNo: recordNoticeTracking.trim() || undefined,
+        notes: recordNoticeNotes.trim() || undefined,
         overdueAmount: summary.totalPayableNow,
         arrearsPrincipal: summary.arrearsPrincipal,
         penaltyDue: summary.totalPenaltyDue,
@@ -462,13 +465,123 @@ export function BillingLedgerDetailView({
       setLedger((prev) => ({
         ...prev,
         overdueEscalation: {
-          currentStage: targetStageConfig.stage,
+          currentStage: stageConfig.stage,
           history: [newNotice, ...(prev.overdueEscalation?.history || [])],
         },
       }));
 
-      setShowStepUpModal(false);
-      toast.success(`${targetStageConfig.label} recorded successfully`);
+      setShowRecordNoticeModal(false);
+      toast.success(`${stageConfig.label} recorded successfully`);
+
+      if (andPrint) {
+        setSelectedDocNotice(newNotice);
+        setShowDocModal(true);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openEditNoticeModal = (notice: OverdueNoticeEvent) => {
+    setEditingNotice(notice);
+    setEditNoticeStage(
+      notice.stage === "forfeited"
+        ? "final_demand"
+        : (notice.stage as "first_notice" | "second_notice" | "final_demand")
+    );
+    setEditNoticeDate(notice.date);
+    setEditNoticeTracking(notice.trackingNo || "");
+    setEditNoticeNotes(notice.notes || "");
+    setShowEditNoticeModal(true);
+  };
+
+  const handleUpdateNotice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNotice) return;
+    setIsSubmitting(true);
+    try {
+      const stageConfig = NOTICE_STAGES.find((s) => s.stage === editNoticeStage) || NOTICE_STAGES[0];
+      const res = await updateBillingNotice({
+        noticeId: editingNotice.id,
+        stage: stageConfig.stage,
+        noticeNumber: stageConfig.num,
+        noticeDate: editNoticeDate,
+        title: stageConfig.docTitle,
+        trackingNumber: editNoticeTracking.trim() || undefined,
+        notes: editNoticeNotes.trim() || undefined,
+      });
+
+      if (!res.success) {
+        toast.error(res.error || "Failed to update notice");
+        return;
+      }
+
+      setLedger((prev) => ({
+        ...prev,
+        overdueEscalation: {
+          currentStage: prev.overdueEscalation?.currentStage || stageConfig.stage,
+          history: (prev.overdueEscalation?.history || []).map((h) =>
+            h.id === editingNotice.id
+              ? {
+                  ...h,
+                  stage: stageConfig.stage,
+                  noticeNumber: stageConfig.num,
+                  date: editNoticeDate,
+                  title: stageConfig.docTitle,
+                  trackingNo: editNoticeTracking.trim() || undefined,
+                  notes: editNoticeNotes.trim() || undefined,
+                }
+              : h
+          ),
+        },
+      }));
+
+      setShowEditNoticeModal(false);
+      toast.success("Notice record updated");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmForfeiture = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const forfeitRes = await forfeitBillingAccount({
+        accountId: ledger.id,
+        reason: forfeitReason.trim() || "Unsettled contract arrears following final demand",
+        forfeitedAt: forfeitDate || asOfDate,
+      });
+
+      if (!forfeitRes.success) {
+        toast.error(forfeitRes.error || "Failed to forfeit contract");
+        return;
+      }
+
+      const forfeitNotice: OverdueNoticeEvent = {
+        id: `notif-${Date.now()}`,
+        stage: "forfeited",
+        noticeNumber: 4,
+        date: forfeitDate || asOfDate,
+        title: "NOTICE OF FORFEITURE & CONTRACT RESCISSION",
+        notes: forfeitReason.trim() || undefined,
+        overdueAmount: summary.totalPayableNow,
+        arrearsPrincipal: summary.arrearsPrincipal,
+        penaltyDue: summary.totalPenaltyDue,
+      };
+
+      setLedger((prev) => ({
+        ...prev,
+        status: "Forfeited",
+        overdueEscalation: {
+          currentStage: "forfeited",
+          history: [forfeitNotice, ...(prev.overdueEscalation?.history || [])],
+        },
+      }));
+
+      setShowForfeitModal(false);
+      toast.success("Contract cancelled and property ownership forfeited");
+      router.refresh();
     } finally {
       setIsSubmitting(false);
     }
@@ -531,7 +644,7 @@ export function BillingLedgerDetailView({
             <span className="font-mono font-semibold text-foreground">
               {row.receiptNo || "Payment Recorded"}
             </span>
-            <span className="text-[10px] text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-muted border border-border font-medium">
+            <span className="text-[10px] text-muted-foreground uppercase px-1.5 py-0.5 rounded bg-card border border-border-warm font-medium shadow-2xs">
               {methodLabel}
             </span>
           </div>
@@ -595,93 +708,6 @@ export function BillingLedgerDetailView({
             {formatCurrency(row.currentDueBalance)} + {formatCurrency(row.penaltyBalance)} pen
           </div>
         )}
-      </div>
-    );
-  };
-
-  const renderChronologyTimeline = (history: OverdueNoticeEvent[], isReadOnly: boolean) => {
-    if (history.length === 0) {
-      return (
-        <div className="py-6 text-center text-muted-foreground text-xs">
-          No notice events logged yet.
-        </div>
-      );
-    }
-
-    return (
-      <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-border text-xs">
-        {history.map((ev, idx) => {
-          const isLatest = idx === 0;
-          return (
-            <div key={ev.id} className="relative">
-              <div
-                className={`absolute -left-6 top-1 w-3 h-3 rounded-full border-2 border-background shadow-xs ${
-                  ev.stage === "forfeited"
-                    ? "bg-foreground"
-                    : ev.stage === "final_demand"
-                    ? "bg-destructive"
-                    : ev.stage === "second_notice"
-                    ? "bg-amber-500"
-                    : "bg-blue-600"
-                }`}
-              />
-
-              <div className="bg-muted/40 border border-border rounded-lg p-3 space-y-1.5 hover:bg-muted/70 transition-colors">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-foreground">{ev.title}</span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-background border border-border text-foreground">
-                      Stage {ev.noticeNumber}
-                    </span>
-                    {isLatest && !isReadOnly && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-destructive/10 text-destructive border border-destructive/20">
-                        Current
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2 text-[11px] text-muted-foreground">
-                    <span>{formatDate(ev.date)}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenDocModal(ev)}
-                      className="px-2 py-0.5 bg-background border border-border rounded text-foreground hover:bg-muted transition-colors flex items-center space-x-1"
-                    >
-                      <Eye className="w-3 h-3 mr-1 text-muted-foreground" />
-                      <span>View Letter</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-x-4 text-[11px] text-muted-foreground">
-                  <div>
-                    <span>Demanded:</span>{" "}
-                    <span className="font-mono font-semibold text-foreground">{formatCurrency(ev.overdueAmount)}</span>
-                  </div>
-                  <div>
-                    <span>Arrears:</span>{" "}
-                    <span className="font-mono text-foreground">{formatCurrency(ev.arrearsPrincipal)}</span>
-                  </div>
-                  <div>
-                    <span>Penalties:</span>{" "}
-                    <span className="font-mono text-foreground">{formatCurrency(ev.penaltyDue)}</span>
-                  </div>
-                  {ev.trackingNo && (
-                    <div>
-                      <span>Ref:</span>{" "}
-                      <span className="font-mono font-medium text-foreground">{ev.trackingNo}</span>
-                    </div>
-                  )}
-                </div>
-
-                {ev.notes && (
-                  <div className="text-[11px] text-muted-foreground italic border-t border-border/60 pt-1">
-                    “{ev.notes}”
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
       </div>
     );
   };
@@ -881,7 +907,7 @@ export function BillingLedgerDetailView({
           {ledger.clearedAt ? (
             <button
               onClick={() => setShowClearanceModal(true)}
-              className="px-2.5 py-1.5 text-xs font-medium border border-border rounded-lg bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
+              className="px-2.5 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
               title="Undo clearance (before Legal processes title)"
             >
               <Undo2 className="w-3.5 h-3.5" />
@@ -900,7 +926,7 @@ export function BillingLedgerDetailView({
 
           <button
             onClick={() => exportLedgerToExcel(ledger, summary, asOfDate)}
-            className="px-3 py-1.5 text-xs font-medium border border-border rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
+            className="px-3 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
             title="Download editable Excel (.xlsx) matching official statement format"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
@@ -908,7 +934,7 @@ export function BillingLedgerDetailView({
           </button>
           <button
             onClick={() => setShowSoaModal(true)}
-            className="px-3 py-1.5 text-xs font-medium border border-border rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
+            className="px-3 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
             title="Preview and print official Statement of Account as PDF"
           >
             <Printer className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
@@ -981,12 +1007,12 @@ export function BillingLedgerDetailView({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print:hidden">
         {/* Card 1: Due Now & Penalties */}
         <div
-          className={`p-4 rounded-xl border flex flex-col justify-between shadow-2xs ${
+          className={`p-4 rounded-xl border flex flex-col justify-between shadow-xs ${
             summary.status === "overdue"
               ? "bg-destructive/5 border-destructive/20"
               : summary.status === "due_soon"
               ? "bg-amber-500/5 border-amber-500/20"
-              : "bg-card border-border"
+              : "bg-card border-border-warm"
           }`}
         >
           <div>
@@ -1028,7 +1054,7 @@ export function BillingLedgerDetailView({
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-border text-xs text-muted-foreground space-y-1">
+          <div className="mt-3 pt-2.5 border-t border-border-warm text-xs text-muted-foreground space-y-1">
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <span className="text-[10px] text-muted-foreground block uppercase tracking-wider">Arrears</span>
@@ -1052,7 +1078,7 @@ export function BillingLedgerDetailView({
               </div>
             </div>
             {(summary.totalPenaltyPaid > 0 || summary.totalPenaltyWaived > 0) && (
-              <div className="pt-1 text-[11px] text-muted-foreground flex items-center justify-between border-t border-border/50">
+              <div className="pt-1 text-[11px] text-muted-foreground flex items-center justify-between border-t border-border-warm/50">
                 <span>Paid Pen: <span className="font-mono font-medium text-foreground">{formatCurrency(summary.totalPenaltyPaid)}</span></span>
                 {summary.totalPenaltyWaived > 0 && (
                   <span className="text-amber-700 dark:text-amber-400 font-medium">
@@ -1067,7 +1093,7 @@ export function BillingLedgerDetailView({
         {/* Card 2: Contract Terms */}
         <div
           onClick={openPoliciesModal}
-          className="bg-card p-4 rounded-xl border border-border flex flex-col justify-between cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group shadow-2xs"
+          className="bg-card p-4 rounded-xl border border-border-warm flex flex-col justify-between cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group shadow-xs"
         >
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -1087,7 +1113,7 @@ export function BillingLedgerDetailView({
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-border text-xs">
+          <div className="mt-3 pt-2.5 border-t border-border-warm text-xs">
             <div className="grid grid-cols-2 gap-y-2 gap-x-2">
               <div>
                 <span className="text-[10px] text-muted-foreground block uppercase tracking-wider">Plan Term</span>
@@ -1107,7 +1133,7 @@ export function BillingLedgerDetailView({
               </div>
             </div>
 
-            <div className="mt-2.5 pt-2 border-t border-border flex items-center justify-between text-xs">
+            <div className="mt-2.5 pt-2 border-t border-border-warm flex items-center justify-between text-xs">
               {(ledger.policies?.enableMaturityAmnesty || ledger.policies?.enablePostMaturityReducedRate) ? (
                 <div className="flex items-center space-x-1.5">
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
@@ -1130,7 +1156,7 @@ export function BillingLedgerDetailView({
         </div>
 
         {/* Card 3: Balance & Collections */}
-        <div className="bg-card p-4 rounded-xl border border-border flex flex-col justify-between shadow-2xs">
+        <div className="bg-card p-4 rounded-xl border border-border-warm flex flex-col justify-between shadow-xs">
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
@@ -1145,7 +1171,7 @@ export function BillingLedgerDetailView({
             </div>
           </div>
 
-          <div className="mt-3 pt-2.5 border-t border-border text-xs text-muted-foreground">
+          <div className="mt-3 pt-2.5 border-t border-border-warm text-xs text-muted-foreground">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[10px] text-muted-foreground block uppercase tracking-wider">Total Collected</span>
@@ -1161,7 +1187,7 @@ export function BillingLedgerDetailView({
               </div>
             </div>
             {summary.currentTermDueDate && summary.status !== "settled" && (
-              <div className="mt-2 pt-1 border-t border-border text-[11px] text-muted-foreground flex justify-between">
+              <div className="mt-2 pt-1 border-t border-border-warm text-[11px] text-muted-foreground flex justify-between">
                 <span>Cycle Due Date:</span>
                 <span className="font-medium text-foreground">{formatDate(summary.currentTermDueDate)}</span>
               </div>
@@ -1171,7 +1197,7 @@ export function BillingLedgerDetailView({
       </div>
 
       {/* Tab Bar & Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border gap-2 print:hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border-warm gap-2 print:hidden">
         <div className="flex space-x-4 text-xs">
           <button
             onClick={() => setActiveTab("journal")}
@@ -1259,25 +1285,25 @@ export function BillingLedgerDetailView({
 
       {/* Dynamic 6-Column Running Ledger Table */}
       {activeTab === "journal" && (
-        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-2xs print:hidden">
+        <div className="bg-card rounded-xl border border-border-warm overflow-hidden shadow-xs print:hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <tr className="border-b border-border-warm bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="py-2.5 px-3 w-20">Term</th>
                   <th className="py-2.5 px-3 w-28">Date</th>
                   <th className="py-2.5 px-3">Particulars</th>
                   <th className="py-2.5 px-3 text-right">Change</th>
-                  <th className="py-2.5 px-3 text-right bg-muted/30 border-l border-border">
+                  <th className="py-2.5 px-3 text-right bg-muted/30 border-l border-border-warm">
                     Running Due
                   </th>
-                  <th className="py-2.5 px-3 text-right border-l border-border">
+                  <th className="py-2.5 px-3 text-right border-l border-border-warm">
                     Contract Bal
                   </th>
                   <th className="py-2.5 px-2 w-8 print:hidden"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border-warm">
                 {displayedJournal.map((row, idx, arr) => {
                   const isPayment = row.rowType === "payment";
                   const isPenalty = row.rowType === "penalty_charge";
@@ -1323,10 +1349,10 @@ export function BillingLedgerDetailView({
                       <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap align-top">
                         {renderDynamicChange(row)}
                       </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums bg-muted/15 border-l border-border align-top">
+                      <td className="py-2.5 px-3 text-right tabular-nums bg-muted/15 border-l border-border-warm align-top">
                         {renderRunningDueCell(row)}
                       </td>
-                      <td className="py-2.5 px-3 text-right tabular-nums font-mono font-semibold text-foreground border-l border-border align-top">
+                      <td className="py-2.5 px-3 text-right tabular-nums font-mono font-semibold text-foreground border-l border-border-warm align-top">
                         {formatCurrency(row.tspBalance)}
                       </td>
                       <td className="py-2.5 px-2 text-center align-top print:hidden">
@@ -1351,11 +1377,11 @@ export function BillingLedgerDetailView({
 
       {/* Payment Receipts Tab */}
       {activeTab === "payments" && (
-        <div className="bg-card rounded-xl border border-border overflow-hidden shadow-2xs print:hidden">
+        <div className="bg-card rounded-xl border border-border-warm overflow-hidden shadow-xs print:hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <tr className="border-b border-border-warm bg-muted/40 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="py-2.5 px-3">Date Paid</th>
                   <th className="py-2.5 px-3">Receipt No.</th>
                   <th className="py-2.5 px-3">Method</th>
@@ -1367,7 +1393,7 @@ export function BillingLedgerDetailView({
                   <th className="py-2.5 px-2 w-8"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border-warm">
                 {summary.journal.filter((r) => r.rowType === "payment").length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-muted-foreground">
@@ -1425,163 +1451,185 @@ export function BillingLedgerDetailView({
 
       {/* Notices & Forfeiture Tab */}
       {activeTab === "notices" && (
-        <div className="space-y-6 print:hidden">
-          {summary.status !== "overdue" && ledger.status !== "Forfeited" ? (
-            <div className="bg-card rounded-xl border border-border p-6 text-center space-y-4 shadow-2xs">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-semibold text-foreground text-sm">Account in Good Standing</h3>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                  All installments are up to date. No notice or legal escalation actions required.
+        <div className="space-y-4 print:hidden">
+          <div className="bg-card rounded-xl border border-border-warm shadow-xs overflow-hidden">
+            {/* Header with Title and Action Controls */}
+            <div className="p-4 border-b border-border-warm flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/20">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-semibold text-sm text-foreground">Formal Notices &amp; Forfeiture</h3>
+                  {ledger.status === "Forfeited" ? (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-foreground text-background">
+                      Contract Forfeited
+                    </span>
+                  ) : summary.status === "overdue" ? (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-destructive/10 text-destructive border border-destructive/20">
+                      {summary.monthsOverdue}m Overdue
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                      Good Standing
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Record notices, track delivery waybills, and execute contract rescission.
                 </p>
               </div>
 
-              {noticeHistory.length > 0 && (
-                <div className="pt-6 border-t border-border text-left">
-                  <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-3 flex items-center justify-between">
-                    <span>Past Notice History (Read-Only)</span>
-                    <span className="text-[11px] font-normal text-muted-foreground">
-                      {noticeHistory.length} notice{noticeHistory.length === 1 ? "" : "s"} served previously
-                    </span>
-                  </div>
-                  {renderChronologyTimeline(noticeHistory, true)}
+              {ledger.status !== "Forfeited" && (
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={openRecordNoticeModal}
+                    className="px-3 py-1.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)] transition-colors flex items-center space-x-1 shadow-2xs text-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    <span>Record Notice</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForfeitDate(asOfDate);
+                      setForfeitReason("");
+                      setShowForfeitModal(true);
+                    }}
+                    className="px-3 py-1.5 border border-destructive/30 bg-card text-destructive font-medium rounded-lg hover:bg-destructive/10 transition-colors flex items-center space-x-1 text-xs"
+                  >
+                    <Ban className="w-3.5 h-3.5 mr-1" />
+                    <span>Forfeit Account</span>
+                  </button>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Overdue / Forfeiture Action Banner */}
-              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs shadow-2xs">
-                <div className="flex items-start space-x-3">
-                  {ledger.status === "Forfeited" ? (
-                    <Ban className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <div className="font-bold text-destructive">
-                      {ledger.status === "Forfeited"
-                        ? "Account Forfeited — Contract Rescinded"
-                        : `Delinquent Account — Active Stage: ${currentStageConfig.label}`}
-                    </div>
-                    <div className="text-destructive/90 mt-0.5">
-                      {ledger.status === "Forfeited" ? (
-                        <span>Ownership on lot has been rescinded and forfeited per CTS Section 8 and Maceda Law.</span>
-                      ) : (
-                        <span>
-                          Account is {summary.monthsOverdue} month{summary.monthsOverdue > 1 ? "s" : ""} overdue with{" "}
-                          <span className="font-mono font-bold">{formatCurrency(summary.totalPayableNow)}</span> payable now (Arrears: {formatCurrency(summary.arrearsPrincipal)} + Penalties: {formatCurrency(summary.totalPenaltyDue)}).
-                        </span>
-                      )}
-                    </div>
+
+            {/* Forfeited Notice Banner */}
+            {ledger.status === "Forfeited" && (
+              <div className="bg-destructive/10 border-b border-destructive/20 p-4 flex items-start space-x-3 text-xs text-destructive">
+                <Ban className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold">Contract Rescinded and Property Forfeited</div>
+                  <div className="text-destructive/90 mt-0.5">
+                    Ownership has been rescinded and the lot returned to inventory pursuant to Contract to Sell Section 8 and the Maceda Law.
                   </div>
                 </div>
+              </div>
+            )}
 
-                <div className="flex items-center space-x-2 shrink-0">
+            {/* Notice Events List or Empty State */}
+            {noticeHistory.length === 0 ? (
+              <div className="py-12 px-4 text-center space-y-3">
+                <FileText className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-foreground text-sm">No notices recorded yet</p>
+                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                    Issue a payment reminder or formal demand letter to record proof of due process.
+                  </p>
+                </div>
+                {ledger.status !== "Forfeited" && (
                   <button
-                    onClick={() => handleOpenDocModal()}
-                    className="px-3 py-1.5 bg-background border border-destructive/30 rounded-lg text-destructive hover:bg-destructive/10 font-medium transition-colors flex items-center space-x-1"
+                    type="button"
+                    onClick={openRecordNoticeModal}
+                    className="inline-flex items-center px-3 py-1.5 bg-primary text-primary-foreground font-medium rounded-lg hover:bg-[color-mix(in_srgb,var(--primary)_85%,black)] transition-colors text-xs shadow-2xs"
                   >
-                    <Printer className="w-3.5 h-3.5 mr-1" />
-                    <span>Print Letter</span>
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    <span>Record First Notice</span>
                   </button>
-                  {currentStageIndex < NOTICE_STAGES.length - 1 && ledger.status !== "Forfeited" && (
-                    <button
-                      onClick={handleOpenStepUpModal}
-                      className="px-3 py-1.5 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 font-medium transition-colors flex items-center space-x-1 shadow-2xs"
+                )}
+              </div>
+            ) : (
+              <div className="divide-y divide-border-warm">
+                {noticeHistory.map((ev) => {
+                  const stageBadgeClass =
+                    ev.stage === "forfeited"
+                      ? "bg-foreground text-background"
+                      : ev.stage === "final_demand"
+                      ? "bg-destructive/10 text-destructive border border-destructive/20"
+                      : ev.stage === "second_notice"
+                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                      : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20";
+
+                  const stageLabel =
+                    NOTICE_STAGES.find((s) => s.stage === ev.stage)?.label || ev.title;
+
+                  return (
+                    <div
+                      key={ev.id}
+                      className="p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs"
                     >
-                      <span>
-                        {isCurrentStageLogged
-                          ? NOTICE_STAGES[currentStageIndex + 1]?.stage === "forfeited"
-                            ? "Forfeit Contract & Reclaim Lot"
-                            : `Advance to ${NOTICE_STAGES[currentStageIndex + 1].label}`
-                          : `Log ${currentStageConfig.label} Served`}
-                      </span>
-                      <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* 4-Stage Notice Progression Stepper */}
-              <div className="bg-card rounded-xl border border-border p-4 shadow-2xs">
-                <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider mb-3">
-                  Notice &amp; Forfeiture Stages
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  {NOTICE_STAGES.map((s, idx) => {
-                    const isCompleted = idx < currentStageIndex || (idx === 3 && ledger.status === "Forfeited");
-                    const isCurrent = idx === currentStageIndex && ledger.status !== "Forfeited";
-                    return (
-                      <div
-                        key={s.stage}
-                        className={`p-3 rounded-lg border text-xs transition-colors ${
-                          isCurrent
-                            ? "bg-destructive/5 border-destructive/30 ring-1 ring-destructive/30"
-                            : isCompleted
-                            ? "bg-muted/40 border-border text-foreground"
-                            : "bg-card border-border/70 text-muted-foreground"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span
-                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                              isCurrent
-                                ? "bg-destructive text-destructive-foreground"
-                                : isCompleted
-                                ? "bg-foreground text-background"
-                                : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {isCompleted ? "✓" : s.num}
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${stageBadgeClass}`}>
+                            {stageLabel}
                           </span>
-                          {isCurrent && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-destructive/10 text-destructive border border-destructive/20">
-                              Active
+                          <span className="font-semibold text-foreground">{ev.title}</span>
+                          <span className="text-muted-foreground">• Served {formatDate(ev.date)}</span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-x-4 text-[11px] text-muted-foreground">
+                          <div>
+                            <span>Demanded:</span>{" "}
+                            <span className="font-mono font-semibold text-foreground">
+                              {formatCurrency(ev.overdueAmount)}
                             </span>
+                          </div>
+                          <div>
+                            <span>Arrears:</span>{" "}
+                            <span className="font-mono text-foreground">{formatCurrency(ev.arrearsPrincipal)}</span>
+                          </div>
+                          <div>
+                            <span>Penalties:</span>{" "}
+                            <span className="font-mono text-foreground">{formatCurrency(ev.penaltyDue)}</span>
+                          </div>
+                          {ev.trackingNo && (
+                            <div>
+                              <span>Waybill:</span>{" "}
+                              <span className="font-mono font-medium text-foreground">{ev.trackingNo}</span>
+                            </div>
                           )}
-                          {isCompleted && (
-                            <span className="text-[10px] text-muted-foreground">Served</span>
-                          )}
                         </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className={`font-semibold text-xs ${isCurrent ? "text-foreground" : isCompleted ? "text-foreground/90" : "text-muted-foreground"}`}>
-                            {s.label}
-                          </span>
-                          <HelpTip title={s.label} text={s.shortDesc} />
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                          {s.subtitle}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* Chronology of Events */}
-              <div className="bg-card rounded-xl border border-border p-4 shadow-2xs">
-                <div className="flex items-center justify-between mb-4 border-b border-border pb-2">
-                  <div className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">
-                    Chronology of Notice Events
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {noticeHistory.length} event{noticeHistory.length === 1 ? "" : "s"} logged
-                  </span>
-                </div>
-                {renderChronologyTimeline(noticeHistory, false)}
+                        {ev.notes && (
+                          <div className="text-[11px] text-muted-foreground italic">
+                            “{ev.notes}”
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-2 shrink-0 self-start sm:self-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDocModal(ev)}
+                          className="px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs text-xs font-medium"
+                        >
+                          <Printer className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
+                          <span>View Letter</span>
+                        </button>
+
+                        {ev.stage !== "forfeited" && ledger.status !== "Forfeited" && (
+                          <button
+                            type="button"
+                            onClick={() => openEditNoticeModal(ev)}
+                            className="px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs text-xs font-medium"
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 
       {/* Post Payment Modal */}
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-        <DialogContent className="sm:max-w-lg bg-card print:hidden">
-          <DialogHeader className="border-b border-border pb-3">
+        <DialogContent className="sm:max-w-lg bg-card print:hidden border-border-warm shadow-lg">
+          <DialogHeader className="border-b border-border-warm pb-3">
             <DialogTitle className="text-sm font-semibold text-foreground">
               Post Payment — <span className="font-bold">{ledger.client.fullName}</span>
             </DialogTitle>
@@ -1596,7 +1644,7 @@ export function BillingLedgerDetailView({
                   <button
                     type="button"
                     onClick={() => setPayAmount(summary.totalPayableNow)}
-                    className="px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-foreground text-xs transition-colors font-medium border border-border"
+                    className="px-2.5 py-1 rounded bg-card hover:bg-muted text-foreground text-xs transition-colors font-medium border border-border-warm shadow-2xs"
                   >
                     Pay Due Now: <span className="font-mono">{formatCurrency(summary.totalPayableNow)}</span>
                   </button>
@@ -1605,7 +1653,7 @@ export function BillingLedgerDetailView({
                   <button
                     type="button"
                     onClick={() => setPayAmount(summary.currentTermBalance)}
-                    className="px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-foreground text-xs transition-colors font-medium border border-border"
+                    className="px-2.5 py-1 rounded bg-card hover:bg-muted text-foreground text-xs transition-colors font-medium border border-border-warm shadow-2xs"
                   >
                     Current Term Only: <span className="font-mono">{formatCurrency(summary.currentTermBalance)}</span>
                   </button>
@@ -1613,7 +1661,7 @@ export function BillingLedgerDetailView({
                 <button
                   type="button"
                   onClick={() => setPayAmount(ledger.monthlyAmortization)}
-                  className="px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-foreground text-xs transition-colors font-medium border border-border"
+                  className="px-2.5 py-1 rounded bg-card hover:bg-muted text-foreground text-xs transition-colors font-medium border border-border-warm shadow-2xs"
                 >
                   Regular Amort: <span className="font-mono">{formatCurrency(ledger.monthlyAmortization)}</span>
                 </button>
@@ -1629,7 +1677,7 @@ export function BillingLedgerDetailView({
                     required
                     value={payDate}
                     onChange={(e) => setPayDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
 
@@ -1643,7 +1691,7 @@ export function BillingLedgerDetailView({
                     placeholder="OR#12345 or CR#001"
                     value={payReceipt}
                     onChange={(e) => setPayReceipt(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary uppercase"
+                    className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary uppercase"
                   />
                 </div>
 
@@ -1658,7 +1706,7 @@ export function BillingLedgerDetailView({
                     step="any"
                     value={payAmount}
                     onChange={(e) => setPayAmount(Number(e.target.value))}
-                    className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
+                    className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
                   />
                 </div>
 
@@ -1669,7 +1717,7 @@ export function BillingLedgerDetailView({
                   <select
                     value={payMethod}
                     onChange={(e) => setPayMethod(e.target.value as "cash" | "check" | "bank_transfer")}
-                    className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="cash">Cash</option>
                     <option value="check">Check</option>
@@ -1687,18 +1735,18 @@ export function BillingLedgerDetailView({
                   placeholder="Collector name, bank branch, or check no."
                   value={payNotes}
                   onChange={(e) => setPayNotes(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
               {summary.totalPenaltyDue > 0 && (
-                <div className="bg-muted/40 border border-border rounded-lg p-3">
+                <div className="bg-muted/20 border border-border-warm rounded-lg p-3">
                   <label className="flex items-start space-x-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={waivePenalty}
                       onChange={(e) => setWaivePenalty(e.target.checked)}
-                      className="mt-0.5 rounded border-border text-primary focus:ring-primary"
+                      className="mt-0.5 rounded border-border-warm text-primary focus:ring-primary"
                     />
                     <span className="font-semibold text-foreground inline-flex items-center">
                       Waive Late Penalties
@@ -1711,7 +1759,7 @@ export function BillingLedgerDetailView({
                 </div>
               )}
 
-              <div className="bg-muted/40 border border-border rounded-lg p-3 space-y-1.5">
+              <div className="bg-muted/20 border border-border-warm rounded-lg p-3 space-y-1.5">
                 <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground mb-1 flex items-center">
                   <span>Payment Split Preview</span>
                   <HelpTip
@@ -1736,7 +1784,7 @@ export function BillingLedgerDetailView({
                     <span className="tabular-nums font-mono">{formatCurrency(allocationPreview.penalty)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium border-t border-border pt-1">
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-medium border-t border-border-warm pt-1">
                   <span>2. Goes to Principal:</span>
                   <span className="tabular-nums font-mono font-semibold">
                     {formatCurrency(allocationPreview.principal)}
@@ -1748,7 +1796,7 @@ export function BillingLedgerDetailView({
                     <span className="tabular-nums font-mono">+{formatCurrency(allocationPreview.excess)}</span>
                   </div>
                 ) : (
-                  <div className="flex justify-between text-muted-foreground border-t border-border pt-1">
+                  <div className="flex justify-between text-muted-foreground border-t border-border-warm pt-1">
                     <span>Remaining Due Now:</span>
                     <span className="tabular-nums font-mono font-semibold text-foreground">
                       {formatCurrency(allocationPreview.remainingDueAfter)}
@@ -1780,8 +1828,8 @@ export function BillingLedgerDetailView({
 
       {/* Contract Policies Modal */}
       <Dialog open={showPoliciesModal} onOpenChange={setShowPoliciesModal}>
-        <DialogContent className="sm:max-w-lg bg-card p-0 gap-0 overflow-hidden text-xs">
-          <DialogHeader className="px-5 py-4 border-b border-border bg-muted/40">
+        <DialogContent className="sm:max-w-lg bg-card p-0 gap-0 overflow-hidden text-xs border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-4 border-b border-border-warm bg-muted/20">
             <DialogTitle className="font-bold text-sm text-foreground">
               Contract Policies &amp; Terms
             </DialogTitle>
@@ -1795,7 +1843,7 @@ export function BillingLedgerDetailView({
                 Configure penalty rates and post-maturity policies for this contract.
               </div>
 
-              <div className="divide-y divide-border border border-border rounded-lg">
+              <div className="divide-y divide-border-warm border border-border-warm rounded-lg">
                 <div className="p-3.5 flex items-center justify-between gap-4">
                   <div className="flex items-center space-x-1.5">
                     <span className="font-semibold text-foreground">Default Penalty</span>
@@ -1813,7 +1861,7 @@ export function BillingLedgerDetailView({
                       required
                       value={polPenaltyRate}
                       onChange={(e) => setPolPenaltyRate(Number(e.target.value))}
-                      className="w-18 px-2 py-1 border border-border rounded bg-background text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-18 px-2 py-1 border border-border-warm rounded bg-card text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                     <span className="text-muted-foreground font-medium">% / mo</span>
                   </div>
@@ -1832,7 +1880,7 @@ export function BillingLedgerDetailView({
                       type="checkbox"
                       checked={polEnableAmnesty}
                       onChange={(e) => setPolEnableAmnesty(e.target.checked)}
-                      className="rounded border-border text-primary focus:ring-primary"
+                      className="rounded border-border-warm text-primary focus:ring-primary"
                     />
                   </label>
                 </div>
@@ -1851,12 +1899,12 @@ export function BillingLedgerDetailView({
                         type="checkbox"
                         checked={polEnablePostMaturityRate}
                         onChange={(e) => setPolEnablePostMaturityRate(e.target.checked)}
-                        className="rounded border-border text-primary focus:ring-primary"
+                        className="rounded border-border-warm text-primary focus:ring-primary"
                       />
                     </label>
                   </div>
                   {polEnablePostMaturityRate && (
-                    <div className="pl-3 border-l-2 border-border flex items-center justify-between pt-1">
+                    <div className="pl-3 border-l-2 border-border-warm flex items-center justify-between pt-1">
                       <span className="text-[11px] text-muted-foreground font-medium">Reduced rate:</span>
                       <div className="flex items-center space-x-1.5">
                         <input
@@ -1867,7 +1915,7 @@ export function BillingLedgerDetailView({
                           required
                           value={polPostMaturityRate}
                           onChange={(e) => setPolPostMaturityRate(Number(e.target.value))}
-                          className="w-18 px-2 py-1 border border-border rounded bg-background text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-18 px-2 py-1 border border-border-warm rounded bg-card text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                         <span className="text-muted-foreground font-medium">% / mo</span>
                       </div>
@@ -1876,7 +1924,7 @@ export function BillingLedgerDetailView({
                 </div>
               </div>
 
-              <div className="bg-muted/40 border border-border rounded-lg p-3 text-xs space-y-1">
+              <div className="bg-muted/20 border border-border-warm rounded-lg p-3 text-xs space-y-1">
                 <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
                   How penalties will be applied:
                 </div>
@@ -1919,130 +1967,442 @@ export function BillingLedgerDetailView({
         </DialogContent>
       </Dialog>
 
-      {/* Advance Stage Modal */}
-      <Dialog open={showStepUpModal} onOpenChange={setShowStepUpModal}>
-        <DialogContent className="sm:max-w-md bg-card p-0 gap-0 overflow-hidden text-xs print:hidden">
-          <DialogHeader className="px-5 py-3.5 border-b border-border bg-muted/40">
+      {/* Record Notice Modal */}
+      <Dialog open={showRecordNoticeModal} onOpenChange={setShowRecordNoticeModal}>
+        <DialogContent className="sm:max-w-md bg-card p-0 gap-0 overflow-hidden text-xs print:hidden border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-3.5 border-b border-border-warm bg-muted/20">
             <DialogTitle className="font-bold text-sm text-foreground">
-              {isCurrentStageLogged
-                ? NOTICE_STAGES[currentStageIndex + 1]?.stage === "forfeited"
-                  ? "Confirm Contract Forfeiture"
-                  : `Advance to ${NOTICE_STAGES[currentStageIndex + 1]?.label}`
-                : `Log ${currentStageConfig.label} as Served`}
+              Record &amp; Issue Notice
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              {ledger.client.fullName}
+              {ledger.client.fullName} • {ledger.property.projectArea} Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleConfirmStepUp} className="p-5 space-y-4">
-              <div className="text-xs text-muted-foreground">
-                {isCurrentStageLogged && NOTICE_STAGES[currentStageIndex + 1]?.stage === "forfeited"
-                  ? "This will forfeit the client's ownership on the property lot, cancel the contract to sell, and record the final Notice of Forfeiture."
-                  : isCurrentStageLogged
-                  ? `Log service and step up to ${NOTICE_STAGES[currentStageIndex + 1]?.label}.`
-                  : `Log service of ${currentStageConfig.label}.`}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleRecordNotice(false);
+            }}
+            className="p-5 space-y-4"
+          >
+            {/* Notice Type Radio Cards */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-foreground">
+                Notice Type
+              </label>
+              <div className="space-y-2">
+                {[
+                  {
+                    stage: "first_notice" as const,
+                    label: "1st Notice — Overdue Reminder",
+                    subtitle: "Initial reminder requesting settlement of overdue installments",
+                  },
+                  {
+                    stage: "second_notice" as const,
+                    label: "2nd Notice — Formal Demand (15-Day)",
+                    subtitle: "Formal demand letter setting a 15-day settlement deadline",
+                  },
+                  {
+                    stage: "final_demand" as const,
+                    label: "Final Demand — Notice of Cancellation (30-Day)",
+                    subtitle: "Notarized notice under Section 8 of CTS and Maceda Law",
+                  },
+                ].map((choice) => {
+                  const isSelected = recordNoticeStage === choice.stage;
+                  return (
+                    <div
+                      key={choice.stage}
+                      onClick={() => setRecordNoticeStage(choice.stage)}
+                      className={cn(
+                        "p-3 rounded-lg border text-xs cursor-pointer transition-colors flex items-start space-x-2.5",
+                        isSelected
+                          ? "bg-primary/10 border-primary ring-1 ring-primary"
+                          : "bg-card border-border-warm hover:bg-muted/40 text-muted-foreground"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="recordNoticeStage"
+                        checked={isSelected}
+                        onChange={() => setRecordNoticeStage(choice.stage)}
+                        className="mt-0.5 text-primary focus:ring-primary"
+                      />
+                      <div className="space-y-0.5">
+                        <div className={cn("font-semibold", isSelected ? "text-foreground" : "text-foreground/80")}>
+                          {choice.label}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {choice.subtitle}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Service or Dispatch Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={recordNoticeDate}
+                  onChange={(e) => setRecordNoticeDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                />
               </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[11px] uppercase font-semibold text-muted-foreground mb-1">
-                    Date Served / Issued
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={stepUpDate}
-                    onChange={(e) => setStepUpDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase font-semibold text-muted-foreground mb-1">
-                    Registered Mail / Tracking Number (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. REG-2026-0842 or Hand-Delivered"
-                    value={stepUpTracking}
-                    onChange={(e) => setStepUpTracking(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary uppercase"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase font-semibold text-muted-foreground mb-1">
-                    Remarks / Collector Notes (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Sent via registered mail with return card"
-                    value={stepUpNotes}
-                    onChange={(e) => setStepUpNotes(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Courier Waybill or Tracking Number (optional)
+                </label>
+                <input
+                  type="text"
+                  value={recordNoticeTracking}
+                  onChange={(e) => setRecordNoticeTracking(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs uppercase"
+                />
               </div>
 
-              <div className="bg-muted/40 border border-border rounded-lg p-3 text-xs space-y-1">
-                <div className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
-                  Obligation at Time of Notice
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Arrears:</span>
-                  <span className="font-mono font-medium text-foreground">{formatCurrency(summary.arrearsPrincipal)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Penalties:</span>
-                  <span className="font-mono font-medium text-destructive">{formatCurrency(summary.totalPenaltyDue)}</span>
-                </div>
-                <div className="flex justify-between font-bold border-t border-border pt-1 text-foreground">
-                  <span>Total Amount Demanded:</span>
-                  <span className="font-mono">{formatCurrency(summary.totalPayableNow)}</span>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Collector Notes or Remarks (optional)
+                </label>
+                <input
+                  type="text"
+                  value={recordNoticeNotes}
+                  onChange={(e) => setRecordNoticeNotes(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                />
               </div>
+            </div>
 
-              <DialogFooter className="pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowStepUpModal(false)}
-                >
-                  Cancel
-                </Button>
+            <div className="bg-muted/20 border border-border-warm rounded-lg p-3 text-xs space-y-1">
+              <div className="text-[11px] font-medium text-muted-foreground">
+                The following amounts will be recorded on this notice:
+              </div>
+              <div className="flex justify-between text-muted-foreground pt-1">
+                <span>Principal Arrears:</span>
+                <span className="font-mono font-medium text-foreground">{formatCurrency(summary.arrearsPrincipal)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Late Penalties Accrued:</span>
+                <span className="font-mono font-medium text-destructive">{formatCurrency(summary.totalPenaltyDue)}</span>
+              </div>
+              <div className="flex justify-between font-bold border-t border-border-warm pt-1 text-foreground">
+                <span>Total Amount Demanded:</span>
+                <span className="font-mono">{formatCurrency(summary.totalPayableNow)}</span>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2 flex flex-col-reverse sm:flex-row sm:justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowRecordNoticeModal(false)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <div className="flex items-center space-x-2">
                 <Button
                   type="submit"
                   size="sm"
                   disabled={isSubmitting}
+                  className="text-xs"
                 >
-                  {isSubmitting ? "Recording..." : "Confirm & Record"}
+                  {isSubmitting ? "Recording..." : "Save Record"}
                 </Button>
-              </DialogFooter>
-            </form>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={isSubmitting}
+                  onClick={() => void handleRecordNotice(true)}
+                  className="text-xs"
+                >
+                  Save &amp; Print
+                </Button>
+              </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Notice Modal */}
+      <Dialog open={showEditNoticeModal} onOpenChange={setShowEditNoticeModal}>
+        <DialogContent className="sm:max-w-md bg-card p-0 gap-0 overflow-hidden text-xs print:hidden border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-3.5 border-b border-border-warm bg-muted/20">
+            <DialogTitle className="font-bold text-sm text-foreground">
+              Edit Notice Record
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {ledger.client.fullName} • {ledger.property.projectArea} Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateNotice} className="p-5 space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-foreground">
+                Notice Type
+              </label>
+              <div className="space-y-2">
+                {[
+                  {
+                    stage: "first_notice" as const,
+                    label: "1st Notice — Overdue Reminder",
+                    subtitle: "Initial reminder requesting settlement of overdue installments",
+                  },
+                  {
+                    stage: "second_notice" as const,
+                    label: "2nd Notice — Formal Demand (15-Day)",
+                    subtitle: "Formal demand letter setting a 15-day settlement deadline",
+                  },
+                  {
+                    stage: "final_demand" as const,
+                    label: "Final Demand — Notice of Cancellation (30-Day)",
+                    subtitle: "Notarized notice under Section 8 of CTS and Maceda Law",
+                  },
+                ].map((choice) => {
+                  const isSelected = editNoticeStage === choice.stage;
+                  return (
+                    <div
+                      key={choice.stage}
+                      onClick={() => setEditNoticeStage(choice.stage)}
+                      className={cn(
+                        "p-3 rounded-lg border text-xs cursor-pointer transition-colors flex items-start space-x-2.5",
+                        isSelected
+                          ? "bg-primary/10 border-primary ring-1 ring-primary"
+                          : "bg-card border-border-warm hover:bg-muted/40 text-muted-foreground"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="editNoticeStage"
+                        checked={isSelected}
+                        onChange={() => setEditNoticeStage(choice.stage)}
+                        className="mt-0.5 text-primary focus:ring-primary"
+                      />
+                      <div className="space-y-0.5">
+                        <div className={cn("font-semibold", isSelected ? "text-foreground" : "text-foreground/80")}>
+                          {choice.label}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {choice.subtitle}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Service or Dispatch Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={editNoticeDate}
+                  onChange={(e) => setEditNoticeDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Courier Waybill or Tracking Number
+                </label>
+                <input
+                  type="text"
+                  value={editNoticeTracking}
+                  onChange={(e) => setEditNoticeTracking(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Collector Notes or Remarks
+                </label>
+                <input
+                  type="text"
+                  value={editNoticeNotes}
+                  onChange={(e) => setEditNoticeNotes(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                />
+              </div>
+            </div>
+
+            {editingNotice && (
+              <div className="bg-muted/20 border border-border-warm rounded-lg p-3 text-xs space-y-1">
+                <div className="text-[11px] font-medium text-muted-foreground">
+                  Amounts recorded when this notice was issued:
+                </div>
+                <div className="flex justify-between text-muted-foreground pt-1">
+                  <span>Principal Arrears:</span>
+                  <span className="font-mono font-medium text-foreground">{formatCurrency(editingNotice.arrearsPrincipal)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Late Penalties:</span>
+                  <span className="font-mono font-medium text-destructive">{formatCurrency(editingNotice.penaltyDue)}</span>
+                </div>
+                <div className="flex justify-between font-bold border-t border-border-warm pt-1 text-foreground">
+                  <span>Total Amount Demanded:</span>
+                  <span className="font-mono">{formatCurrency(editingNotice.overdueAmount)}</span>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEditNoticeModal(false)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmitting}
+                className="text-xs"
+              >
+                {isSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Forfeit Account Modal */}
+      <Dialog open={showForfeitModal} onOpenChange={setShowForfeitModal}>
+        <DialogContent className="sm:max-w-md bg-card p-0 gap-0 overflow-hidden text-xs print:hidden border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-3.5 border-b border-border-warm bg-destructive/10">
+            <DialogTitle className="font-bold text-sm text-destructive flex items-center gap-1.5">
+              <Ban className="w-4 h-4" />
+              <span>Confirm Contract Forfeiture</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {ledger.client.fullName} • {ledger.property.projectArea} Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleConfirmForfeiture} className="p-5 space-y-4">
+            <div className="text-xs text-muted-foreground leading-relaxed">
+              This will forfeit the client&apos;s ownership on the property lot, cancel the Contract to Sell, record the final Notice of Forfeiture, and return the lot to company inventory.
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Date of Forfeiture
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={forfeitDate}
+                  onChange={(e) => setForfeitDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Reason for Forfeiture
+                </label>
+                <input
+                  type="text"
+                  value={forfeitReason}
+                  onChange={(e) => setForfeitReason(e.target.value)}
+                  className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-3 text-xs space-y-1">
+              <div className="text-[11px] font-semibold text-destructive">
+                Outstanding Balance at Forfeiture
+              </div>
+              <div className="flex justify-between text-muted-foreground pt-1">
+                <span>Arrears:</span>
+                <span className="font-mono font-medium text-foreground">{formatCurrency(summary.arrearsPrincipal)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Penalties:</span>
+                <span className="font-mono font-medium text-destructive">{formatCurrency(summary.totalPenaltyDue)}</span>
+              </div>
+              <div className="flex justify-between font-bold border-t border-destructive/20 pt-1 text-foreground">
+                <span>Total Amount Demanded:</span>
+                <span className="font-mono">{formatCurrency(summary.totalPayableNow)}</span>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowForfeitModal(false)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                size="sm"
+                disabled={isSubmitting}
+                className="text-xs"
+              >
+                {isSubmitting ? "Forfeiting..." : "Confirm Forfeiture"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
       {/* Printable Notice Document Preview Modal */}
       <Dialog open={showDocModal} onOpenChange={setShowDocModal}>
-        <DialogContent className="sm:max-w-2xl bg-card p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col text-xs print:hidden">
-          <DialogHeader className="px-5 py-3 border-b border-border flex flex-row items-center justify-between space-y-0 bg-muted/40 pr-10">
+        <DialogContent className="sm:max-w-2xl bg-card p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col text-xs print:hidden border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-3 border-b border-border-warm flex flex-row items-center justify-between space-y-0 bg-muted/20 pr-10">
             <div className="flex items-center space-x-2">
               <FileText className="w-4 h-4 text-muted-foreground" />
               <DialogTitle className="font-bold text-sm text-foreground">
                 Notice Letter Document Preview
               </DialogTitle>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => window.print()}
-              className="gap-1.5 h-8 text-xs"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Document</span>
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleDownloadNoticePdf}
+                className="gap-1.5 h-8 text-xs bg-card hover:bg-muted text-foreground border border-border-warm shadow-2xs font-medium"
+                title="Download formatted notice letter as PDF"
+              >
+                <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Save as PDF</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handlePrintNotice}
+                className="gap-1.5 h-8 text-xs shadow-2xs"
+                title="Print document in isolation"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Document</span>
+              </Button>
+            </div>
           </DialogHeader>
 
           <div id="notice-printable-sheet" className="p-0 bg-white overflow-y-auto flex-1">
@@ -2053,8 +2413,8 @@ export function BillingLedgerDetailView({
 
       {/* Statement of Account Preview & Print Modal */}
       <Dialog open={showSoaModal} onOpenChange={setShowSoaModal}>
-        <DialogContent className="sm:max-w-5xl bg-card p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col text-xs print:hidden">
-          <DialogHeader className="px-5 py-3 border-b border-border flex flex-row items-center justify-between space-y-0 bg-muted/40 pr-10">
+        <DialogContent className="sm:max-w-5xl bg-card p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col text-xs print:hidden border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-3 border-b border-border-warm flex flex-row items-center justify-between space-y-0 bg-muted/20 pr-10">
             <div className="flex items-center space-x-2">
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
               <DialogTitle className="font-bold text-sm text-foreground">
@@ -2067,6 +2427,7 @@ export function BillingLedgerDetailView({
                 size="sm"
                 onClick={() => exportLedgerToExcel(ledger, summary, asOfDate)}
                 className="bg-emerald-600 text-white hover:bg-emerald-700 gap-1.5 h-8 text-xs shadow-2xs"
+                title="Download spreadsheet in .xlsx format"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
                 <span>Download Excel (.xlsx)</span>
@@ -2074,17 +2435,33 @@ export function BillingLedgerDetailView({
               <Button
                 type="button"
                 size="sm"
-                onClick={() => window.print()}
+                onClick={() => downloadSoaPdf(ledger, summary, asOfDate)}
+                className="gap-1.5 h-8 text-xs bg-card hover:bg-muted text-foreground border border-border-warm shadow-2xs font-medium"
+                title="Download exact spreadsheet PDF"
+              >
+                <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Save as PDF</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  printElement(
+                    "soa-printable-sheet",
+                    `Statement of Account — ${ledger.client.fullName}`
+                  )
+                }
                 className="gap-1.5 h-8 text-xs shadow-2xs"
+                title="Print statement"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Print / Save PDF</span>
+                <span>Print Statement</span>
               </Button>
             </div>
           </DialogHeader>
 
           <div className="p-4 sm:p-8 bg-muted/20 flex-1 overflow-y-auto">
-            <div className="bg-white rounded-lg shadow-md border border-border overflow-hidden">
+            <div id="soa-printable-sheet" className="bg-white rounded-lg shadow-md border border-border-warm overflow-hidden">
               <ExcelSoaDocument
                 ledger={ledger}
                 summary={summary}
@@ -2097,8 +2474,8 @@ export function BillingLedgerDetailView({
 
       {/* Billing Clearance Modal */}
       <Dialog open={showClearanceModal} onOpenChange={setShowClearanceModal}>
-        <DialogContent className="sm:max-w-md bg-card p-0 gap-0 overflow-hidden text-xs">
-          <DialogHeader className="px-5 py-3.5 border-b border-border bg-muted/40">
+        <DialogContent className="sm:max-w-md bg-card p-0 gap-0 overflow-hidden text-xs border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-3.5 border-b border-border-warm bg-muted/20">
             <div className="flex items-center space-x-2">
               {ledger.clearedAt ? (
                 <Undo2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -2115,14 +2492,14 @@ export function BillingLedgerDetailView({
           </DialogHeader>
 
           <div className="p-5 space-y-4">
-            <div className="bg-muted/40 rounded-lg p-3 border border-border space-y-1">
+            <div className="bg-muted/20 rounded-lg p-3 border border-border-warm space-y-1">
               <div className="text-xs font-semibold text-foreground">
                 {ledger.client.fullName}
               </div>
               <div className="text-[11px] text-muted-foreground">
                 {ledger.property.projectArea} • Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber}
               </div>
-              <div className="text-[11px] font-mono mt-1 pt-1 border-t border-border flex justify-between">
+              <div className="text-[11px] font-mono mt-1 pt-1 border-t border-border-warm flex justify-between">
                 <span className="text-muted-foreground">Contract Balance:</span>
                 <span className="font-semibold text-foreground">{formatCurrency(summary.tspOutstandingBalance)}</span>
               </div>
@@ -2152,7 +2529,7 @@ export function BillingLedgerDetailView({
             )}
           </div>
 
-          <DialogFooter className="px-5 py-3.5 border-t border-border bg-muted/20 gap-2 sm:gap-2">
+          <DialogFooter className="px-5 py-3.5 border-t border-border-warm bg-muted/20 gap-2 sm:gap-2">
             <Button
               type="button"
               variant="outline"

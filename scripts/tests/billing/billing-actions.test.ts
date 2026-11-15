@@ -15,6 +15,7 @@ import {
   voidBillingPayment,
   updateBillingPolicies,
   recordBillingNotice,
+  updateBillingNotice,
   forfeitBillingAccount,
   markAccountClearedByBilling,
   undoBillingClearance,
@@ -182,6 +183,25 @@ describe("Billing Server Actions End-to-End Integration", () => {
     const afterNotice = await getBillingLedgerById(accountId, "2024-03-20");
     expect(afterNotice?.ledger.overdueEscalation?.currentStage).toBe("first_notice");
     expect(afterNotice?.ledger.overdueEscalation?.history.length).toBe(1);
+
+    // 7b. Update the recorded notice
+    const noticeId = unwrap(noticeRes).noticeId;
+    const updateNoticeRes = await updateBillingNotice({
+      noticeId,
+      stage: "first_notice",
+      noticeNumber: 1,
+      noticeDate: "2024-03-05",
+      title: "First Notice of Delinquency (Updated)",
+      trackingNumber: "WAYBILL-123",
+      notes: "Delivered via LBC courier",
+    });
+    expect(updateNoticeRes.success).toBe(true);
+
+    const afterUpdateNotice = await getBillingLedgerById(accountId, "2024-03-20");
+    const updatedEv = afterUpdateNotice?.ledger.overdueEscalation?.history.find((h) => h.id === noticeId);
+    expect(updatedEv?.date).toBe("2024-03-05");
+    expect(updatedEv?.trackingNo).toBe("WAYBILL-123");
+    expect(updatedEv?.notes).toBe("Delivered via LBC courier");
 
     // 7b. Reject clearing an unsettled account
     const rejectClearRes = await markAccountClearedByBilling(accountId);

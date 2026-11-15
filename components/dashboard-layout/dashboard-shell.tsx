@@ -76,7 +76,7 @@ export function DashboardShell({
 
       <aside
         id="dashboard-navigation"
-        className={`fixed bottom-0 left-0 top-0 z-40 flex flex-col border-r border-border bg-card transition-[width,transform] duration-200 ${
+        className={`fixed bottom-0 left-0 top-0 z-40 flex flex-col border-r border-border bg-card transition-[width,transform] duration-200 print:hidden ${
           isSidebarOpen ? 'w-72 max-w-[calc(100vw-2rem)] lg:w-60' : 'w-0 -translate-x-full overflow-hidden border-r-0'
         }`}
         aria-hidden={!isSidebarOpen}
@@ -106,17 +106,19 @@ export function DashboardShell({
       </aside>
 
       <div
-        className={`flex h-screen min-w-0 flex-col transition-[margin] duration-200 ${
+        className={`flex h-screen min-w-0 flex-col transition-[margin] duration-200 print:h-auto print:ml-0 print:overflow-visible ${
           isSidebarOpen ? 'ml-0 lg:ml-60' : 'ml-0'
         }`}
       >
-        <DashboardTopBar
-          user={user}
-          isSidebarOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
-          recentActivity={recentActivity}
-        />
-        <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-clip">
+        <div className="print:hidden">
+          <DashboardTopBar
+            user={user}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+            recentActivity={recentActivity}
+          />
+        </div>
+        <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-clip print:h-auto print:overflow-visible print:p-0">
           {children}
         </main>
       </div>
