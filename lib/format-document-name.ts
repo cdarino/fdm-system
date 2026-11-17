@@ -30,3 +30,20 @@ export function humanizeDocumentName(filePath: string): string {
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
+
+export function getDocumentDefaultLabel(doc: {
+  file_name?: string | null;
+  file_path: string;
+}): string {
+  const name = doc.file_name?.trim();
+  return name && name.length > 0 ? name : formatDocumentName(doc.file_path);
+}
+
+export function getDocumentEffectiveLabel(doc: {
+  label?: string | null;
+  file_name?: string | null;
+  file_path: string;
+}): string {
+  const custom = doc.label?.trim();
+  return custom && custom.length > 0 ? custom : getDocumentDefaultLabel(doc);
+}

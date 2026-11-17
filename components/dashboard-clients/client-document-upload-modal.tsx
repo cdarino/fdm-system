@@ -118,7 +118,7 @@ export function ClientDocumentUploadModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+        <form onSubmit={handleSubmit} className="min-w-0 space-y-4 py-2">
           {/* Document Type Selector */}
           <div className="space-y-1.5">
             <Label htmlFor="upload-doc-type" className="text-xs">Document Type</Label>
@@ -158,7 +158,7 @@ export function ClientDocumentUploadModal({
           )}
 
           {/* File Picker */}
-          <div className="space-y-1.5">
+          <div className="min-w-0 space-y-1.5">
             <Label className="text-xs">Document File</Label>
             <FilePicker
               file={selectedFile}
@@ -168,7 +168,7 @@ export function ClientDocumentUploadModal({
             />
           </div>
 
-          <DialogFooter className="gap-2 pt-2 sm:gap-0">
+          <DialogFooter className="pt-2">
             <Button
               type="button"
               variant="outline"

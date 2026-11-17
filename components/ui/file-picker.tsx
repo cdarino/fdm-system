@@ -36,7 +36,7 @@ export function FilePicker({
   }, [file]);
 
   return (
-    <div className={cn('flex min-w-0 items-center gap-2', className)}>
+    <div className={cn('flex w-full min-w-0 items-center gap-2 overflow-hidden', className)}>
       <Button
         type="button"
         variant="quiet"
@@ -49,7 +49,10 @@ export function FilePicker({
         {file ? 'Change file' : buttonLabel}
       </Button>
 
-      <span className={cn('min-w-0 flex-1 truncate text-sm', file ? 'text-foreground' : 'text-muted-foreground')}>
+      <span
+        className={cn('min-w-0 flex-1 truncate text-sm', file ? 'text-foreground' : 'text-muted-foreground')}
+        title={file ? file.name : undefined}
+      >
         {file ? file.name : 'No file chosen'}
       </span>
 

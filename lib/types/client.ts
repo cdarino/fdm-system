@@ -39,6 +39,31 @@ export function getDocumentTypeLabel(type: string): string {
   return (DOC_TYPE_LABEL as Record<string, string>)[type] ?? type;
 }
 
+export function compareDocumentsByCategory(
+  a: { document_type: string; uploaded_at?: string | null },
+  b: { document_type: string; uploaded_at?: string | null }
+): number {
+  const indexA = (DOC_TYPES as readonly string[]).indexOf(a.document_type);
+  const indexB = (DOC_TYPES as readonly string[]).indexOf(b.document_type);
+
+  if (indexA !== -1 && indexB !== -1) {
+    if (indexA !== indexB) return indexA - indexB;
+  } else if (indexA !== -1) {
+    return -1;
+  } else if (indexB !== -1) {
+    return 1;
+  } else {
+    const labelDiff = getDocumentTypeLabel(a.document_type).localeCompare(
+      getDocumentTypeLabel(b.document_type),
+      undefined,
+      { sensitivity: 'base' }
+    );
+    if (labelDiff !== 0) return labelDiff;
+  }
+
+  return (b.uploaded_at ?? '').localeCompare(a.uploaded_at ?? '');
+}
+
 export const REQUIRED_CLIENT_DOCUMENTS: DocType[] = ['Valid ID'];
 
 export const CIVIL_STATUSES = ['Single', 'Married', 'Widowed', 'Separated'] as const;
@@ -76,6 +101,8 @@ export interface ClientDocument {
   client_id: string;
   document_type: DocType;
   file_path: string;
+  file_name?: string | null;
+  label?: string | null;
   /** The lot this document belongs to. Null means it applies to the client as a whole. */
   property_id?: string | null;
   uploaded_at: string;

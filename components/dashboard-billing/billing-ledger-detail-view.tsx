@@ -3134,6 +3134,7 @@ export function BillingLedgerDetailView({
                     {clearanceAutoSoa ? (
                       <p className="text-[11px] text-muted-foreground pl-6">
                         Generates the official SOA PDF and delivers it directly to Legal&apos;s turnover packet.
+                        Uncheck if you wish to upload a different file.
                       </p>
                     ) : (
                       <div className="pl-6 pt-1 space-y-2">
@@ -3215,7 +3216,8 @@ export function BillingLedgerDetailView({
 
                     {clearanceAutoPayments ? (
                       <p className="text-[11px] text-muted-foreground pl-6">
-                        Generates a complete transaction report formatted to standard accounting specifications (.temp/payments format).
+                        Generates the payment history and delivers it directly to Legal's turnover packet. 
+                        Uncheck if you wish to upload a different file.
                       </p>
                     ) : (
                       <div className="pl-6 pt-1 space-y-2">

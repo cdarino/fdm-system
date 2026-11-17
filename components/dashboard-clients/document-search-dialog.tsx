@@ -1,7 +1,6 @@
 'use client';
 
-import { DOC_TYPE_LABEL, type DocType } from '@/lib/types/client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,23 +11,66 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, FileText, ExternalLink, SearchX } from 'lucide-react';
+import { FileTree, FileTreeFolder, FileTreeItem } from '@/components/ui/file-tree';
+import {
+  Search,
+  Loader2,
+  ExternalLink,
+  SearchX,
+  Folder,
+  FolderOpen,
+} from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
-import { humanizeDocumentName } from '@/lib/format-document-name';
-import { DocumentTextView } from './document-text-view';
+import { getDocumentEffectiveLabel } from '@/lib/format-document-name';
+import { formatActivityTime } from '@/lib/format-activity-time';
+import { compareDocumentsByCategory, getDocumentTypeLabel } from '@/lib/types/client';
 import { toast } from 'sonner';
 import type { DocumentSearchHit } from '@/lib/types/search';
 
-/** Long enough that typing a word does not fire a query per keystroke. */
 const DEBOUNCE_MS = 350;
 
-/**
- * Searches the text recovered from scanned paperwork, across every client.
- *
- * This is the point of the OCR pass: staff who remember a name or a lot number
- * written on a contract can find the file without knowing whose record it was
- * filed under.
- */
+interface SearchFolderGroup {
+  id: string;
+  label: string;
+  sublabel?: string;
+  hits: DocumentSearchHit[];
+}
+
+interface ClientSearchGroup {
+  id: string;
+  clientId: string;
+  clientName: string;
+  totalHits: number;
+  folders: SearchFolderGroup[];
+}
+
+function escapeForRegExp(word: string): string {
+  return word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Split rather than injecting HTML so OCR output is never parsed as markup.
+function highlightSearchTerms(text: string, words: string[]) {
+  const usable = Array.from(new Set(words.filter((word) => word.length > 1)))
+    .sort((a, b) => b.length - a.length)
+    .map(escapeForRegExp);
+  if (usable.length === 0) return text;
+
+  const pattern = new RegExp(`(${usable.join('|')})`, 'gi');
+
+  return text.split(pattern).map((part, index) =>
+    index % 2 === 1 ? (
+      <mark
+        key={index}
+        className="rounded-sm bg-[color-mix(in_srgb,var(--row-accent)_40%,var(--card))] px-0.5 font-semibold not-italic text-[var(--row-accent-foreground)]"
+      >
+        {part}
+      </mark>
+    ) : (
+      part
+    )
+  );
+}
+
 export function DocumentSearchDialog({
   open,
   onOpenChange,
@@ -44,15 +86,7 @@ export function DocumentSearchDialog({
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
-
-  /** When set, the dialog shows this document's full text instead of results. */
-  const [readingHit, setReadingHit] = useState<DocumentSearchHit | null>(null);
-
-  // Reset to the results view whenever the dialog is reopened, so it never
-  // reopens on a document from a previous search.
-  useEffect(() => {
-    if (!open) setReadingHit(null);
-  }, [open]);
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!open) return;
@@ -60,6 +94,7 @@ export function DocumentSearchDialog({
     const trimmed = query.trim();
     if (!trimmed) {
       setResults([]);
+      setExpandedFolders({});
       setHasSearched(false);
       setError(null);
       return;
@@ -71,9 +106,10 @@ export function DocumentSearchDialog({
       setError(null);
       searchDocuments(trimmed)
         .then((hits) => {
-          // A slower earlier query must not overwrite a newer result.
+          // Ignore stale responses from slower earlier queries.
           if (cancelled) return;
           setResults(hits);
+          setExpandedFolders({});
           setHasSearched(true);
         })
         .catch((err) => {
@@ -91,6 +127,129 @@ export function DocumentSearchDialog({
     };
   }, [query, open, searchDocuments]);
 
+  const highlightWords = useMemo(
+    () => query.trim().split(/[\s_\-.]+/).filter(Boolean),
+    [query]
+  );
+
+  // Group matches by client, then Personal Documents vs property lot folders.
+  const clientGroups: ClientSearchGroup[] = useMemo(() => {
+    const clientOrder: string[] = [];
+    const clientMap = new Map<
+      string,
+      {
+        clientId: string;
+        clientName: string;
+        totalHits: number;
+        personalHits: DocumentSearchHit[];
+        propertyOrder: string[];
+        propertyMap: Map<string, SearchFolderGroup>;
+      }
+    >();
+
+    for (const hit of results) {
+      const clientKey = hit.client_id || '__unknown__';
+      let entry = clientMap.get(clientKey);
+      if (!entry) {
+        entry = {
+          clientId: hit.client_id,
+          clientName: hit.client_name,
+          totalHits: 0,
+          personalHits: [],
+          propertyOrder: [],
+          propertyMap: new Map(),
+        };
+        clientMap.set(clientKey, entry);
+        clientOrder.push(clientKey);
+      }
+
+      entry.totalHits += 1;
+
+      if (!hit.property_id) {
+        entry.personalHits.push(hit);
+      } else {
+        const folderId = `${clientKey}:${hit.property_id}`;
+        let folder = entry.propertyMap.get(folderId);
+        if (!folder) {
+          folder = {
+            id: folderId,
+            label: hit.property_label ?? 'Property Documents',
+            sublabel: hit.property_location ?? undefined,
+            hits: [],
+          };
+          entry.propertyMap.set(folderId, folder);
+          entry.propertyOrder.push(folderId);
+        }
+        folder.hits.push(hit);
+      }
+    }
+
+    return clientOrder.map((clientKey) => {
+      const entry = clientMap.get(clientKey)!;
+      const folders: SearchFolderGroup[] = [];
+
+      if (entry.personalHits.length > 0) {
+        folders.push({
+          id: `${clientKey}:personal`,
+          label: 'Personal Documents',
+          hits: [...entry.personalHits].sort(compareDocumentsByCategory),
+        });
+      }
+
+      for (const folderId of entry.propertyOrder) {
+        const folder = entry.propertyMap.get(folderId)!;
+        folders.push({
+          ...folder,
+          hits: [...folder.hits].sort(compareDocumentsByCategory),
+        });
+      }
+
+      return {
+        id: `client:${clientKey}`,
+        clientId: entry.clientId,
+        clientName: entry.clientName,
+        totalHits: entry.totalHits,
+        folders,
+      };
+    });
+  }, [results]);
+
+  const allFolderIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const group of clientGroups) {
+      ids.push(group.id);
+      for (const folder of group.folders) {
+        ids.push(folder.id);
+      }
+    }
+    return ids;
+  }, [clientGroups]);
+
+  const areAllExpanded = useMemo(
+    () => allFolderIds.every((id) => expandedFolders[id] ?? true),
+    [allFolderIds, expandedFolders]
+  );
+
+  function isFolderExpanded(folderId: string): boolean {
+    return expandedFolders[folderId] ?? true;
+  }
+
+  function toggleFolder(folderId: string) {
+    setExpandedFolders((prev) => ({
+      ...prev,
+      [folderId]: !(prev[folderId] ?? true),
+    }));
+  }
+
+  function toggleAllFolders() {
+    const nextState = !areAllExpanded;
+    const updated: Record<string, boolean> = {};
+    for (const id of allFolderIds) {
+      updated[id] = nextState;
+    }
+    setExpandedFolders(updated);
+  }
+
   async function handleOpenDocument(documentId: string) {
     setOpeningId(documentId);
     try {
@@ -105,54 +264,76 @@ export function DocumentSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>
-            {readingHit ? 'Document text' : 'Search document contents'}
-          </DialogTitle>
+          <DialogTitle>Search document contents</DialogTitle>
           <DialogDescription>
-            {readingHit
-              ? 'The full text read from this scan, with your search terms marked.'
-              : 'Searches the text read from scanned documents, across every client.'}
+            Searches the text read from scanned documents, across every client.
           </DialogDescription>
         </DialogHeader>
 
-        {readingHit ? (
-          <DocumentTextView
-            documentId={readingHit.document_id}
-            filePath={readingHit.file_path}
-            documentType={readingHit.document_type}
-            clientName={readingHit.client_name}
-            highlightWords={query.trim().split(/[\s_\-.]+/).filter(Boolean)}
-            onBack={() => setReadingHit(null)}
-          />
-        ) : (
-        <>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            autoFocus
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder='Try a name, a lot number, or "deed of absolute sale"'
-            aria-label="Search document contents"
-            className="pl-9"
-          />
-          {isSearching && (
-            <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-          )}
-        </div>
+        <div className="min-w-0 space-y-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder='Try a name, a lot number, or "deed of absolute sale"'
+              aria-label="Search document contents"
+              className="pl-9"
+            />
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+            )}
+          </div>
 
-        <div className="max-h-96 min-h-48 overflow-y-auto rounded-lg border border-border">
+          {results.length > 0 && !error && (
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">
+                  {results.length} {results.length === 1 ? 'match' : 'matches'}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  across {clientGroups.length}{' '}
+                  {clientGroups.length === 1 ? 'client' : 'clients'}
+                </span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="quiet"
+                onClick={toggleAllFolders}
+                className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {areAllExpanded ? (
+                  <>
+                    <Folder className="h-3.5 w-3.5" />
+                    Collapse all
+                  </>
+                ) : (
+                  <>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Expand all
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
           {error ? (
-            <p className="px-4 py-12 text-center text-sm text-destructive">{error}</p>
+            <div className="min-h-48 rounded-lg border border-border bg-card">
+              <p className="px-4 py-12 text-center text-sm text-destructive">{error}</p>
+            </div>
           ) : !query.trim() ? (
-            <p className="px-4 py-12 text-center text-sm text-muted-foreground">
-              Type to search inside uploaded documents.
-            </p>
+            <div className="min-h-48 rounded-lg border border-border bg-card">
+              <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+                Type to search inside uploaded documents.
+              </p>
+            </div>
           ) : hasSearched && results.length === 0 && !isSearching ? (
-            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+            <div className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-12 text-center">
               <SearchX className="h-5 w-5 text-muted-foreground" />
               <p className="text-sm font-medium text-foreground">No documents match</p>
               <p className="max-w-sm text-xs text-muted-foreground">
@@ -160,61 +341,95 @@ export function DocumentSearchDialog({
                 processed upon upload or on-demand.
               </p>
             </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {results.map((hit) => (
-                <li key={hit.document_id} className="p-3 transition-colors hover:bg-row-hover">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-row-hover">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    {/* The body is the control: clicking a result opens its
-                        full text, which is the usual next step after seeing an
-                        excerpt that looks right. */}
-                    <button
-                      type="button"
-                      onClick={() => setReadingHit(hit)}
-                      className="min-w-0 flex-1 space-y-1 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md"
-                      aria-label={`Read text of ${humanizeDocumentName(hit.file_path)}`}
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {humanizeDocumentName(hit.file_path)}
-                        </p>
-                        <Badge variant="secondary" className="text-[10px]">
-                          {DOC_TYPE_LABEL[hit.document_type as DocType] ?? hit.document_type}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{hit.client_name}</p>
-                      {hit.excerpt && (
-                        <p className="line-clamp-2 text-xs italic text-muted-foreground">
-                          {hit.excerpt}
-                        </p>
-                      )}
-                    </button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={openingId === hit.document_id}
-                      onClick={() => void handleOpenDocument(hit.document_id)}
-                      className="h-8 shrink-0 gap-1.5 border-border bg-card text-xs text-foreground hover:bg-row-hover hover:text-foreground"
-                    >
-                      {openingId === hit.document_id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      )}
-                      View
-                    </Button>
-                  </div>
-                </li>
+          ) : results.length > 0 ? (
+            <FileTree className="max-h-96 min-h-48 overflow-x-hidden overflow-y-auto">
+              {clientGroups.map((group) => (
+                <FileTreeFolder
+                  key={group.id}
+                  depth={0}
+                  label={group.clientName}
+                  meta={`${group.totalHits} ${group.totalHits === 1 ? 'match' : 'matches'}`}
+                  expanded={isFolderExpanded(group.id)}
+                  onToggle={() => toggleFolder(group.id)}
+                >
+                  {group.folders.map((folder) => {
+                    const categoryCounts = new Map<string, number>();
+                    for (const h of folder.hits) {
+                      categoryCounts.set(h.document_type, (categoryCounts.get(h.document_type) ?? 0) + 1);
+                    }
+
+                    return (
+                      <FileTreeFolder
+                        key={folder.id}
+                        depth={1}
+                        label={folder.label}
+                        sublabel={folder.sublabel}
+                        meta={`${folder.hits.length} ${folder.hits.length === 1 ? 'file' : 'files'}`}
+                        expanded={isFolderExpanded(folder.id)}
+                        onToggle={() => toggleFolder(folder.id)}
+                      >
+                        {folder.hits.map((hit) => {
+                          const docLabel = getDocumentTypeLabel(hit.document_type);
+                          const effectiveLabel = getDocumentEffectiveLabel(hit);
+                          const countInCategory = categoryCounts.get(hit.document_type) ?? 0;
+                          const showLabel = countInCategory >= 2 || Boolean(hit.label);
+                          const timestampLabel = hit.uploaded_at
+                            ? `${hit.is_autogenerated ? 'Autogenerated' : 'Uploaded'} ${formatActivityTime(hit.uploaded_at)}`
+                            : null;
+
+                          return (
+                            <FileTreeItem
+                              key={hit.document_id}
+                              depth={2}
+                              label={docLabel}
+                              secondaryLabel={showLabel ? effectiveLabel : undefined}
+                              loading={openingId === hit.document_id}
+                              ariaLabel={`Open ${docLabel} (${effectiveLabel})`}
+                              onClick={() => void handleOpenDocument(hit.document_id)}
+                              description={
+                                hit.excerpt ? (
+                                  <p className="line-clamp-2 text-xs italic text-muted-foreground">
+                                    {highlightSearchTerms(hit.excerpt, highlightWords)}
+                                  </p>
+                                ) : undefined
+                              }
+                              hoverActions={
+                                <>
+                                  {timestampLabel && (
+                                    <span className="hidden text-xs text-muted-foreground md:inline">
+                                      {timestampLabel}
+                                    </span>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={openingId === hit.document_id}
+                                    onClick={() => void handleOpenDocument(hit.document_id)}
+                                    className="h-7 gap-1 px-2 text-xs"
+                                  >
+                                    {openingId === hit.document_id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <ExternalLink className="h-3 w-3" />
+                                    )}
+                                    Open
+                                  </Button>
+                                </>
+                              }
+                            />
+                          );
+                        })}
+                      </FileTreeFolder>
+                    );
+                  })}
+                </FileTreeFolder>
               ))}
-            </ul>
+            </FileTree>
+          ) : (
+            <div className="min-h-48 rounded-lg border border-border bg-card" />
           )}
         </div>
-        </>
-        )}
       </DialogContent>
     </Dialog>
   );

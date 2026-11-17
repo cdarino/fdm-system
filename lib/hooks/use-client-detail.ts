@@ -18,6 +18,7 @@ import {
   deleteContactInfo as deleteContactInfoAction,
   createClientLog as createClientLogAction,
   uploadClientDocument as uploadClientDocumentAction,
+  updateClientDocumentLabel as updateClientDocumentLabelAction,
   deleteClientDocument as deleteClientDocumentAction,
   getClientDocumentUrl as getClientDocumentUrlAction,
 } from '@/lib/actions/clients';
@@ -56,6 +57,7 @@ export interface ClientDetailContextValue {
   setPrimaryContact: (contactId: string) => Promise<void>;
   addActivity: (input: CreateClientLogInput) => Promise<ClientLog>;
   uploadDocument: (formData: FormData) => Promise<ClientDocument>;
+  updateDocumentLabel: (documentId: string, label: string) => Promise<ClientDocument>;
   deleteDocument: (documentId: string) => Promise<void>;
   getDocumentUrl: (documentId: string) => Promise<string>;
   /** Billing confirms the client fully paid for a lot. The lot becomes Sold. */
@@ -274,6 +276,24 @@ export function ClientDetailProvider({
     [client.client_id, router]
   );
 
+  const updateDocumentLabel = useCallback(
+    async (documentId: string, label: string): Promise<ClientDocument> => {
+      const result = await updateClientDocumentLabelAction(documentId, label);
+      if (!result.success) throw new Error(result.error);
+
+      setClient((prev) => ({
+        ...prev,
+        client_document: prev.client_document.map((d) =>
+          d.document_id === documentId ? result.data : d
+        ),
+      }));
+      notifyActivityUpdated();
+      router.refresh();
+      return result.data;
+    },
+    [router]
+  );
+
   const deleteDocument = useCallback(
     async (documentId: string): Promise<void> => {
       const result = await deleteClientDocumentAction(documentId);
@@ -361,6 +381,7 @@ export function ClientDetailProvider({
     setPrimaryContact,
     addActivity,
     uploadDocument,
+    updateDocumentLabel,
     deleteDocument,
     getDocumentUrl,
     clearAccount,

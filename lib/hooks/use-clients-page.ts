@@ -19,10 +19,7 @@ import {
   getClientDocumentUrl as getClientDocumentUrlAction,
   getClientsWithMissingDocuments,
 } from '@/lib/actions/clients';
-import {
-  searchDocumentText,
-  getEntityIndex,
-} from '@/lib/actions/search-index';
+import { searchDocumentText } from '@/lib/actions/search-index';
 import type { DocumentSearchHit } from '@/lib/types/search';
 import type { ActionResult } from '@/lib/actions/action-result';
 import { useSession } from '@/lib/hooks/use-session';
@@ -71,7 +68,6 @@ interface ClientsContextValue {
   restoreClient: (clientId: string) => Promise<ActionResult<ClientListItem>>;
   getDocumentUrl: (documentId: string) => Promise<string>;
   searchDocuments: (query: string) => Promise<DocumentSearchHit[]>;
-  getDocumentText: (documentId: string) => Promise<string | null>;
   /** Clients whose required paperwork is incomplete. */
   missingDocumentAlerts: ClientDocumentNotification[];
   isSystemAdmin: boolean;
@@ -349,12 +345,6 @@ export function ClientsProvider({
     void refreshMissingDocumentAlerts();
   }, [refreshMissingDocumentAlerts]);
 
-  /** The full OCR text, as opposed to the excerpt a search result carries. */
-  const getDocumentText = useCallback(async (documentId: string) => {
-    const entry = await getEntityIndex('client_document', documentId);
-    return entry?.content ?? null;
-  }, []);
-
   return createElement(
     ClientsContext.Provider,
     {
@@ -370,7 +360,6 @@ export function ClientsProvider({
         restoreClient,
         getDocumentUrl,
         searchDocuments,
-        getDocumentText,
         missingDocumentAlerts,
         isSystemAdmin: Boolean(isSystemAdmin),
       },

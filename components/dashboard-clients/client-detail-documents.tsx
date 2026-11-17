@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { FileTree, FileTreeFolder, FileTreeItem } from '@/components/ui/file-tree';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,22 +24,28 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Trash2,
   Check,
   Circle,
-  FileText,
   Upload,
   ExternalLink,
+  Pencil,
   ShieldAlert,
   Loader2,
   ChevronDown,
-  ChevronRight,
   Plus,
   FolderOpen,
   Folder,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatActivityTime } from '@/lib/format-activity-time';
+import { getDocumentEffectiveLabel } from '@/lib/format-document-name';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
 import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import {
@@ -47,6 +54,7 @@ import {
   PERSONAL_DOC_TYPES,
   PROPERTY_DOC_TYPES,
   REQUIRED_CLIENT_DOCUMENTS,
+  compareDocumentsByCategory,
   getDocumentTypeLabel,
   type StandardDocType,
   type ClientDocument,
@@ -55,6 +63,7 @@ import {
   ClientDocumentUploadModal,
   type TargetFolderInfo,
 } from './client-document-upload-modal';
+import { ClientDocumentLabelModal } from './client-document-label-modal';
 
 interface DocumentFolder {
   id: string;
@@ -66,12 +75,13 @@ interface DocumentFolder {
 }
 
 export function ClientDetailDocuments() {
-  const { client, uploadDocument, deleteDocument, getDocumentUrl } = useClientDetail();
+  const { client, uploadDocument, updateDocumentLabel, deleteDocument, getDocumentUrl } = useClientDetail();
   const { enqueueFile } = useOcrQueue();
   const searchParams = useSearchParams();
 
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [docToLabel, setDocToLabel] = useState<ClientDocument | null>(null);
   const [docToDelete, setDocToDelete] = useState<ClientDocument | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -117,7 +127,7 @@ export function ClientDetailDocuments() {
           label: 'Personal Documents',
           sublabel: client.full_name,
         },
-        docs: clientDocs,
+        docs: [...clientDocs].sort(compareDocumentsByCategory),
       },
     ];
 
@@ -132,7 +142,7 @@ export function ClientDetailDocuments() {
           label: `Block ${lot.block_number} Lot ${lot.lot_number}`,
           sublabel: lot.location || 'Property Lot',
         },
-        docs: propertyDocsMap.get(lot.property_id) ?? [],
+        docs: [...(propertyDocsMap.get(lot.property_id) ?? [])].sort(compareDocumentsByCategory),
       });
     }
 
@@ -146,7 +156,7 @@ export function ClientDetailDocuments() {
           propertyId: null,
           label: 'Other / Unlinked Documents',
         },
-        docs: unlinkedDocs,
+        docs: [...unlinkedDocs].sort(compareDocumentsByCategory),
       });
     }
 
@@ -333,203 +343,159 @@ export function ClientDetailDocuments() {
         </Button>
       </div>
 
-      {/* Windows Explorer / Google Drive Style Explorer Container */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
-        <div className="divide-y divide-border/60">
+      <TooltipProvider delayDuration={300}>
+        <FileTree>
           {folders.map((folder) => {
-            const isExpanded = isFolderExpanded(folder.id);
+            const categoryCounts = new Map<string, number>();
+            for (const d of folder.docs) {
+              categoryCounts.set(d.document_type, (categoryCounts.get(d.document_type) ?? 0) + 1);
+            }
+
             return (
-              <div key={folder.id} className="py-0.5">
-                {/* Folder Row */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  aria-expanded={isExpanded}
-                  onClick={() => toggleFolder(folder.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleFolder(folder.id);
-                    }
-                  }}
-                  className="group flex cursor-pointer items-center justify-between px-3 py-2 select-none hover:bg-row-hover transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <div className="flex h-5 w-5 items-center justify-center text-muted-foreground">
-                      <ChevronRight
-                        className={`h-3.5 w-3.5 transition-transform duration-200 ease-in-out ${
-                          isExpanded ? 'rotate-90' : 'rotate-0'
-                        }`}
-                      />
-                    </div>
-
-                    {isExpanded ? (
-                      <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
-                    ) : (
-                      <Folder className="h-4 w-4 shrink-0 text-primary" />
-                    )}
-
-                    <span className="text-sm font-semibold text-foreground truncate">
-                      {folder.label}
-                    </span>
-
-                    {folder.sublabel && (
-                      <span className="text-xs text-muted-foreground truncate hidden md:inline">
-                        ({folder.sublabel})
-                      </span>
-                    )}
-
-                    <span className="text-xs text-muted-foreground ml-1">
-                      • {folder.docs.length} {folder.docs.length === 1 ? 'file' : 'files'}
-                    </span>
-                  </div>
-
-                  {/* Folder Upload Dropdown */}
-                  <div
-                    className="flex items-center gap-1.5 shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground hover:bg-muted"
-                        >
-                          <Upload className="h-3.5 w-3.5" />
-                          Upload
-                          <ChevronDown className="h-2.5 w-2.5 opacity-60" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuLabel className="text-xs text-muted-foreground">
-                          Select document type
-                        </DropdownMenuLabel>
-                        {(folder.isClient ? PERSONAL_DOC_TYPES : PROPERTY_DOC_TYPES).map((type) => (
-                          <DropdownMenuItem
-                            key={type}
-                            onClick={() => openUpload(folder.targetInfo, type)}
-                            className="text-xs cursor-pointer"
-                          >
-                            {DOC_TYPE_LABEL[type]}
-                          </DropdownMenuItem>
-                        ))}
-                        <DropdownMenuSeparator />
+              <FileTreeFolder
+                key={folder.id}
+                depth={0}
+                label={folder.label}
+                sublabel={folder.sublabel}
+                meta={`${folder.docs.length} ${folder.docs.length === 1 ? 'file' : 'files'}`}
+                expanded={isFolderExpanded(folder.id)}
+                onToggle={() => toggleFolder(folder.id)}
+                actions={
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Upload
+                        <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">
+                        Select document type
+                      </DropdownMenuLabel>
+                      {(folder.isClient ? PERSONAL_DOC_TYPES : PROPERTY_DOC_TYPES).map((type) => (
                         <DropdownMenuItem
-                          onClick={() => openUpload(folder.targetInfo, 'custom')}
-                          className="text-xs font-medium text-primary cursor-pointer"
+                          key={type}
+                          onClick={() => openUpload(folder.targetInfo, type)}
+                          className="cursor-pointer text-xs"
                         >
-                          <Plus className="mr-1.5 h-3.5 w-3.5" />
-                          Upload a custom file...
+                          {DOC_TYPE_LABEL[type]}
                         </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => openUpload(folder.targetInfo, 'custom')}
+                        className="cursor-pointer text-xs font-medium text-primary"
+                      >
+                        <Plus className="mr-1.5 h-3.5 w-3.5" />
+                        Upload a custom file...
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                }
+              >
+                {folder.docs.length === 0 ? (
+                  <div className="flex items-center justify-between py-1.5 pl-10 pr-3 text-xs italic text-muted-foreground">
+                    <span>No documents in this folder</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs font-normal not-italic text-primary hover:text-primary"
+                      onClick={() => openUpload(folder.targetInfo, '')}
+                    >
+                      <Upload className="mr-1 h-3 w-3" />
+                      Upload file
+                    </Button>
                   </div>
-                </div>
+                ) : (
+                  folder.docs.map((doc) => {
+                    const countInCategory = categoryCounts.get(doc.document_type) ?? 0;
+                    const showLabel = countInCategory >= 2 || Boolean(doc.label);
+                    const secondaryLabel = showLabel ? getDocumentEffectiveLabel(doc) : undefined;
 
-                {/* Indented Files List under Folder with collapse/expand animation */}
-                <div
-                  className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${
-                    isExpanded
-                      ? 'grid-rows-[1fr] opacity-100'
-                      : 'grid-rows-[0fr] opacity-0 pointer-events-none'
-                  }`}
-                  aria-hidden={!isExpanded}
-                >
-                  <div className="overflow-hidden">
-                    <div className="space-y-0.5 pb-1">
-                    {folder.docs.length === 0 ? (
-                      <div className="flex items-center justify-between pl-10 pr-3 py-1.5 text-xs text-muted-foreground italic">
-                        <span>No documents in this folder</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs text-primary hover:text-primary not-italic font-normal"
-                          onClick={() => openUpload(folder.targetInfo, '')}
-                        >
-                          <Upload className="h-3 w-3 mr-1" />
-                          Upload file
-                        </Button>
-                      </div>
-                    ) : (
-                      folder.docs.map((doc) => (
-                        <div
-                          key={doc.document_id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => void handleOpen(doc.document_id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              void handleOpen(doc.document_id);
-                            }
-                          }}
-                          className="group flex cursor-pointer select-none items-center justify-between pl-10 pr-3 py-1.5 text-sm hover:bg-row-hover transition-colors"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            {openingId === doc.document_id ? (
-                              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                            ) : (
-                              <FileText className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
-                            )}
-                            <span className="truncate text-foreground text-sm font-normal group-hover:text-primary transition-colors">
-                              {getDocumentTypeLabel(doc.document_type)}
+                    return (
+                      <FileTreeItem
+                        key={doc.document_id}
+                        depth={1}
+                        label={getDocumentTypeLabel(doc.document_type)}
+                        secondaryLabel={secondaryLabel}
+                        loading={openingId === doc.document_id}
+                        onClick={() => void handleOpen(doc.document_id)}
+                        hoverActions={
+                          <>
+                            <span className="select-none text-xs text-muted-foreground">
+                              {doc.is_autogenerated ? 'Autogenerated' : 'Uploaded'}{' '}
+                              {formatActivityTime(doc.uploaded_at)}
                             </span>
-                          </div>
-
-                          {/* Right side: Uploaded time and actions, visible on hover / focus */}
-                          <div
-                            className="flex items-center gap-3 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <span className="text-xs text-muted-foreground select-none">
-                              Uploaded {formatActivityTime(doc.uploaded_at)}
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleOpen(doc.document_id);
-                                }}
-                                disabled={openingId === doc.document_id}
-                                className="h-7 px-2 text-xs gap-1"
-                              >
-                                {openingId === doc.document_id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <ExternalLink className="h-3 w-3" />
-                                )}
-                                Open
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDocToDelete(doc);
-                                }}
-                                className="h-7 px-2 text-xs gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                                Delete
-                              </Button>
+                            <div className="flex items-center gap-0.5">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => void handleOpen(doc.document_id)}
+                                    disabled={openingId === doc.document_id}
+                                    aria-label="Open document"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  >
+                                    {openingId === doc.document_id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Open document</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => setDocToLabel(doc)}
+                                    aria-label="Edit label"
+                                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit label</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => setDocToDelete(doc)}
+                                    aria-label="Delete document"
+                                    className="h-7 w-7 text-destructive hover:bg-[color-mix(in_srgb,var(--destructive)_10%,transparent)] hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete document</TooltipContent>
+                              </Tooltip>
                             </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                          </>
+                        }
+                      />
+                    );
+                  })
+                )}
+              </FileTreeFolder>
             );
           })}
-        </div>
-      </div>
+        </FileTree>
+      </TooltipProvider>
 
       {/* Upload Modal */}
       <ClientDocumentUploadModal
@@ -538,6 +504,15 @@ export function ClientDetailDocuments() {
         targetFolder={uploadModal.folder}
         initialType={uploadModal.initialType}
         onUpload={handleUpload}
+      />
+
+      {/* Label Modal */}
+      <ClientDocumentLabelModal
+        document={docToLabel}
+        onOpenChange={(open) => !open && setDocToLabel(null)}
+        onSave={async (documentId, label) => {
+          await updateDocumentLabel(documentId, label);
+        }}
       />
 
       {/* Delete Confirmation Alert */}
@@ -562,7 +537,7 @@ export function ClientDetailDocuments() {
                 void handleConfirmDelete();
               }}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-[color-mix(in_srgb,var(--destructive)_85%,black)]"
             >
               {isDeleting ? (
                 <>

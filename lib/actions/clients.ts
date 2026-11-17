@@ -14,6 +14,7 @@ import {
   getClientsParamsSchema,
   createClientDocumentSchema,
   getClientDocumentsParamsSchema,
+  updateClientDocumentLabelSchema,
   clientInteractionSchema,
   createClientLogSchema,
   getContactValueError,
@@ -363,7 +364,7 @@ export async function getClientById(clientId: string): Promise<ClientWithDetails
       const { data: row, error } = await supabase
         .from("client")
         .select(
-          "*, contact_info(*), documents:file_attachment!client_id(attachment_id, client_id, file_category, file_path, property_id, uploaded_by, uploaded_at), client_log(*)"
+          `*, contact_info(*), documents:file_attachment!client_id(${CLIENT_DOCUMENT_COLUMNS}), client_log(*)`
         )
         .eq("client_id", validId)
         .single<ClientWithDetails & { documents: FileAttachment[] }>();
@@ -776,6 +777,70 @@ export async function getClientDocuments(
       }
 
       return toClientDocuments(data);
+    },
+  });
+}
+
+export async function updateClientDocumentLabel(
+  documentId: string,
+  label: string
+): Promise<ActionResult<ClientDocument>> {
+  return clientWrite.run({
+    schema: updateClientDocumentLabelSchema,
+    input: { documentId, label },
+    handler: async ({ documentId: validId, label: validLabel }, { supabase }) => {
+      const { data: existing, error: fetchError } = await supabase
+        .from("file_attachment")
+        .select("attachment_id, entity_type, file_category, metadata, client:client_id(full_name)")
+        .eq("attachment_id", validId)
+        .maybeSingle<{
+          attachment_id: string;
+          entity_type: string;
+          file_category: string;
+          metadata: Record<string, unknown> | null;
+          client: { full_name: string } | null;
+        }>();
+
+      if (fetchError) {
+        throw new Error(`Failed to load document: ${fetchError.message}`);
+      }
+      if (!existing) {
+        throw new Error("Document not found.");
+      }
+
+      const nextMetadata: Record<string, unknown> = { ...(existing.metadata ?? {}) };
+      if (validLabel) {
+        nextMetadata.label = validLabel;
+      } else {
+        delete nextMetadata.label;
+      }
+
+      const { data: updated, error: updateError } = await supabase
+        .from("file_attachment")
+        .update({ metadata: nextMetadata })
+        .eq("attachment_id", validId)
+        .select(CLIENT_DOCUMENT_COLUMNS)
+        .maybeSingle<FileAttachment>();
+
+      if (updateError) {
+        throw new Error(`Failed to update document label: ${updateError.message}`);
+      }
+      if (!updated) {
+        throw new Error("Document not found or you do not have permission to edit it.");
+      }
+
+      // Keep search_index keywords in sync when an index entry already exists.
+      const indexEntityType = existing.entity_type === "land_title" ? "land_title" : "client_document";
+      const nextKeywords = [existing.file_category, existing.client?.full_name, validLabel]
+        .filter(Boolean)
+        .join(" ");
+      await supabase
+        .from("search_index")
+        .update({ keywords: nextKeywords })
+        .eq("entity_type", indexEntityType)
+        .eq("entity_id", validId);
+
+      return toClientDocument(updated);
     },
   });
 }

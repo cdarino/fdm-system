@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DOC_TYPES, PROPERTY_DOC_TYPES, CIVIL_STATUSES, GENDERS } from "@/lib/types/client";
+import { PROPERTY_DOC_TYPES, CIVIL_STATUSES, GENDERS } from "@/lib/types/client";
 
 export function stripUndefined<T extends Record<string, unknown>>(data: T): Partial<T> {
   return Object.fromEntries(
@@ -255,6 +255,15 @@ export const createClientDocumentSchema = z
 export const getClientDocumentsParamsSchema = z.object({
   clientId: uuidSchema,
   category: docTypeSchema.optional(),
+});
+
+export const updateClientDocumentLabelSchema = z.object({
+  documentId: uuidSchema,
+  label: z
+    .string()
+    .trim()
+    .max(120, "Label must be 120 characters or fewer")
+    .transform((value) => (value.length > 0 ? value : null)),
 });
 
 export const clientInteractionSchema = z.object({
