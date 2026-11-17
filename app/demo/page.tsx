@@ -28,6 +28,25 @@ export default function Page() {
             {/* Design Concept Labs */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Link
+                    href="/demo/dashboard"
+                    className="p-4 rounded-xl border-2 border-primary bg-card hover:bg-muted/30 transition-all flex flex-col justify-between shadow-xs"
+                >
+                    <div>
+                        <div className="flex items-center justify-between mb-1">
+                            <Badge variant="default" className="text-[10px]">Overhaul</Badge>
+                            <Layers className="h-4 w-4 text-primary" />
+                        </div>
+                        <h3 className="font-bold text-sm text-foreground">Dashboard Overhaul</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            Multi-module wind-down hub, Billing cards, title pipeline &amp; pulse bar.
+                        </p>
+                    </div>
+                    <span className="text-xs font-semibold text-primary flex items-center gap-1 mt-3">
+                        Compare Directions <ArrowRight className="h-3 w-3" />
+                    </span>
+                </Link>
+
+                <Link
                     href="/dashboard/billing"
                     className="p-4 rounded-xl border border-primary/40 bg-card hover:bg-muted/30 transition-all flex flex-col justify-between"
                 >

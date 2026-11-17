@@ -1,9 +1,10 @@
 import type { PropertyLot } from './property';
 import type { LedgerStatus, OverdueNoticeStage } from './billing';
 
-/** Every kind of client document, in the order the upload menu lists them. */
-export const DOC_TYPES = [
-  'Valid ID',
+export const PERSONAL_DOC_TYPES = ['Valid ID'] as const;
+export type PersonalDocType = (typeof PERSONAL_DOC_TYPES)[number];
+
+export const PROPERTY_DOC_TYPES = [
   'Contract',
   'Deed of Sale',
   'SOA',
@@ -11,13 +12,20 @@ export const DOC_TYPES = [
   'Certificate of Ownership',
   'Title Copy',
   'eCAR',
-  'Other',
+] as const;
+export type PropertyDocType = (typeof PROPERTY_DOC_TYPES)[number];
+
+/** Every kind of client document, in the order the upload menu lists them. */
+export const DOC_TYPES = [
+  ...PERSONAL_DOC_TYPES,
+  ...PROPERTY_DOC_TYPES,
 ] as const;
 
-export type DocType = (typeof DOC_TYPES)[number];
+export type StandardDocType = (typeof DOC_TYPES)[number];
+export type DocType = StandardDocType | (string & {});
 
 /** How each type reads on screen. The only contract FDM signs with buyers is the Contract to Sell. */
-export const DOC_TYPE_LABEL: Record<DocType, string> = {
+export const DOC_TYPE_LABEL: Record<string, string> = {
   'Valid ID': 'Valid ID',
   Contract: 'Contract to Sell',
   'Deed of Sale': 'Deed of Sale',
@@ -28,6 +36,10 @@ export const DOC_TYPE_LABEL: Record<DocType, string> = {
   eCAR: 'eCAR',
   Other: 'Other',
 };
+
+export function getDocumentTypeLabel(type: string): string {
+  return (DOC_TYPE_LABEL as Record<string, string>)[type] ?? type;
+}
 
 export const REQUIRED_CLIENT_DOCUMENTS: DocType[] = ['Valid ID'];
 
@@ -206,6 +218,7 @@ export interface UpdateClientInput {
 export interface CreateClientDocumentInput {
   document_type: DocType;
   file_path: string;
+  property_id?: string | null;
 }
 
 export interface CreateClientLogInput {

@@ -74,7 +74,7 @@ describe('Dashboard overview presentation', () => {
     expect(unavailable).toContain('temporarily unavailable');
     expect(unavailable).toContain('href="/dashboard/properties/map"');
     const empty = renderToStaticMarkup(createElement(PropertyMapCard, { preview: { projectArea: null } }));
-    expect(empty).toContain('No projectAreas to preview');
+    expect(empty).toContain('No project areas to preview');
     expect(empty).not.toContain('data-engine="maplibre"');
   });
 

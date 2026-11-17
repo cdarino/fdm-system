@@ -94,9 +94,8 @@ describe("Release documents are client documents", () => {
   });
 
   it("uploads from the client profile count toward the release packet", async () => {
-    // No lot chosen: applies to all of the client's lots
-    unwrap(await uploadClientDocument(clientId, pdfForm("Contract", "contract-to-sell.pdf")));
     // Linked to this lot
+    unwrap(await uploadClientDocument(clientId, pdfForm("Contract", "contract-to-sell.pdf", lotId)));
     unwrap(await uploadClientDocument(clientId, pdfForm("Title Copy", "title.pdf", lotId)));
 
     const missing = await getMissingReleaseDocumentsForTitle(titleId);
@@ -121,10 +120,10 @@ describe("Release documents are client documents", () => {
     expect(histories.map((d) => d.document_id)).toEqual([second.document_id]);
     expect(histories.some((d) => d.document_id === first.document_id)).toBe(false);
 
-    // The shared Contract from the client profile is untouched by a lot upload
+    // Uploading a new lot contract updates the packet
     unwrap(await uploadReleaseDocument(titleId, pdfForm("Contract", "lot-contract.pdf")));
     const contracts = (await getReleaseDocuments(titleId)).filter((d) => d.document_type === "Contract");
-    expect(contracts.some((d) => !d.property_id)).toBe(true);
+    expect(contracts.some((d) => d.property_id === lotId)).toBe(true);
   });
 
   it("removing an item deletes it from the client's documents too", async () => {

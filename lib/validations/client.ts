@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DOC_TYPES, CIVIL_STATUSES, GENDERS } from "@/lib/types/client";
+import { DOC_TYPES, PROPERTY_DOC_TYPES, CIVIL_STATUSES, GENDERS } from "@/lib/types/client";
 
 export function stripUndefined<T extends Record<string, unknown>>(data: T): Partial<T> {
   return Object.fromEntries(
@@ -9,7 +9,11 @@ export function stripUndefined<T extends Record<string, unknown>>(data: T): Part
 
 export const uuidSchema = z.string().uuid("Invalid UUID format");
 
-export const docTypeSchema = z.enum(DOC_TYPES);
+export const docTypeSchema = z
+  .string()
+  .trim()
+  .min(1, "Document type is required")
+  .max(100, "Document type name must be at most 100 characters");
 
 // Letters (including ñ and accented letters), spaces, and the punctuation that
 // appears in names: "Ma. Teresa", "O'Neil", "Santos-Reyes", "dela Cruz, Jr.".
@@ -224,11 +228,29 @@ export const getClientsParamsSchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("asc"),
 });
 
-export const createClientDocumentSchema = z.object({
-  clientId: uuidSchema,
-  document_type: docTypeSchema,
-  file_path: z.string().trim().min(1, "File path is required"),
-});
+export const createClientDocumentSchema = z
+  .object({
+    clientId: uuidSchema,
+    document_type: docTypeSchema,
+    file_path: z.string().trim().min(1, "File path is required"),
+    property_id: uuidSchema.nullish().transform((v) => v ?? null),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.property_id && (PROPERTY_DOC_TYPES as readonly string[]).includes(data.document_type)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["document_type"],
+        message: `${data.document_type} must be assigned to a property folder. Under personal documents, only Valid ID and custom files are accepted.`,
+      });
+    }
+    if (data.property_id && data.document_type === "Valid ID") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["document_type"],
+        message: "Valid ID must be uploaded under personal documents, not a property folder.",
+      });
+    }
+  });
 
 export const getClientDocumentsParamsSchema = z.object({
   clientId: uuidSchema,

@@ -41,6 +41,7 @@ import {
   type GetClientsParams,
   type PaginatedResult,
   REQUIRED_CLIENT_DOCUMENTS,
+  PROPERTY_DOC_TYPES,
 } from "@/lib/types/client";
 
 import type { PropertyLot } from "@/lib/types/property";
@@ -60,13 +61,30 @@ const client = createScope(["clients.read"]);
 const clientWrite = client.extend(["clients.update"]);
 const clientDelete = client.extend(["clients.delete"]);
 
-const uploadClientDocumentSchema = z.object({
-  clientId: uuidSchema,
-  document_type: docTypeSchema,
-  file: documentFileSchema,
-  // Optional lot the document belongs to. FormData gives null when absent.
-  property_id: uuidSchema.nullish().transform((v) => v ?? null),
-});
+const uploadClientDocumentSchema = z
+  .object({
+    clientId: uuidSchema,
+    document_type: docTypeSchema,
+    file: documentFileSchema,
+    // Optional lot the document belongs to. FormData gives null when absent.
+    property_id: uuidSchema.nullish().transform((v) => v ?? null),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.property_id && (PROPERTY_DOC_TYPES as readonly string[]).includes(data.document_type)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["document_type"],
+        message: `${data.document_type} must be assigned to a property folder. Under personal documents, only Valid ID and custom files are accepted.`,
+      });
+    }
+    if (data.property_id && data.document_type === "Valid ID") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["document_type"],
+        message: "Valid ID must be uploaded under personal documents, not a property folder.",
+      });
+    }
+  });
 
 async function resolveUserNames(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -715,6 +733,7 @@ export async function createClientDocument(
           entity_type: "client",
           entity_id: validId,
           client_id: validId,
+          property_id: data.property_id ?? null,
           file_category: data.document_type,
           file_path: data.file_path,
           uploaded_by: userId,
