@@ -1106,7 +1106,7 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
           <AlertDialogHeader>
             <AlertDialogTitle>Close Lot for Sale?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to close <strong>{lotLabel(lot)}</strong>? This will remove the lot record from the database and return it to closed status. This action cannot be undone.
+              Are you sure you want to close <strong>{lotLabel(lot)}</strong>? This will remove the lot record from the database and return it to closed status.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

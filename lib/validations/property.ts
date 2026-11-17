@@ -194,7 +194,20 @@ export const createAndAssignPropertyFromSubdivisionSchema = z.object({
 export const forfeitPropertyLotSchema = z.object({
   propertyId: uuidSchema,
   reason: z.string().trim().max(1000).optional(),
-  forfeitedAt: z.string().datetime().optional(),
+  forfeitedAt: z
+    .string()
+    .trim()
+    .refine((val) => !val || !isNaN(Date.parse(val)), {
+      message: "Invalid date or datetime format",
+    })
+    .transform((val) => {
+      if (!val) return undefined;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        return new Date(`${val}T00:00:00.000Z`).toISOString();
+      }
+      return new Date(val).toISOString();
+    })
+    .optional(),
 });
 
 export const reopenPropertyLotForSaleSchema = z.object({

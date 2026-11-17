@@ -253,4 +253,36 @@ describe("Billing Ledger Engine", () => {
     expect(postMaturityPenRows.length).toBeGreaterThan(0);
     expect(postMaturityPenRows[0].description).toContain("2.0% Post-Maturity Penalty");
   });
+
+  it("does not treat an unpaid downpayment as overdue on creation before firstDueDate", () => {
+    const ledger = createBaseLedger({
+      contractPrice: 198000,
+      downpayment: 3500,
+      termMonths: 60,
+      createdAt: "2017-03-07",
+      firstDueDate: "2017-04-07",
+      payments: [],
+    });
+
+    // Evaluate on creation date
+    const onCreation = evaluateLedger(ledger, "2017-03-07");
+    expect(onCreation.status).toBe("current");
+    expect(onCreation.monthsOverdue).toBe(0);
+    expect(onCreation.arrearsPrincipal).toBe(0);
+    expect(onCreation.installmentDueBalance).toBe(3500);
+    expect(onCreation.totalPayableNow).toBe(3500);
+
+    // Evaluate midway between creation and first due date
+    const midway = evaluateLedger(ledger, "2017-03-20");
+    expect(midway.status).toBe("current");
+    expect(midway.monthsOverdue).toBe(0);
+    expect(midway.arrearsPrincipal).toBe(0);
+    expect(midway.installmentDueBalance).toBe(3500);
+
+    // Evaluate after firstDueDate with unpaid downpayment
+    const afterDue = evaluateLedger(ledger, "2017-04-08");
+    expect(afterDue.status).toBe("overdue");
+    expect(afterDue.monthsOverdue).toBe(1);
+    expect(afterDue.arrearsPrincipal).toBeGreaterThanOrEqual(3500);
+  });
 });

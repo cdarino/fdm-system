@@ -28,7 +28,7 @@ export function BillingDashboardView({
   const [asOfDate, setAsOfDate] = useState<string>(
     () => initialAsOfDate || new Date().toISOString().split("T")[0]
   );
-  const [filterStatus, setFilterStatus] = useState<"all" | LedgerStatus | "cleared" | "forfeited">("all");
+  const [filterStatus, setFilterStatus] = useState<"active" | LedgerStatus | "cleared" | "forfeited">("active");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("due");
   const [sortAsc, setSortAsc] = useState<boolean>(true);
@@ -94,7 +94,8 @@ export function BillingDashboardView({
       noticesServedCount,
       clearedCount,
       forfeitedCount,
-      activeCount: summaries.length - settledCount - clearedCount - forfeitedCount,
+      payingCount: summaries.length - settledCount - clearedCount - forfeitedCount,
+      activeCount: summaries.length - clearedCount - forfeitedCount,
     };
   }, [summaries]);
 
@@ -105,11 +106,13 @@ export function BillingDashboardView({
         const isCleared = Boolean(s.ledger.clearedAt);
         const isForfeited = s.ledger.status === "Forfeited" || stage === "forfeited";
 
-        if (filterStatus === "cleared") {
+        if (filterStatus === "active") {
+          if (isCleared || isForfeited) return false;
+        } else if (filterStatus === "cleared") {
           if (!isCleared) return false;
         } else if (filterStatus === "forfeited") {
           if (!isForfeited || isCleared) return false;
-        } else if (filterStatus !== "all") {
+        } else {
           if (isCleared || isForfeited || s.status !== filterStatus) return false;
         }
         if (searchQuery.trim()) {
@@ -271,7 +274,7 @@ export function BillingDashboardView({
             {formatCurrency(metrics.totalReceivables)}
           </div>
           <div className="text-xs text-muted-foreground mt-1">
-            {metrics.activeCount} active • {metrics.settledCount} settled
+            {metrics.payingCount} paying • {metrics.settledCount} settled
           </div>
         </div>
 
@@ -292,14 +295,14 @@ export function BillingDashboardView({
       <div className="bg-card p-3 rounded-xl border border-border-warm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center space-x-1 overflow-x-auto text-xs">
           <button
-            onClick={() => setFilterStatus("all")}
+            onClick={() => setFilterStatus("active")}
             className={`px-3 py-1.5 rounded-md transition-colors ${
-              filterStatus === "all"
+              filterStatus === "active"
                 ? "bg-primary text-primary-foreground font-medium"
                 : "text-muted-foreground hover:bg-muted"
             }`}
           >
-            All ({summaries.length})
+            Active ({metrics.activeCount})
           </button>
           <button
             onClick={() => setFilterStatus("overdue")}

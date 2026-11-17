@@ -19,6 +19,10 @@ import {
   getContactValueError,
 } from "@/lib/validations/client";
 import {
+  buildClientPropertyBillingSummary,
+  type RawAccountBillingData,
+} from "@/lib/billing/client-property-billing";
+import {
   type Client,
   type ClientProperty,
   type ClientListItem,
@@ -187,20 +191,8 @@ async function resolveClientProperties(
   const [partyResult, titleResult] = await Promise.all([
     supabase
       .from("account_party")
-      .select(`
-        ledger_account!inner(
-          account_id,
-          property_id,
-          status,
-          cleared_at,
-          total_contract_price,
-          remaining_balance,
-          contract_end_date,
-          baseline_penalties_accrued
-        )
-      `)
-      .eq("client_id", clientId)
-      .in("ledger_account.status", ["Active", "Matured", "Delinquent", "Forfeited"]),
+      .select("account_id")
+      .eq("client_id", clientId),
     supabase
       .from("land_title")
       .select(`
@@ -217,28 +209,77 @@ async function resolveClientProperties(
   ]);
 
   if (partyResult.error) {
-    console.error(`Failed to resolve properties for client ${clientId}:`, partyResult.error.message);
+    console.error(`Failed to resolve account parties for client ${clientId}:`, partyResult.error.message);
   }
   if (titleResult.error) {
     console.error(`Failed to resolve titles for client ${clientId}:`, titleResult.error.message);
   }
 
-  type AccountRef = {
-    account_id: string;
-    property_id: string;
-    status: string;
-    cleared_at: string | null;
-    total_contract_price: number | null;
-    remaining_balance: number | null;
-    contract_end_date: string | null;
-    baseline_penalties_accrued: number | null;
-  };
-  const accounts = new Map<string, AccountRef>();
-  for (const row of partyResult.data ?? []) {
-    // A many-to-one embed is one object at runtime, but untyped clients see an array.
-    const embedded = row.ledger_account as unknown as AccountRef | AccountRef[] | null;
-    const account = Array.isArray(embedded) ? embedded[0] : embedded;
-    if (account?.property_id) accounts.set(account.property_id, account);
+  const accountIds = Array.from(
+    new Set((partyResult.data ?? []).map((row) => row.account_id).filter(Boolean))
+  );
+
+  const accounts = new Map<
+    string,
+    { raw: RawAccountBillingData; summary: ReturnType<typeof buildClientPropertyBillingSummary> }
+  >();
+
+  if (accountIds.length > 0) {
+    const { data: accountsData, error: accountsErr } = await supabase
+      .from("ledger_account")
+      .select(`
+        account_id,
+        property_id,
+        total_contract_price,
+        remaining_balance,
+        downpayment,
+        terms_months,
+        monthly_amortization,
+        amortization_day,
+        penalty_rate_percent,
+        first_due_date,
+        status,
+        created_at,
+        cleared_at,
+        cleared_by,
+        forfeited_at,
+        forfeiture_reason,
+        contract_policies,
+        overdue_notice_stage,
+        payments:billing_payment(
+          payment_id,
+          payment_date,
+          amount,
+          receipt_number,
+          payment_method,
+          waive_penalty,
+          notes
+        ),
+        notices:billing_notice_event(
+          notice_id,
+          stage,
+          notice_number,
+          notice_date,
+          title,
+          tracking_number,
+          notes,
+          overdue_amount,
+          arrears_principal,
+          penalty_due
+        )
+      `)
+      .in("account_id", accountIds);
+
+    if (accountsErr) {
+      console.error(`Failed to fetch ledger accounts for client ${clientId}:`, accountsErr.message);
+    } else {
+      for (const row of (accountsData ?? []) as unknown as RawAccountBillingData[]) {
+        if (row.property_id) {
+          const summary = buildClientPropertyBillingSummary(row);
+          accounts.set(row.property_id, { raw: row, summary });
+        }
+      }
+    }
   }
 
   type TitleRef = {
@@ -272,17 +313,18 @@ async function resolveClientProperties(
   }
 
   return (data ?? []).map((lot) => {
-    const account = accounts.get(lot.property_id);
+    const accEntry = accounts.get(lot.property_id);
+    const account = accEntry?.raw;
+    const summary = accEntry?.summary;
     const title = titleMap.get(lot.property_id);
     return {
       ...lot,
       account_id: account?.account_id ?? null,
       account_status: account?.status ?? null,
       cleared_at: account?.cleared_at ?? null,
-      total_contract_price: account?.total_contract_price ?? null,
-      remaining_balance: account?.remaining_balance ?? null,
-      contract_end_date: account?.contract_end_date ?? null,
-      baseline_penalties_accrued: account?.baseline_penalties_accrued ?? null,
+      total_contract_price: account ? Number(account.total_contract_price) : null,
+      remaining_balance: summary ? summary.remainingBalance : account ? Number(account.remaining_balance) : null,
+      billing_summary: summary ?? null,
       has_title: Boolean(title),
       title_id: title?.title_id ?? null,
       title_status: title?.status ?? null,

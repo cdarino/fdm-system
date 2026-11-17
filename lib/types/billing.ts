@@ -1,3 +1,5 @@
+import type { TitleStatus } from "./title";
+
 export type LedgerStatus = "current" | "due_soon" | "overdue" | "settled";
 
 export interface PaymentRecord {
@@ -43,6 +45,11 @@ export interface LedgerParty {
   contactNumber?: string;
   address?: string;
   referredBy?: string;
+  tinNumber?: string | null;
+  civilStatus?: string | null;
+  spouseName?: string | null;
+  status?: string | null;
+  contactInfo?: { type: string; value: string; is_primary?: boolean }[] | null;
 }
 
 export interface LedgerProperty {
@@ -54,6 +61,14 @@ export interface LedgerProperty {
   pricePerSqm: number;
   titleNumber?: string;
   status?: string;
+}
+
+export interface LedgerTitleInfo {
+  titleId: string;
+  titleNumber?: string | null;
+  status: TitleStatus;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface Ledger {
@@ -74,6 +89,9 @@ export interface Ledger {
   status?: string;
   clearedAt?: string | null;
   clearedBy?: string | null;
+  titleInfo?: LedgerTitleInfo;
+  forfeitedAt?: string | null;
+  forfeitureReason?: string | null;
 }
 
 export type JournalRowType =

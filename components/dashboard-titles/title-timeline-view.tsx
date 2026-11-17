@@ -94,22 +94,32 @@ export function TitleTimelineView({
       <ol className="mt-2 space-y-px">
         {steps.map((step) => {
           const isDone = step.state === 'done';
+          const hasMissingDetail = !isDone && step.id === 'packet' && Boolean(missing);
+
           return (
-            <li key={step.id} className="flex items-baseline gap-2.5 py-1 text-xs">
+            <li key={step.id} className="flex items-start gap-2.5 py-1 text-xs">
               <span
                 aria-hidden="true"
                 className={cn(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  'mt-1 h-1.5 w-1.5 shrink-0 rounded-full',
                   isDone ? 'bg-success' : step.state === 'current' ? 'bg-primary' : 'border border-muted-foreground'
                 )}
               />
-              <span className="min-w-0 flex-1">{isDone ? step.title : step.pendingTitle}</span>
-              {isDone && step.timestamp ? (
-                <span className="shrink-0 text-muted-foreground">{step.timestamp}</span>
-              ) : null}
-              {!isDone && step.id === 'packet' && missing ? (
-                <span className="shrink-0 text-muted-foreground">{missing}</span>
-              ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="min-w-0 font-medium text-foreground">
+                    {isDone ? step.title : step.pendingTitle}
+                  </span>
+                  {isDone && step.timestamp ? (
+                    <span className="shrink-0 text-muted-foreground">{step.timestamp}</span>
+                  ) : null}
+                </div>
+                {hasMissingDetail && (
+                  <p className="text-[11px] leading-snug text-muted-foreground mt-0.5">
+                    {missing}
+                  </p>
+                )}
+              </div>
             </li>
           );
         })}

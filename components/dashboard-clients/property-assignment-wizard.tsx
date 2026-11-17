@@ -113,7 +113,6 @@ export function PropertyAssignmentWizard({
   const [totalContractPrice, setTotalContractPrice] = useState<string>('');
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [downpayment, setDownpayment] = useState<string>('0');
-  const [dpPaidAtSigning, setDpPaidAtSigning] = useState<boolean>(true);
   const [termMonths, setTermMonths] = useState<number>(36);
   const [firstDueDate, setFirstDueDate] = useState<string>(() => {
     const d = new Date();
@@ -401,7 +400,6 @@ export function PropertyAssignmentWizard({
           propertyId: targetPropertyId,
           contractPrice: tcp,
           downpayment: dp,
-          dpPaidAtSigning,
           termMonths,
           firstDueDate,
           dueDay,
@@ -460,7 +458,6 @@ export function PropertyAssignmentWizard({
       setTotalContractPrice('');
       setIsEditingPrice(false);
       setDownpayment('0');
-      setDpPaidAtSigning(true);
       setTermMonths(36);
       setPenaltyRate(3.5);
 
@@ -949,17 +946,6 @@ export function PropertyAssignmentWizard({
                       className="pl-9 font-mono text-xs tabular-nums"
                     />
                   </div>
-                  {numericDp > 0 && (
-                    <label className="flex items-center space-x-2 mt-1.5 text-xs text-muted-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={dpPaidAtSigning}
-                        onChange={(e) => setDpPaidAtSigning(e.target.checked)}
-                        className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
-                      />
-                      <span>Paid at signing (CR#INIT-DP)</span>
-                    </label>
-                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -1147,7 +1133,6 @@ export function PropertyAssignmentWizard({
             setTotalContractPrice('');
             setIsEditingPrice(false);
             setDownpayment('0');
-            setDpPaidAtSigning(true);
             setTermMonths(36);
             setPenaltyRate(3.5);
           }}

@@ -10,6 +10,7 @@ import {
 } from "@/lib/billing/ledger-engine";
 import { exportLedgerToExcel } from "@/lib/billing/export-excel";
 import { ExcelSoaDocument } from "@/components/dashboard-billing/excel-soa-document";
+import { PaymentHistoryDocument } from "@/components/dashboard-billing/payment-history-document";
 import {
   postBillingPayment,
   voidBillingPayment,
@@ -19,16 +20,52 @@ import {
   forfeitBillingAccount,
   markAccountClearedByBilling,
   undoBillingClearance,
+  uploadBillingClearanceDocument,
 } from "@/lib/actions/billing";
 import {
   Ledger,
   LedgerJournalRow,
+  LedgerParty,
+  LedgerProperty,
   LedgerSummary,
   OverdueNoticeEvent,
   OverdueNoticeStage,
 } from "@/lib/types/billing";
 import { HelpTip } from "@/components/ui/help-tip";
+import {
+  HoverCard,
+  HoverCardTrigger,
+  HoverCardContent,
+} from "@/components/ui/hover-card";
+import {
+  CallingCardHeader,
+  CallingCardRule,
+  CallingCardFieldList,
+  CallingCardField,
+} from "@/components/ui/card-calling-parts";
+import { IconBox } from "@/components/ui/icon-box";
+import { getInitials } from "@/lib/utils/initials";
+import {
+  formatLotRef,
+  formatArea,
+  formatPricePerSqm,
+} from "@/lib/utils/lot-pricing";
+import { primaryContactOf } from "@/lib/utils/contact-ranking";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { LedgerStatusBadge } from "@/components/dashboard-billing/ledger-status-badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -60,13 +97,33 @@ import {
   Pencil,
   Plus,
   Download,
+  FileCheck,
+  FileCheck2,
+  Lock,
+  ChevronDown,
+  Upload,
+  Paperclip,
+  Eye,
+  LandPlot,
+  UserRound,
+  Phone,
+  Mail,
+  HelpCircle,
+  MapPin,
+  Ruler,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   downloadBillingNoticePdf,
   BillingNoticePdfParams,
 } from "@/lib/reports/pdf-billing-notice";
-import { downloadSoaPdf } from "@/lib/reports/pdf-soa";
+import { downloadSoaPdf, generateSoaPdf } from "@/lib/reports/pdf-soa";
+import {
+  downloadPaymentHistoryPdf,
+  generatePaymentHistoryPdf,
+} from "@/lib/reports/pdf-payment-history";
+import { DOCUMENT_FILE_ACCEPT } from "@/lib/validations/document";
 import { printElement } from "@/lib/utils/print";
 
 const NOTICE_STAGES: {
@@ -110,6 +167,187 @@ const NOTICE_STAGES: {
     shortDesc: "Contract officially cancelled; ownership reverted per CTS Section 8.",
   },
 ];
+
+function getContactIcon(type?: string) {
+  if (!type) return HelpCircle;
+  const lowered = type.toLowerCase();
+  if (lowered.includes("phone") || lowered.includes("mobile")) return Phone;
+  if (lowered.includes("email")) return Mail;
+  return HelpCircle;
+}
+
+interface ClientHoverLinkProps {
+  client: LedgerParty;
+  className?: string;
+  children?: React.ReactNode;
+}
+
+function ClientHoverLink({ client, className, children }: ClientHoverLinkProps) {
+  const href = client.clientId ? `/dashboard/clients/${client.clientId}` : null;
+  const initials = getInitials(client.fullName || "");
+  const primaryContact = primaryContactOf(client.contactInfo);
+  const contactVal = primaryContact?.value || client.contactNumber;
+  const contactType = primaryContact?.type || (client.contactNumber ? "Phone" : "Contact");
+  const ContactIcon = getContactIcon(contactType);
+  const address = client.address?.trim() || null;
+
+  return (
+    <HoverCard openDelay={150} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        {href ? (
+          <Link
+            href={href}
+            className={cn(
+              "hover:underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-xs",
+              className
+            )}
+          >
+            {children || client.fullName}
+          </Link>
+        ) : (
+          <span className={cn("cursor-default", className)}>
+            {children || client.fullName}
+          </span>
+        )}
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="w-72">
+        <div className="space-y-2.5 p-3">
+          <CallingCardHeader
+            monogram={
+              <IconBox
+                variant="canvas"
+                size="xs"
+                shape="rounded-md"
+                className="shrink-0 font-semibold tracking-wide"
+              >
+                {initials || <UserRound className="h-3 w-3" />}
+              </IconBox>
+            }
+            title={client.fullName}
+            eyebrow={address ?? "Client"}
+            eyebrowTitle={address ?? undefined}
+          />
+          <CallingCardRule />
+          <CallingCardFieldList>
+            <CallingCardField
+              icon={<ContactIcon className="h-3.5 w-3.5" />}
+              label={contactType}
+              value={contactVal}
+              fallback="Not on file"
+            />
+            <CallingCardField
+              icon={<MapPin className="h-3.5 w-3.5" />}
+              label="Address"
+              value={address}
+              fallback="No address on file"
+            />
+            <CallingCardField
+              icon={<FileText className="h-3.5 w-3.5" />}
+              label="TIN"
+              value={client.tinNumber}
+              fallback="Not on file"
+              mono
+            />
+          </CallingCardFieldList>
+          {(client.civilStatus || client.spouseName) && (
+            <>
+              <CallingCardRule />
+              <p className="text-[11px] text-muted-foreground">
+                {client.civilStatus}
+                {client.spouseName ? ` · Spouse: ${client.spouseName}` : ""}
+              </p>
+            </>
+          )}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+interface PropertyHoverLinkProps {
+  property: LedgerProperty;
+  className?: string;
+  children?: React.ReactNode;
+}
+
+function PropertyHoverLink({ property, className, children }: PropertyHoverLinkProps) {
+  const href = property.propertyId
+    ? `/dashboard/properties/map?lot=${encodeURIComponent(property.propertyId)}`
+    : null;
+  const lotLabel = formatLotRef(property.blockNumber, property.lotNumber);
+  const projectArea = property.projectArea?.trim() || null;
+  const pricePerSqm = property.pricePerSqm > 0 ? property.pricePerSqm : null;
+
+  return (
+    <HoverCard openDelay={150} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        {href ? (
+          <Link
+            href={href}
+            className={cn(
+              "hover:underline transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-xs",
+              className
+            )}
+          >
+            {children || `${projectArea ? `${projectArea} • ` : ""}${lotLabel}`}
+          </Link>
+        ) : (
+          <span className={cn("cursor-default", className)}>
+            {children || `${projectArea ? `${projectArea} • ` : ""}${lotLabel}`}
+          </span>
+        )}
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="w-72">
+        <div className="space-y-2.5 p-3">
+          <CallingCardHeader
+            monogram={
+              <IconBox
+                variant="canvas"
+                size="xs"
+                shape="rounded-md"
+                className="shrink-0 text-primary"
+              >
+                <LandPlot className="h-3 w-3" />
+              </IconBox>
+            }
+            title={projectArea ?? lotLabel}
+            eyebrow={projectArea ? lotLabel : "Property"}
+          />
+          <CallingCardRule />
+          <CallingCardFieldList>
+            <CallingCardField
+              icon={<MapPin className="h-3.5 w-3.5" />}
+              label="Lot Reference"
+              value={lotLabel}
+              fallback="Not specified"
+            />
+            <CallingCardField
+              icon={<FileText className="h-3.5 w-3.5" />}
+              label="TCT Number"
+              value={property.titleNumber}
+              fallback="Pending issuance"
+              mono
+            />
+            <CallingCardField
+              icon={<Ruler className="h-3.5 w-3.5" />}
+              label="Lot Area"
+              value={formatArea(property.lotArea)}
+              fallback="Not specified"
+            />
+            {pricePerSqm !== null && (
+              <CallingCardField
+                icon={<Tag className="h-3.5 w-3.5" />}
+                label="Price / sqm"
+                value={formatPricePerSqm(pricePerSqm)}
+                fallback="Not recorded"
+              />
+            )}
+          </CallingCardFieldList>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
 
 interface BillingLedgerDetailViewProps {
   initialLedger: Ledger;
@@ -161,7 +399,12 @@ export function BillingLedgerDetailView({
 
   const [showDocModal, setShowDocModal] = useState(false);
   const [showSoaModal, setShowSoaModal] = useState(false);
+  const [showPaymentHistoryModal, setShowPaymentHistoryModal] = useState(false);
   const [showClearanceModal, setShowClearanceModal] = useState(false);
+  const [clearanceAutoSoa, setClearanceAutoSoa] = useState(true);
+  const [clearanceCustomSoaFile, setClearanceCustomSoaFile] = useState<File | null>(null);
+  const [clearanceAutoPayments, setClearanceAutoPayments] = useState(true);
+  const [clearanceCustomPaymentsFile, setClearanceCustomPaymentsFile] = useState<File | null>(null);
   const [selectedDocNotice, setSelectedDocNotice] = useState<OverdueNoticeEvent | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -180,12 +423,55 @@ export function BillingLedgerDetailView({
         }
         const result = await markAccountClearedByBilling(ledger.id);
         if (!result.success) throw new Error(result.error);
+
+        const safeName = (ledger.client.fullName || "Account").replace(/[^a-zA-Z0-9_-]/g, "_");
+
+        // Deliver SOA to Legal release packet
+        if (clearanceAutoSoa) {
+          const soaDoc = generateSoaPdf(ledger, summary, asOfDate);
+          const soaBlob = soaDoc.output("blob");
+          const soaFile = new File([soaBlob], `SOA-${safeName}-${asOfDate}.pdf`, { type: "application/pdf" });
+          const formData = new FormData();
+          formData.set("file", soaFile);
+          formData.set("document_type", "SOA");
+          formData.set("is_autogenerated", "true");
+          const uploadRes = await uploadBillingClearanceDocument(ledger.id, formData);
+          if (!uploadRes.success) console.error("Failed to auto-upload SOA:", uploadRes.error);
+        } else if (clearanceCustomSoaFile) {
+          const formData = new FormData();
+          formData.set("file", clearanceCustomSoaFile);
+          formData.set("document_type", "SOA");
+          formData.set("is_autogenerated", "false");
+          const uploadRes = await uploadBillingClearanceDocument(ledger.id, formData);
+          if (!uploadRes.success) console.error("Failed to upload custom SOA:", uploadRes.error);
+        }
+
+        // Deliver Payment History to Legal release packet
+        if (clearanceAutoPayments) {
+          const paymentsDoc = generatePaymentHistoryPdf(ledger);
+          const paymentsBlob = paymentsDoc.output("blob");
+          const paymentsFile = new File([paymentsBlob], `Payment-History-${safeName}.pdf`, { type: "application/pdf" });
+          const formData = new FormData();
+          formData.set("file", paymentsFile);
+          formData.set("document_type", "Payment History");
+          formData.set("is_autogenerated", "true");
+          const uploadRes = await uploadBillingClearanceDocument(ledger.id, formData);
+          if (!uploadRes.success) console.error("Failed to auto-upload Payment History:", uploadRes.error);
+        } else if (clearanceCustomPaymentsFile) {
+          const formData = new FormData();
+          formData.set("file", clearanceCustomPaymentsFile);
+          formData.set("document_type", "Payment History");
+          formData.set("is_autogenerated", "false");
+          const uploadRes = await uploadBillingClearanceDocument(ledger.id, formData);
+          if (!uploadRes.success) console.error("Failed to upload custom Payment History:", uploadRes.error);
+        }
+
         setLedger((prev) => ({
           ...prev,
           clearedAt: result.data.cleared_at,
           clearedBy: result.data.cleared_by,
         }));
-        toast.success("Account cleared by Billing and forwarded to Legal for land title issuance!");
+        toast.success("Account cleared and clearance documents delivered to Legal release packet!");
       }
       setShowClearanceModal(false);
       router.refresh();
@@ -200,6 +486,20 @@ export function BillingLedgerDetailView({
   const summary: LedgerSummary = useMemo(() => {
     return evaluateLedger(ledger, asOfDate);
   }, [ledger, asOfDate]);
+
+  const isForfeited = ledger.status === "Forfeited";
+  const isCleared = Boolean(ledger.clearedAt);
+  const titleInfo = ledger.titleInfo;
+  const isInLegalTurnover = isCleared && (!titleInfo || titleInfo.status === "Cleared by Billing");
+  const isLegalRecordCreated = Boolean(titleInfo && titleInfo.status !== "Cleared by Billing");
+  const isInLegalProcessing = isLegalRecordCreated;
+  const isLedgerLocked = isCleared || isInLegalProcessing || isForfeited;
+
+  const forfeitureNotice = useMemo(() => {
+    return ledger.overdueEscalation?.history.find((e) => e.stage === "forfeited");
+  }, [ledger.overdueEscalation]);
+  const forfeitureDate = ledger.forfeitedAt || forfeitureNotice?.date;
+  const forfeitureReason = ledger.forfeitureReason || forfeitureNotice?.notes;
 
   const allocationPreview = useMemo(() => {
     if (!summary || payAmount <= 0) {
@@ -242,6 +542,7 @@ export function BillingLedgerDetailView({
   }, [summary, journalFilter]);
 
   const openPaymentModal = () => {
+    if (isLedgerLocked) return;
     setPayDate(asOfDate);
     setPayAmount(summary.totalPayableNow > 0 ? summary.totalPayableNow : summary.ledger.monthlyAmortization);
     setWaivePenalty(false);
@@ -250,6 +551,10 @@ export function BillingLedgerDetailView({
 
   const handlePostPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLedgerLocked) {
+      toast.error("This ledger account is currently view-only.");
+      return;
+    }
     if (payAmount <= 0 || !payReceipt.trim()) return;
 
     setIsSubmitting(true);
@@ -316,6 +621,7 @@ export function BillingLedgerDetailView({
   };
 
   const openPoliciesModal = () => {
+    if (isLedgerLocked) return;
     setPolPenaltyRate(+((ledger.penaltyRate || 0.035) * 100).toFixed(2));
     setPolEnableAmnesty(Boolean(ledger.policies?.enableMaturityAmnesty));
     setPolAmnestyMonths(ledger.policies?.amnestyMonths ?? 12);
@@ -330,6 +636,7 @@ export function BillingLedgerDetailView({
 
   const handleSavePolicies = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLedgerLocked) return;
     setIsSubmitting(true);
     try {
       const result = await updateBillingPolicies({
@@ -547,10 +854,17 @@ export function BillingLedgerDetailView({
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const selectedDate = forfeitDate || asOfDate;
+      const formattedForfeitedAt = selectedDate
+        ? selectedDate.includes("T")
+          ? selectedDate
+          : new Date(`${selectedDate}T00:00:00.000Z`).toISOString()
+        : new Date().toISOString();
+
       const forfeitRes = await forfeitBillingAccount({
         accountId: ledger.id,
         reason: forfeitReason.trim() || "Unsettled contract arrears following final demand",
-        forfeitedAt: forfeitDate || asOfDate,
+        forfeitedAt: formattedForfeitedAt,
       });
 
       if (!forfeitRes.success) {
@@ -893,91 +1207,226 @@ export function BillingLedgerDetailView({
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-xl font-bold tracking-tight text-foreground">
-                {ledger.client.fullName}
+                <ClientHoverLink client={ledger.client} className="text-foreground">
+                  {ledger.client.fullName}
+                </ClientHoverLink>
               </h1>
               <LedgerStatusBadge summary={summary} compact={false} />
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {ledger.property.projectArea} • Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber} ({ledger.property.lotArea} sqm)
+              <PropertyHoverLink
+                property={ledger.property}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {ledger.property.projectArea} • Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber}
+              </PropertyHoverLink>
+              {ledger.property.lotArea ? ` (${ledger.property.lotArea} sqm)` : ""}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          {ledger.clearedAt ? (
-            <button
-              onClick={() => setShowClearanceModal(true)}
-              className="px-2.5 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
-              title="Undo clearance (before Legal processes title)"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-              <span>Undo Clearance</span>
-            </button>
-          ) : summary.status === "settled" && ledger.status !== "Forfeited" ? (
-            <button
-              onClick={() => setShowClearanceModal(true)}
-              className="px-3 py-1.5 text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-500/20 transition-colors flex items-center space-x-1 shadow-2xs"
-              title="Clear account and forward to Legal for land title issuance"
-            >
-              <Scale className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
-              <span>Clear for Legal</span>
-            </button>
-          ) : null}
+        <TooltipProvider delayDuration={150}>
+          <div className="flex items-center space-x-2">
+            {isInLegalTurnover && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setShowClearanceModal(true)}
+                    className="px-2.5 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" />
+                    <span>Undo Clearance</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Revert billing clearance back to active billing before Legal begins processing
+                </TooltipContent>
+              </Tooltip>
+            )}
 
-          <button
-            onClick={() => exportLedgerToExcel(ledger, summary, asOfDate)}
-            className="px-3 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
-            title="Download editable Excel (.xlsx) matching official statement format"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-            <span>Download Excel</span>
-          </button>
-          <button
-            onClick={() => setShowSoaModal(true)}
-            className="px-3 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
-            title="Preview and print official Statement of Account as PDF"
-          >
-            <Printer className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
-            <span>Print SOA (PDF)</span>
-          </button>
-          <button
-            onClick={openPaymentModal}
-            disabled={summary.status === "settled" || ledger.status === "Forfeited"}
-            className="px-3.5 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center space-x-1 shadow-2xs"
-          >
-            <PlusCircle className="w-3.5 h-3.5 mr-1" />
-            <span>Post Payment</span>
-          </button>
-        </div>
+            {summary.status === "settled" && ledger.status !== "Forfeited" && !ledger.clearedAt && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setShowClearanceModal(true)}
+                    className="px-3 py-1.5 text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-500/20 transition-colors flex items-center space-x-1 shadow-2xs"
+                  >
+                    <Scale className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
+                    <span>Clear for Legal</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Certify financial obligations and forward account to Legal for land title issuance
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setShowSoaModal(true)}
+                  className="px-3 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                  <span>Statement of Account</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Preview, export, and print official Statement of Account (SOA)
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setShowPaymentHistoryModal(true)}
+                  className="px-3 py-1.5 text-xs font-medium border border-border-warm rounded-lg bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1 shadow-2xs"
+                >
+                  <FileText className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
+                  <span>Payment History</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                Preview, export, and print official Payment History ledger (.temp/payments format)
+              </TooltipContent>
+            </Tooltip>
+
+            {!isLedgerLocked && summary.status !== "settled" && ledger.status !== "Forfeited" && (
+              <button
+                onClick={openPaymentModal}
+                className="px-3.5 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center space-x-1 shadow-2xs"
+              >
+                <PlusCircle className="w-3.5 h-3.5 mr-1" />
+                <span>Post Payment</span>
+              </button>
+            )}
+          </div>
+        </TooltipProvider>
       </div>
 
-      {/* Clearance Status / Legal Turnover Notification Banner */}
-      {ledger.clearedAt ? (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs print:hidden">
-          <div className="flex items-start sm:items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0">
-              <Scale className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <span>Account Cleared for Legal Turnover</span>
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                  Certified {formatDate(ledger.clearedAt)}
-                </span>
+      {/* Clearance & Forfeiture Status Notification Banners */}
+      {isForfeited ? (
+        <TooltipProvider delayDuration={150}>
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs print:hidden">
+            <div className="flex items-start sm:items-center space-x-3">
+              <div className="w-8 h-8 rounded-full bg-destructive/15 flex items-center justify-center text-destructive shrink-0 mt-0.5 sm:mt-0">
+                <Ban className="w-4 h-4" />
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Financial obligations certified. Property lot status is marked as <strong>Sold</strong> and the account is ready for land title preparation in Legal.
-              </p>
+              <div>
+                <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                  <span>Contract Rescinded &amp; Forfeited</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/20 text-destructive cursor-help">
+                        Forfeited
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">
+                      The contract has been cancelled and the property returned to inventory pursuant to Republic Act No. 6552 (Maceda Law).
+                    </TooltipContent>
+                  </Tooltip>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/10 text-destructive border border-destructive/20">
+                    <Lock className="w-2.5 h-2.5 mr-1" />
+                    View-Only
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  This contract was forfeited{forfeitureDate ? ` on ${formatDate(forfeitureDate)}` : ""}{forfeitureReason ? `: "${forfeitureReason}"` : ""}. All rights under this Contract to Sell have been cancelled and the property lot was returned to available inventory.
+                </p>
+              </div>
             </div>
+            <Link
+              href={`/dashboard/properties?lotId=${ledger.property.propertyId}`}
+              className="px-3 py-1.5 text-xs font-medium border border-border-warm bg-card text-foreground hover:bg-muted transition-colors flex items-center space-x-1.5 shrink-0 shadow-2xs rounded-lg"
+            >
+              <span>View Property Lot</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-          <Link
-            href="/dashboard/legal"
-            className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-1.5 shrink-0 shadow-2xs"
-          >
-            <span>View Legal Turnover Queue</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+        </TooltipProvider>
+      ) : isInLegalTurnover ? (
+        <TooltipProvider delayDuration={150}>
+          <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs print:hidden">
+            <div className="flex items-start sm:items-center space-x-3">
+              <div className="w-8 h-8 rounded-full bg-sky-500/15 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0 mt-0.5 sm:mt-0">
+                <Scale className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                  <span>Queued for Legal Turnover</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-500/20 text-sky-700 dark:text-sky-300 cursor-help">
+                        Step 1: Intake Backlog
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">
+                      This account was cleared by Billing and is waiting in Legal&apos;s intake queue. Clearance can still be undone if changes are needed.
+                    </TooltipContent>
+                  </Tooltip>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                    <Lock className="w-2.5 h-2.5 mr-1" />
+                    View-Only
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  This account was cleared on {formatDate(ledger.clearedAt!)}. It&apos;s currently in Legal&apos;s intake backlog waiting to be picked up. The ledger is locked in view-only mode, but you can still undo clearance if you need to make adjustments.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/dashboard/legal?lotId=${ledger.property.propertyId}`}
+              className="px-3 py-1.5 text-xs font-medium bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors flex items-center space-x-1.5 shrink-0 shadow-2xs"
+            >
+              <span>View Legal Queue</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </TooltipProvider>
+      ) : isLegalRecordCreated ? (
+        <TooltipProvider delayDuration={150}>
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs print:hidden">
+            <div className="flex items-start sm:items-center space-x-3">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5 sm:mt-0">
+                <FileCheck2 className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-foreground flex items-center gap-2">
+                  <span>In Legal Processing</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 cursor-help">
+                        {titleInfo!.status}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">
+                      Legal staff has created the land title record and initiated formal processing. Clearance is finalized and locked.
+                    </TooltipContent>
+                  </Tooltip>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border-warm flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    <span>View-Only</span>
+                  </span>
+                  {titleInfo?.titleNumber && (
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      #{titleInfo.titleNumber}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Legal started processing this land title on {formatDate(titleInfo?.createdAt || ledger.clearedAt!)} (currently in {titleInfo!.status}). Ledger is locked in view-only mode.
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/dashboard/legal?lotId=${ledger.property.propertyId}`}
+              className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-1.5 shrink-0 shadow-2xs"
+            >
+              <span>Open in Legal</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </TooltipProvider>
       ) : summary.status === "settled" && ledger.status !== "Forfeited" ? (
         <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs print:hidden">
           <div className="flex items-start sm:items-center space-x-3">
@@ -1092,14 +1541,41 @@ export function BillingLedgerDetailView({
 
         {/* Card 2: Contract Terms */}
         <div
-          onClick={openPoliciesModal}
-          className="bg-card p-4 rounded-xl border border-border-warm flex flex-col justify-between cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group shadow-xs"
+          onClick={isLedgerLocked ? undefined : openPoliciesModal}
+          className={cn(
+            "bg-card p-4 rounded-xl border border-border-warm flex flex-col justify-between shadow-xs transition-all",
+            isLedgerLocked
+              ? "cursor-default"
+              : "cursor-pointer hover:border-primary/50 hover:shadow-sm group"
+          )}
         >
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold group-hover:text-foreground transition-colors flex items-center gap-1.5">
+              <div
+                className={cn(
+                  "text-xs uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1.5",
+                  !isLedgerLocked && "group-hover:text-foreground transition-colors"
+                )}
+              >
                 <span>Contract Terms</span>
-                <SlidersHorizontal className="w-3 h-3 text-muted-foreground group-hover:text-foreground" />
+                {isLedgerLocked ? (
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Lock className="w-3 h-3 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        {isForfeited
+                          ? "This contract has been forfeited and is view-only."
+                          : isInLegalTurnover
+                          ? "Contract terms are locked in view-only mode while queued for turnover. Undo clearance to make adjustments."
+                          : "Contract terms are locked in view-only mode during legal processing"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <SlidersHorizontal className="w-3 h-3 text-muted-foreground group-hover:text-foreground" />
+                )}
               </div>
               <span className="text-xs text-muted-foreground">
                 TCP: <span className="font-mono font-semibold text-foreground">{formatCurrency(ledger.contractPrice)}</span>
@@ -1356,7 +1832,7 @@ export function BillingLedgerDetailView({
                         {formatCurrency(row.tspBalance)}
                       </td>
                       <td className="py-2.5 px-2 text-center align-top print:hidden">
-                        {row.paymentId && (
+                        {!isLedgerLocked && row.paymentId && (
                           <button
                             onClick={() => handleVoidPayment(row.paymentId!, row.receiptNo || "")}
                             title="Void payment entry"
@@ -1430,7 +1906,7 @@ export function BillingLedgerDetailView({
                           {r.notes || "-"}
                         </td>
                         <td className="py-2.5 px-2 text-center">
-                          {r.paymentId && (
+                          {!isLedgerLocked && r.paymentId && (
                             <button
                               onClick={() => handleVoidPayment(r.paymentId!, r.receiptNo || "")}
                               title="Void payment entry"
@@ -1477,7 +1953,7 @@ export function BillingLedgerDetailView({
                 </p>
               </div>
 
-              {ledger.status !== "Forfeited" && (
+              {ledger.status !== "Forfeited" && !isLedgerLocked && (
                 <div className="flex items-center space-x-2 shrink-0">
                   <button
                     type="button"
@@ -1526,7 +2002,7 @@ export function BillingLedgerDetailView({
                     Issue a payment reminder or formal demand letter to record proof of due process.
                   </p>
                 </div>
-                {ledger.status !== "Forfeited" && (
+                {ledger.status !== "Forfeited" && !isLedgerLocked && (
                   <button
                     type="button"
                     onClick={openRecordNoticeModal}
@@ -1540,17 +2016,38 @@ export function BillingLedgerDetailView({
             ) : (
               <div className="divide-y divide-border-warm">
                 {noticeHistory.map((ev) => {
-                  const stageBadgeClass =
-                    ev.stage === "forfeited"
-                      ? "bg-foreground text-background"
-                      : ev.stage === "final_demand"
-                      ? "bg-destructive/10 text-destructive border border-destructive/20"
-                      : ev.stage === "second_notice"
-                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-                      : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20";
-
                   const stageLabel =
                     NOTICE_STAGES.find((s) => s.stage === ev.stage)?.label || ev.title;
+
+                  const stageIcon = (() => {
+                    switch (ev.stage) {
+                      case "forfeited":
+                        return (
+                          <div className="w-6 h-6 rounded-md bg-foreground/10 text-foreground flex items-center justify-center shrink-0">
+                            <Ban className="w-3.5 h-3.5" />
+                          </div>
+                        );
+                      case "final_demand":
+                        return (
+                          <div className="w-6 h-6 rounded-md bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                          </div>
+                        );
+                      case "second_notice":
+                        return (
+                          <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          </div>
+                        );
+                      case "first_notice":
+                      default:
+                        return (
+                          <div className="w-6 h-6 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
+                            <FileText className="w-3.5 h-3.5" />
+                          </div>
+                        );
+                    }
+                  })();
 
                   return (
                     <div
@@ -1559,11 +2056,18 @@ export function BillingLedgerDetailView({
                     >
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${stageBadgeClass}`}>
-                            {stageLabel}
-                          </span>
-                          <span className="font-semibold text-foreground">{ev.title}</span>
-                          <span className="text-muted-foreground">• Served {formatDate(ev.date)}</span>
+                          <TooltipProvider delayDuration={150}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                {stageIcon}
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                {stageLabel}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          <span className="text-sm font-semibold text-foreground">{ev.title}</span>
+                          <span className="text-xs text-muted-foreground">• Served {formatDate(ev.date)}</span>
                         </div>
 
                         <div className="flex flex-wrap gap-x-4 text-[11px] text-muted-foreground">
@@ -1606,7 +2110,7 @@ export function BillingLedgerDetailView({
                           <span>View Letter</span>
                         </button>
 
-                        {ev.stage !== "forfeited" && ledger.status !== "Forfeited" && (
+                        {ev.stage !== "forfeited" && ledger.status !== "Forfeited" && !isLedgerLocked && (
                           <button
                             type="button"
                             onClick={() => openEditNoticeModal(ev)}
@@ -1828,7 +2332,10 @@ export function BillingLedgerDetailView({
 
       {/* Contract Policies Modal */}
       <Dialog open={showPoliciesModal} onOpenChange={setShowPoliciesModal}>
-        <DialogContent className="sm:max-w-lg bg-card p-0 gap-0 overflow-hidden text-xs border-border-warm shadow-lg">
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-lg bg-card p-0 gap-0 overflow-hidden text-xs border-border-warm shadow-lg"
+        >
           <DialogHeader className="px-5 py-4 border-b border-border-warm bg-muted/20">
             <DialogTitle className="font-bold text-sm text-foreground">
               Contract Policies &amp; Terms
@@ -2422,41 +2929,41 @@ export function BillingLedgerDetailView({
               </DialogTitle>
             </div>
             <div className="flex items-center space-x-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => exportLedgerToExcel(ledger, summary, asOfDate)}
-                className="bg-emerald-600 text-white hover:bg-emerald-700 gap-1.5 h-8 text-xs shadow-2xs"
-                title="Download spreadsheet in .xlsx format"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Download Excel (.xlsx)</span>
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => downloadSoaPdf(ledger, summary, asOfDate)}
-                className="gap-1.5 h-8 text-xs bg-card hover:bg-muted text-foreground border border-border-warm shadow-2xs font-medium"
-                title="Download exact spreadsheet PDF"
-              >
-                <Download className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>Save as PDF</span>
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() =>
-                  printElement(
-                    "soa-printable-sheet",
-                    `Statement of Account — ${ledger.client.fullName}`
-                  )
-                }
-                className="gap-1.5 h-8 text-xs shadow-2xs"
-                title="Print statement"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Statement</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-1.5 h-8 text-xs font-medium shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export</span>
+                    <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 text-xs">
+                  <DropdownMenuItem onClick={() => exportLedgerToExcel(ledger, summary, asOfDate)}>
+                    <FileSpreadsheet className="w-3.5 h-3.5 mr-2 text-emerald-600" />
+                    <span>Excel Spreadsheet (.xlsx)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => downloadSoaPdf(ledger, summary, asOfDate)}>
+                    <FileText className="w-3.5 h-3.5 mr-2 text-rose-600" />
+                    <span>PDF Document (.pdf)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printElement(
+                        "soa-printable-sheet",
+                        `Statement of Account — ${ledger.client.fullName}`
+                      )
+                    }
+                  >
+                    <Printer className="w-3.5 h-3.5 mr-2" />
+                    <span>Print Statement</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </DialogHeader>
 
@@ -2472,9 +2979,62 @@ export function BillingLedgerDetailView({
         </DialogContent>
       </Dialog>
 
+      {/* Payment History Preview & Print Modal */}
+      <Dialog open={showPaymentHistoryModal} onOpenChange={setShowPaymentHistoryModal}>
+        <DialogContent className="sm:max-w-4xl bg-card p-0 gap-0 overflow-hidden max-h-[92vh] flex flex-col text-xs print:hidden border-border-warm shadow-lg">
+          <DialogHeader className="px-5 py-3 border-b border-border-warm flex flex-row items-center justify-between space-y-0 bg-muted/20 pr-10">
+            <div className="flex items-center space-x-2">
+              <FileText className="w-4 h-4 text-emerald-600" />
+              <DialogTitle className="font-bold text-sm text-foreground">
+                Payment History Preview — {ledger.client.fullName}
+              </DialogTitle>
+            </div>
+            <div className="flex items-center space-x-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-1.5 h-8 text-xs font-medium shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export</span>
+                    <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 text-xs">
+                  <DropdownMenuItem onClick={() => downloadPaymentHistoryPdf(ledger)}>
+                    <FileText className="w-3.5 h-3.5 mr-2 text-rose-600" />
+                    <span>PDF Document (.pdf)</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printElement(
+                        "payment-history-printable-sheet",
+                        `Payment History — ${ledger.client.fullName}`
+                      )
+                    }
+                  >
+                    <Printer className="w-3.5 h-3.5 mr-2" />
+                    <span>Print Document</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </DialogHeader>
+
+          <div className="p-4 sm:p-8 bg-muted/20 flex-1 overflow-y-auto">
+            <div id="payment-history-printable-sheet" className="bg-white rounded-lg shadow-md border border-border-warm overflow-hidden">
+              <PaymentHistoryDocument ledger={ledger} />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Billing Clearance Modal */}
       <Dialog open={showClearanceModal} onOpenChange={setShowClearanceModal}>
-        <DialogContent className="sm:max-w-md bg-card p-0 gap-0 overflow-hidden text-xs border-border-warm shadow-lg">
+        <DialogContent className="sm:max-w-lg bg-card p-0 gap-0 overflow-hidden text-xs border-border-warm shadow-lg">
           <DialogHeader className="px-5 py-3.5 border-b border-border-warm bg-muted/20">
             <div className="flex items-center space-x-2">
               {ledger.clearedAt ? (
@@ -2483,7 +3043,7 @@ export function BillingLedgerDetailView({
                 <Scale className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               )}
               <DialogTitle className="font-bold text-sm text-foreground">
-                {ledger.clearedAt ? "Undo Billing Clearance" : "Attest Billing Clearance"}
+                {ledger.clearedAt ? "Undo Billing Clearance" : "Confirm Billing Clearance"}
               </DialogTitle>
             </div>
             <DialogDescription className="sr-only">
@@ -2491,17 +3051,30 @@ export function BillingLedgerDetailView({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+            {/* Account Summary Strip */}
             <div className="bg-muted/20 rounded-lg p-3 border border-border-warm space-y-1">
-              <div className="text-xs font-semibold text-foreground">
-                {ledger.client.fullName}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground">
+                  <ClientHoverLink client={ledger.client} className="text-foreground">
+                    {ledger.client.fullName}
+                  </ClientHoverLink>
+                </span>
+                <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  Fully Settled
+                </span>
               </div>
               <div className="text-[11px] text-muted-foreground">
-                {ledger.property.projectArea} • Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber}
+                <PropertyHoverLink
+                  property={ledger.property}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {ledger.property.projectArea} • Block {ledger.property.blockNumber} Lot {ledger.property.lotNumber}
+                </PropertyHoverLink>
               </div>
               <div className="text-[11px] font-mono mt-1 pt-1 border-t border-border-warm flex justify-between">
-                <span className="text-muted-foreground">Contract Balance:</span>
-                <span className="font-semibold text-foreground">{formatCurrency(summary.tspOutstandingBalance)}</span>
+                <span className="text-muted-foreground">Total Contract Price:</span>
+                <span className="font-semibold text-foreground">{formatCurrency(ledger.contractPrice)}</span>
               </div>
             </div>
 
@@ -2515,16 +3088,182 @@ export function BillingLedgerDetailView({
                 </p>
               </div>
             ) : (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3.5 text-muted-foreground space-y-2">
-                <p className="font-semibold text-foreground text-xs">
-                  Certify financial completion &amp; forward to Legal:
+              <div className="space-y-3.5">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  This account has satisfied its contract balance and penalties. Confirming clearance certifies that the buyer has fulfilled all financial obligations and notifies Legal to begin preparing the land title release packet.
                 </p>
-                <ul className="list-disc pl-4 space-y-1 text-[11px] leading-relaxed">
-                  <li>Attests that the client has satisfied financial obligations for this property.</li>
-                  <li>Advances the property lot status to <strong>Sold</strong>.</li>
-                  <li>Releases the account directly into Legal&apos;s title turnover queue (<code className="font-mono text-foreground">/dashboard/legal</code>).</li>
-                  <li>Logs your staff identity as the official clearance certifier.</li>
-                </ul>
+
+                {/* Documents Delivery Section */}
+                <div className="space-y-2.5 pt-1">
+                  <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <FileCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Clearance Documents for Legal Turnover</span>
+                  </div>
+
+                  {/* Statement of Account (SOA) Option */}
+                  <div className="rounded-lg border border-border-warm bg-card p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="clearance-soa-check"
+                          checked={clearanceAutoSoa}
+                          onCheckedChange={(checked) => setClearanceAutoSoa(Boolean(checked))}
+                        />
+                        <label
+                          htmlFor="clearance-soa-check"
+                          className="text-xs font-medium text-foreground cursor-pointer select-none"
+                        >
+                          Include auto-generated Statement of Account (SOA)
+                        </label>
+                      </div>
+                      {clearanceAutoSoa && (
+                        <Button
+                          type="button"
+                          variant="quiet"
+                          size="sm"
+                          onClick={() => setShowSoaModal(true)}
+                          className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                          title="Preview auto-generated SOA"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Preview</span>
+                        </Button>
+                      )}
+                    </div>
+
+                    {clearanceAutoSoa ? (
+                      <p className="text-[11px] text-muted-foreground pl-6">
+                        Generates the official SOA PDF and delivers it directly to Legal&apos;s turnover packet.
+                      </p>
+                    ) : (
+                      <div className="pl-6 pt-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            id="custom-soa-upload"
+                            accept={DOCUMENT_FILE_ACCEPT}
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) setClearanceCustomSoaFile(file);
+                              e.target.value = "";
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1.5"
+                            onClick={() => document.getElementById("custom-soa-upload")?.click()}
+                          >
+                            <Upload className="w-3 h-3 text-muted-foreground" />
+                            <span>{clearanceCustomSoaFile ? "Change File" : "Upload Custom SOA"}</span>
+                          </Button>
+                          {clearanceCustomSoaFile && (
+                            <div className="flex items-center gap-1.5 text-xs text-foreground bg-muted/40 px-2 py-1 rounded border border-border-warm">
+                              <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="truncate max-w-[180px] font-mono text-[11px]">
+                                {clearanceCustomSoaFile.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setClearanceCustomSoaFile(null)}
+                                className="text-muted-foreground hover:text-destructive ml-1 text-xs"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Upload a signed statement or scanned copy if not using the auto-generated SOA.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Payment History Option */}
+                  <div className="rounded-lg border border-border-warm bg-card p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="clearance-payments-check"
+                          checked={clearanceAutoPayments}
+                          onCheckedChange={(checked) => setClearanceAutoPayments(Boolean(checked))}
+                        />
+                        <label
+                          htmlFor="clearance-payments-check"
+                          className="text-xs font-medium text-foreground cursor-pointer select-none"
+                        >
+                          Include auto-generated Payment History
+                        </label>
+                      </div>
+                      {clearanceAutoPayments && (
+                        <Button
+                          type="button"
+                          variant="quiet"
+                          size="sm"
+                          onClick={() => setShowPaymentHistoryModal(true)}
+                          className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                          title="Preview auto-generated Payment History"
+                        >
+                          <Eye className="w-3 h-3" />
+                          <span>Preview</span>
+                        </Button>
+                      )}
+                    </div>
+
+                    {clearanceAutoPayments ? (
+                      <p className="text-[11px] text-muted-foreground pl-6">
+                        Generates a complete transaction report formatted to standard accounting specifications (.temp/payments format).
+                      </p>
+                    ) : (
+                      <div className="pl-6 pt-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            id="custom-payments-upload"
+                            accept={DOCUMENT_FILE_ACCEPT}
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) setClearanceCustomPaymentsFile(file);
+                              e.target.value = "";
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1.5"
+                            onClick={() => document.getElementById("custom-payments-upload")?.click()}
+                          >
+                            <Upload className="w-3 h-3 text-muted-foreground" />
+                            <span>{clearanceCustomPaymentsFile ? "Change File" : "Upload Custom History"}</span>
+                          </Button>
+                          {clearanceCustomPaymentsFile && (
+                            <div className="flex items-center gap-1.5 text-xs text-foreground bg-muted/40 px-2 py-1 rounded border border-border-warm">
+                              <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="truncate max-w-[180px] font-mono text-[11px]">
+                                {clearanceCustomPaymentsFile.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setClearanceCustomPaymentsFile(null)}
+                                className="text-muted-foreground hover:text-destructive ml-1 text-xs"
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Upload an external QuickBooks ledger export or scanned payment record.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2558,7 +3297,7 @@ export function BillingLedgerDetailView({
               ) : (
                 <>
                   <Scale className="w-3.5 h-3.5 mr-1.5" />
-                  <span>{isSubmitting ? "Certifying..." : "Confirm Clearance"}</span>
+                  <span>{isSubmitting ? "Certifying & Delivering..." : "Confirm Clearance"}</span>
                 </>
               )}
             </Button>

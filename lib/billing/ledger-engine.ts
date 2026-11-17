@@ -149,7 +149,12 @@ export function evaluateLedger(ledger: Ledger, asOfDateStr: string): LedgerSumma
     }
   }
 
-  if (nextUpcoming && totalPaymentsRaw < ledger.contractPrice) {
+  const isWaitingForDp =
+    ledger.downpayment > 0 &&
+    totalPaymentsRaw < ledger.downpayment &&
+    asOfDateStr < ledger.firstDueDate;
+
+  if (nextUpcoming && totalPaymentsRaw < ledger.contractPrice && !isWaitingForDp) {
     const prevCycleDue = pastInstallments[pastInstallments.length - 1]?.dueDate;
     let cycleOpenDate = prevCycleDue
       ? addDaysToDate(prevCycleDue, 2)
@@ -196,7 +201,11 @@ export function evaluateLedger(ledger: Ledger, asOfDateStr: string): LedgerSumma
   let totalPenaltyWaived = 0;
   let totalCollected = 0;
   let totalPrincipalPaid = 0;
-  let totalBilledMaturedPrincipal = ledger.downpayment;
+  // Downpayment is open for settlement until the first installment due date
+  let totalBilledMaturedPrincipal =
+    ledger.downpayment > 0 && asOfDateStr > ledger.firstDueDate
+      ? ledger.downpayment
+      : 0;
   let totalBilledOpenPrincipal = ledger.downpayment;
 
   for (const inst of pastInstallments) {
@@ -367,9 +376,9 @@ export function evaluateLedger(ledger: Ledger, asOfDateStr: string): LedgerSumma
   let monthsOverdue = 0;
   if (arrearsPrincipal > 0) {
     let cumulativeDue = ledger.downpayment;
-    let firstUnpaidDate = ledger.createdAt;
+    let firstUnpaidDate = ledger.firstDueDate || ledger.createdAt;
     if (totalPrincipalPaid < ledger.downpayment) {
-      firstUnpaidDate = ledger.createdAt;
+      firstUnpaidDate = ledger.firstDueDate || ledger.createdAt;
     } else {
       for (const inst of scheduled) {
         cumulativeDue = +(cumulativeDue + inst.monthlyDue).toFixed(2);
@@ -410,8 +419,8 @@ export function evaluateLedger(ledger: Ledger, asOfDateStr: string): LedgerSumma
   return {
     ledger,
     status,
-    currentInstNo: currentTerm ? currentTerm.instNo : ledger.termMonths,
-    currentTermDueDate: currentTerm?.dueDate,
+    currentInstNo: currentTerm ? currentTerm.instNo : nextUpcoming ? nextUpcoming.instNo : ledger.termMonths,
+    currentTermDueDate: currentTerm?.dueDate || nextUpcoming?.dueDate,
     monthsOverdue,
     daysUntilDue,
     arrearsPrincipal,

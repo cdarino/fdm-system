@@ -6,6 +6,7 @@ import {
   createPropertyLot,
 } from "@/lib/actions/properties";
 import { createClient } from "@/lib/actions/clients";
+import { createLandTitle } from "@/lib/actions/titles";
 import {
   getBillingLedgers,
   getBillingLedgerById,
@@ -101,7 +102,6 @@ describe("Billing Server Actions End-to-End Integration", () => {
       propertyId: lot.property_id,
       contractPrice: 800000,
       downpayment: 80000,
-      dpPaidAtSigning: true,
       termMonths: 24,
       firstDueDate: "2024-01-15",
       dueDay: 15,
@@ -117,7 +117,7 @@ describe("Billing Server Actions End-to-End Integration", () => {
     expect(ledgerDetail?.ledger.contractPrice).toBe(800000);
     expect(ledgerDetail?.ledger.downpayment).toBe(80000);
     expect(ledgerDetail?.ledger.client.fullName).toBe(client.full_name);
-    expect(ledgerDetail?.ledger.payments.length).toBe(1); // Downpayment record
+    expect(ledgerDetail?.ledger.payments.length).toBe(0);
 
     // 3. Fetch all ledgers list and ensure it appears
     const allLedgers = await getBillingLedgers("2024-03-20");
@@ -138,7 +138,7 @@ describe("Billing Server Actions End-to-End Integration", () => {
     expect(postRes.success).toBe(true);
 
     const afterPost = await getBillingLedgerById(accountId, "2024-03-20");
-    expect(afterPost?.ledger.payments.length).toBe(2);
+    expect(afterPost?.ledger.payments.length).toBe(1);
 
     // 5. Void the installment payment
     const paymentToVoid = afterPost?.ledger.payments.find((p) => p.receiptNo === "OR-2024-001");
@@ -148,7 +148,7 @@ describe("Billing Server Actions End-to-End Integration", () => {
       expect(voidRes.success).toBe(true);
 
       const afterVoid = await getBillingLedgerById(accountId, "2024-03-20");
-      expect(afterVoid?.ledger.payments.length).toBe(1);
+      expect(afterVoid?.ledger.payments.length).toBe(0);
     }
 
     // 6. Update contract policies
@@ -210,10 +210,11 @@ describe("Billing Server Actions End-to-End Integration", () => {
       expect(rejectClearRes.error).toMatch(/unsettled/i);
     }
 
-    // 8. Forfeit the account
+    // 8. Forfeit the account with a date-only string (from HTML date picker)
     const forfeitRes = await forfeitBillingAccount({
       accountId,
       reason: "Unresponsive to notice of cancellation",
+      forfeitedAt: "2024-03-25",
     });
     expect(forfeitRes.success).toBe(true);
 
@@ -261,7 +262,6 @@ describe("Billing Server Actions End-to-End Integration", () => {
       propertyId: lot.property_id,
       contractPrice: 200000,
       downpayment: 200000,
-      dpPaidAtSigning: true,
       termMonths: 1,
       firstDueDate: "2024-01-01",
       dueDay: 1,
@@ -269,16 +269,105 @@ describe("Billing Server Actions End-to-End Integration", () => {
     });
     const accountId = unwrap(createRes).accountId;
 
-    // Mark cleared
+    // Settle the account with payment
+    await postBillingPayment({
+      accountId,
+      paymentDate: "2024-01-01",
+      amount: 200000,
+      receiptNumber: "CR-FULL-001",
+      paymentMethod: "cash",
+      waivePenalty: true,
+    });
+
+    // Mark cleared (State 1: Queued for Legal Intake)
     const clearRes = await markAccountClearedByBilling(accountId);
     expect(clearRes.success).toBe(true);
     const clearedAccount = unwrap(clearRes);
     expect(clearedAccount.cleared_at).not.toBeNull();
+
+    // Verify mutations are blocked even while in intake backlog (State 1 view-only)
+    const intakePayRes = await postBillingPayment({
+      accountId,
+      paymentDate: "2024-02-01",
+      amount: 1000,
+      receiptNumber: "CR-INTAKE-BLOCKED",
+      paymentMethod: "cash",
+    });
+    expect(intakePayRes.success).toBe(false);
+    if (!intakePayRes.success) {
+      expect(intakePayRes.error).toContain("view-only");
+    }
 
     // Undo clearance
     const undoRes = await undoBillingClearance(accountId);
     expect(undoRes.success).toBe(true);
     const revertedAccount = unwrap(undoRes);
     expect(revertedAccount.cleared_at).toBeNull();
+
+    // Re-clear account and simulate advancing to legal processing
+    const reClearRes = await markAccountClearedByBilling(accountId);
+    expect(reClearRes.success).toBe(true);
+
+    const titleRes = await createLandTitle({ property_id: lot.property_id });
+    expect(titleRes.success).toBe(true);
+
+    // Verify ledger returns titleInfo
+    const { ledger } = await getBillingLedgerById(accountId);
+    expect(ledger.titleInfo).toBeDefined();
+    expect(ledger.titleInfo?.status).toBe("Document Preparation");
+
+    // All mutations should now be blocked by view-only enforcement
+    const postPayRes = await postBillingPayment({
+      accountId,
+      paymentDate: "2024-02-01",
+      amount: 5000,
+      receiptNumber: "CR-BLOCKED-001",
+      paymentMethod: "cash",
+    });
+    expect(postPayRes.success).toBe(false);
+    if (!postPayRes.success) {
+      expect(postPayRes.error).toContain("view-only");
+    }
+
+    const policyRes = await updateBillingPolicies({
+      accountId,
+      penaltyRate: 4.0,
+      enableMaturityAmnesty: false,
+      enablePostMaturityReducedRate: false,
+    });
+    expect(policyRes.success).toBe(false);
+    if (!policyRes.success) {
+      expect(policyRes.error).toContain("view-only");
+    }
+
+    const noticeRes = await recordBillingNotice({
+      accountId,
+      stage: "first_notice",
+      noticeNumber: 1,
+      noticeDate: "2024-02-01",
+      title: "Blocked Notice",
+      overdueAmount: 1000,
+      arrearsPrincipal: 1000,
+      penaltyDue: 0,
+    });
+    expect(noticeRes.success).toBe(false);
+    if (!noticeRes.success) {
+      expect(noticeRes.error).toContain("view-only");
+    }
+
+    const forfeitRes = await forfeitBillingAccount({
+      accountId,
+      reason: "Blocked Forfeit",
+    });
+    expect(forfeitRes.success).toBe(false);
+    if (!forfeitRes.success) {
+      expect(forfeitRes.error).toContain("view-only");
+    }
+
+    const undoBlockedRes = await undoBillingClearance(accountId);
+    expect(undoBlockedRes.success).toBe(false);
+    if (!undoBlockedRes.success) {
+      expect(undoBlockedRes.error).toContain("cannot be undone");
+    }
   });
 });

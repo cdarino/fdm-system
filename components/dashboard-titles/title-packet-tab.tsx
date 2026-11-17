@@ -1,7 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import {
+  AlertTriangle,
   ArrowRight,
   Calendar,
   CheckCircle2,
@@ -9,7 +11,6 @@ import {
   ExternalLink,
   FileText,
   Loader2,
-  Pencil,
   RotateCcw,
   Trash2,
   Upload,
@@ -35,7 +36,6 @@ import { formatDocumentName } from '@/lib/format-document-name';
 import { formatMediumDate } from '@/lib/format-date';
 import { useLandTitles } from '@/lib/hooks/use-land-titles';
 import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
-import { useMutation } from '@/lib/hooks/use-mutation';
 import { getDocPrepState, getReleasedDate } from '@/lib/title-progress';
 import { DOCUMENT_FILE_ACCEPT } from '@/lib/validations/document';
 import { DOC_TYPE_LABEL, type ClientDocument } from '@/lib/types/client';
@@ -71,7 +71,6 @@ export function TitlePacketTab({
     uploadDocument,
     removeDocument,
     getDocumentUrl,
-    updateTitleNumber,
     canEdit,
   } = useLandTitles();
   const { enqueueFile } = useOcrQueue();
@@ -85,10 +84,6 @@ export function TitlePacketTab({
 
   const [revertTarget, setRevertTarget] = useState<'Document Preparation' | 'For Review' | null>(null);
   const [revertReason, setRevertReason] = useState('');
-
-  const currentTct = title.property?.title_number ?? '';
-  const [titleNumberInput, setTitleNumberInput] = useState(currentTct);
-  const [isEditingTct, setIsEditingTct] = useState(false);
 
   const isReleased = title.status === 'Released';
   const releasedAt = getReleasedDate(title);
@@ -106,30 +101,6 @@ export function TitlePacketTab({
     missingCount: missingDocsCount,
     hasRecordedTct,
   } = prep;
-
-  const { state: tctState, execute: runSaveTct } = useMutation(
-    async (newTitleNumber: string) => {
-      await updateTitleNumber(title.property_id, newTitleNumber);
-    },
-    {
-      onSuccess: () => {
-        toast.success('Title number saved');
-        setIsEditingTct(false);
-      },
-    }
-  );
-
-  const isSavingTct = tctState.status === 'pending';
-
-  function handleSaveTct(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = titleNumberInput.trim();
-    if (!trimmed) {
-      toast.error('Title number cannot be empty');
-      return;
-    }
-    void runSaveTct(trimmed);
-  }
 
   function pickFile(type: ReleaseDocumentType) {
     pendingTypeRef.current = type;
@@ -228,7 +199,9 @@ export function TitlePacketTab({
                 <span className="text-xs text-muted-foreground">
                   {step1Done
                     ? 'All requirements recorded. Ready for supervisor review.'
-                    : `${missingDocsCount > 0 ? `${missingDocsCount} file${missingDocsCount > 1 ? 's' : ''} missing` : ''}${!hasRecordedTct ? `${missingDocsCount > 0 ? ' • ' : ''}TCT number required` : ''}`}
+                    : missingDocsCount > 0
+                      ? `${missingDocsCount} file${missingDocsCount > 1 ? 's' : ''} missing`
+                      : 'Requirements incomplete'}
                 </span>
               </div>
               <Button
@@ -331,79 +304,42 @@ export function TitlePacketTab({
         </div>
       )}
 
+      {/* Missing Property Title Number Warning Banner */}
+      {!hasRecordedTct && !isReleased && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-warning bg-[color-mix(in_srgb,var(--warning)_8%,var(--card))] px-3.5 py-3 text-xs text-foreground">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+            <div>
+              <p className="font-semibold text-foreground">Property Title Number (TCT) missing</p>
+              <p className="text-muted-foreground">
+                A title number has not been recorded for this property lot. Record it on the property page before advancing the turnover packet.
+              </p>
+            </div>
+          </div>
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="text-xs gap-1.5 h-8 shrink-0 self-start sm:self-center"
+          >
+            <Link href={`/dashboard/properties/map?lot=${encodeURIComponent(title.property_id)}`}>
+              <span>Edit on Property Page</span>
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+      )}
+
       {/* Release Packet Workbench Card */}
       <SectionCard className="space-y-4">
-        {/* Header Toolbar: Document count + Integrated TCT quick-edit */}
-        <div className="flex flex-col gap-3 pb-2 border-b border-border sm:flex-row sm:items-center sm:justify-between">
+        {/* Header Toolbar: Document count */}
+        <div className="flex items-center justify-between pb-2 border-b border-border">
           <div className="flex items-center gap-2 flex-wrap">
             <h4 className="text-sm font-semibold text-foreground">Turnover Packet Requirements</h4>
             <Badge variant="outline" shape="pill" className="text-xs font-normal">
               {isLoadingDocs && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
               {requiredDocsCount - missingDocsCount} of {requiredDocsCount} files uploaded
             </Badge>
-          </div>
-
-          {/* Integrated TCT Editor in Toolbar */}
-          <div className="flex items-center gap-2 self-start sm:self-center">
-            <span className="text-xs text-muted-foreground">TCT:</span>
-            {!isEditingTct ? (
-              <div className="flex items-center gap-1.5">
-                {title.property?.title_number ? (
-                  <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-muted border border-border text-foreground">
-                    {title.property.title_number}
-                  </span>
-                ) : (
-                  <Badge variant="warning" shape="pill" dot className="text-xs">
-                    Missing TCT
-                  </Badge>
-                )}
-                {canEdit && !isReleased && (
-                  <Button
-                    type="button"
-                    variant="quiet"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      setTitleNumberInput(currentTct);
-                      setIsEditingTct(true);
-                    }}
-                    title="Edit TCT Number"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <form onSubmit={handleSaveTct} className="flex items-center gap-1.5">
-                <Input
-                  value={titleNumberInput}
-                  onChange={(e) => setTitleNumberInput(e.target.value)}
-                  placeholder="e.g. T-123456"
-                  className="h-7 w-28 font-mono text-xs px-2"
-                  autoFocus
-                />
-                <Button
-                  type="submit"
-                  size="sm"
-                  className="h-7 px-2.5 text-xs font-medium"
-                  disabled={isSavingTct || !titleNumberInput.trim()}
-                >
-                  {isSavingTct ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="quiet"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => {
-                    setTitleNumberInput(currentTct);
-                    setIsEditingTct(false);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </form>
-            )}
           </div>
         </div>
 
@@ -432,17 +368,13 @@ export function TitlePacketTab({
                       <p className="font-medium text-xs text-foreground truncate">
                         {DOC_TYPE_LABEL[type]}
                       </p>
-                      {isSkipped ? (
+                      {isSkipped && (
                         <Badge variant="muted" shape="pill" className="text-[10px] py-0">Omitted - Prior Transfer</Badge>
-                      ) : doc ? (
-                        <Badge variant="success" shape="pill" dot className="text-[10px] py-0">Complete</Badge>
-                      ) : (
-                        <Badge variant="warning" shape="pill" dot className="text-[10px] py-0">Missing</Badge>
                       )}
                     </div>
                     {doc && (
                       <p className="text-[11px] text-muted-foreground truncate mt-0.5 font-mono">
-                        {formatDocumentName(doc.file_path)} • {formatMediumDate(doc.uploaded_at)}
+                        {doc.is_autogenerated ? 'Autogenerated' : 'Manually uploaded'} • {formatMediumDate(doc.uploaded_at)}
                       </p>
                     )}
                   </div>

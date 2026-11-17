@@ -22,6 +22,7 @@ export function HelpTip({ text, title, className }: HelpTipProps) {
         <TooltipTrigger asChild>
           <button
             type="button"
+            tabIndex={-1}
             aria-label={title || "Help info"}
             onClick={(e) => e.stopPropagation()}
             className={cn(

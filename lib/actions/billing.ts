@@ -2,6 +2,7 @@
 
 import { createScope } from "@/lib/actions/action-handler";
 import type { ActionResult } from "@/lib/actions/action-result";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { forfeitPropertyLot } from "@/lib/actions/properties";
 import { evaluateLedger } from "@/lib/billing/ledger-engine";
 import {
@@ -11,7 +12,9 @@ import {
   OverdueNoticeEvent,
   ContractPolicies,
   OverdueNoticeStage,
+  LedgerTitleInfo,
 } from "@/lib/types/billing";
+import type { TitleStatus } from "@/lib/types/title";
 import type { LedgerAccount } from "@/lib/types/property";
 import { uuidSchema } from "@/lib/validations/client";
 import {
@@ -22,7 +25,15 @@ import {
   recordBillingNoticeSchema,
   updateBillingNoticeSchema,
   forfeitBillingAccountSchema,
+  uploadBillingClearanceDocumentSchema,
 } from "@/lib/validations/billing";
+import {
+  uploadClientDocumentObject,
+  removeClientDocumentObject,
+} from "@/lib/storage/client-documents";
+import { CLIENT_DOCUMENT_COLUMNS, toClientDocument } from "@/lib/attachments";
+import type { ClientDocument } from "@/lib/types/client";
+import type { FileAttachment } from "@/lib/types/title";
 
 const billing = createScope(["billing.read"]);
 const billingCreate = billing.extend(["billing.create"]);
@@ -43,7 +54,19 @@ interface RawParty {
     contact_number?: string | null;
     address?: string | null;
     referred_by?: string | null;
+    tin_number?: string | null;
+    civil_status?: string | null;
+    spouse_name?: string | null;
+    status?: string | null;
+    contact_info?: { type: string; value: string; is_primary?: boolean }[] | null;
   } | null;
+}
+
+interface RawLandTitle {
+  title_id: string;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface RawProperty {
@@ -58,6 +81,7 @@ interface RawProperty {
   project_area?: {
     name: string;
   } | null;
+  land_title?: RawLandTitle | RawLandTitle[] | null;
 }
 
 interface RawPayment {
@@ -117,6 +141,11 @@ function mapRawToLedger(raw: RawLedgerAccount): Ledger {
     contactNumber: primaryParty?.client?.contact_number || undefined,
     address: primaryParty?.client?.address || undefined,
     referredBy: primaryParty?.client?.referred_by || undefined,
+    tinNumber: primaryParty?.client?.tin_number || undefined,
+    civilStatus: primaryParty?.client?.civil_status || undefined,
+    spouseName: primaryParty?.client?.spouse_name || undefined,
+    status: primaryParty?.client?.status || undefined,
+    contactInfo: primaryParty?.client?.contact_info || undefined,
   };
 
   const property = {
@@ -160,6 +189,20 @@ function mapRawToLedger(raw: RawLedgerAccount): Ledger {
       ? "forfeited"
       : raw.overdue_notice_stage || noticeHistory[0]?.stage || "none";
 
+  const rawTitle = Array.isArray(raw.property?.land_title)
+    ? raw.property?.land_title[0]
+    : raw.property?.land_title;
+
+  const titleInfo: LedgerTitleInfo | undefined = rawTitle
+    ? {
+        titleId: rawTitle.title_id,
+        titleNumber: raw.property?.title_number || null,
+        status: rawTitle.status as TitleStatus,
+        createdAt: rawTitle.created_at || null,
+        updatedAt: rawTitle.updated_at || null,
+      }
+    : undefined;
+
   return {
     id: raw.account_id,
     client,
@@ -181,6 +224,9 @@ function mapRawToLedger(raw: RawLedgerAccount): Ledger {
     status: raw.status,
     clearedAt: raw.cleared_at,
     clearedBy: raw.cleared_by,
+    titleInfo,
+    forfeitedAt: raw.forfeited_at,
+    forfeitureReason: raw.forfeiture_reason,
   };
 }
 
@@ -213,7 +259,16 @@ export async function getBillingLedgers(asOfDate?: string): Promise<LedgerSummar
           client_id,
           role,
           is_primary,
-          client:client(client_id, full_name, address)
+          client:client(
+            client_id,
+            full_name,
+            address,
+            tin_number,
+            civil_status,
+            spouse_name,
+            status,
+            contact_info(type, value, is_primary)
+          )
         ),
         property:property_lot(
           property_id,
@@ -224,7 +279,13 @@ export async function getBillingLedgers(asOfDate?: string): Promise<LedgerSummar
           price_per_sqm,
           title_number,
           status,
-          project_area(name)
+          project_area(name),
+          land_title(
+            title_id,
+            status,
+            created_at,
+            updated_at
+          )
         ),
         payments:billing_payment(
           payment_id,
@@ -291,7 +352,16 @@ export async function getBillingLedgerById(
           client_id,
           role,
           is_primary,
-          client:client(client_id, full_name, address)
+          client:client(
+            client_id,
+            full_name,
+            address,
+            tin_number,
+            civil_status,
+            spouse_name,
+            status,
+            contact_info(type, value, is_primary)
+          )
         ),
         property:property_lot(
           property_id,
@@ -302,7 +372,13 @@ export async function getBillingLedgerById(
           price_per_sqm,
           title_number,
           status,
-          project_area(name)
+          project_area(name),
+          land_title(
+            title_id,
+            status,
+            created_at,
+            updated_at
+          )
         ),
         payments:billing_payment(
           payment_id,
@@ -408,7 +484,6 @@ export async function createBillingLedger(
         propertyId,
         contractPrice,
         downpayment,
-        dpPaidAtSigning,
         termMonths,
         firstDueDate,
         dueDay,
@@ -481,23 +556,6 @@ export async function createBillingLedger(
         throw new Error(`Failed to attach client to ledger account: ${partyErr.message}`);
       }
 
-      // Record downpayment receipt if paid at signing
-      if (downpayment > 0 && dpPaidAtSigning) {
-        const todayStr = new Date().toISOString().split("T")[0];
-        const { error: payErr } = await supabase.from("billing_payment").insert({
-          account_id: account.account_id,
-          payment_date: todayStr,
-          amount: downpayment,
-          receipt_number: "CR#INIT-DP",
-          payment_method: "cash",
-          notes: "Initial reservation / downpayment paid at contract signing",
-        });
-
-        if (payErr) {
-          throw new Error(`Failed to record downpayment: ${payErr.message}`);
-        }
-      }
-
       // Update property lot status to Reserved
       await supabase
         .from("property_lot")
@@ -507,6 +565,43 @@ export async function createBillingLedger(
       return { accountId: account.account_id };
     },
   });
+}
+
+async function assertLedgerEditable(
+  accountId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const { data: account, error: accErr } = await supabase
+    .from("ledger_account")
+    .select("account_id, property_id, cleared_at")
+    .eq("account_id", accountId)
+    .maybeSingle<{ account_id: string; property_id: string; cleared_at: string | null }>();
+
+  if (accErr || !account) {
+    throw new Error("Target contract ledger account not found.");
+  }
+
+  if (account.property_id) {
+    const { data: title, error: titleErr } = await supabase
+      .from("land_title")
+      .select("title_id, status")
+      .eq("property_id", account.property_id)
+      .maybeSingle<{ title_id: string; status: string }>();
+
+    if (titleErr) {
+      throw new Error(`Failed to check legal title status: ${titleErr.message}`);
+    }
+
+    if (title && title.status !== "Cleared by Billing") {
+      throw new Error("This ledger account is currently in legal processing and is view-only.");
+    }
+  }
+
+  if (account.cleared_at) {
+    throw new Error(
+      "This ledger account has been cleared for legal turnover and is view-only. Revert clearance first to make adjustments."
+    );
+  }
 }
 
 export async function postBillingPayment(
@@ -525,6 +620,8 @@ export async function postBillingPayment(
         waivePenalty,
         notes,
       } = validatedInput;
+
+      await assertLedgerEditable(accountId, supabase);
 
       // Insert billing payment row
       const { data, error } = await supabase
@@ -559,6 +656,18 @@ export async function voidBillingPayment(
     handler: async (validatedInput, { supabase }) => {
       const { paymentId } = validatedInput;
 
+      const { data: payment, error: pErr } = await supabase
+        .from("billing_payment")
+        .select("account_id")
+        .eq("payment_id", paymentId)
+        .maybeSingle<{ account_id: string }>();
+
+      if (pErr || !payment) {
+        throw new Error("Payment record not found.");
+      }
+
+      await assertLedgerEditable(payment.account_id, supabase);
+
       // Void payment record
       const { error } = await supabase
         .from("billing_payment")
@@ -589,6 +698,8 @@ export async function updateBillingPolicies(
         enablePostMaturityReducedRate,
         postMaturityPenaltyRate,
       } = validatedInput;
+
+      await assertLedgerEditable(accountId, supabase);
 
       const policies: ContractPolicies = {
         enableMaturityAmnesty,
@@ -636,6 +747,8 @@ export async function recordBillingNotice(
         arrearsPrincipal,
         penaltyDue,
       } = validatedInput;
+
+      await assertLedgerEditable(accountId, supabase);
 
       // Insert notice event and advance active escalation stage
       const { data, error } = await supabase
@@ -686,6 +799,18 @@ export async function updateBillingNotice(
         notes,
       } = validatedInput;
 
+      const { data: notice, error: nErr } = await supabase
+        .from("billing_notice_event")
+        .select("account_id")
+        .eq("notice_id", noticeId)
+        .maybeSingle<{ account_id: string }>();
+
+      if (nErr || !notice) {
+        throw new Error("Notice event record not found.");
+      }
+
+      await assertLedgerEditable(notice.account_id, supabase);
+
       // Update notice record details
       const { error } = await supabase
         .from("billing_notice_event")
@@ -716,6 +841,8 @@ export async function forfeitBillingAccount(
     input,
     handler: async (validatedInput, { supabase }) => {
       const { accountId, reason, forfeitedAt } = validatedInput;
+
+      await assertLedgerEditable(accountId, supabase);
 
       // Find property linked to this account
       const { data: account, error: accErr } = await supabase
@@ -863,6 +990,99 @@ export async function undoBillingClearance(
       }
 
       return data;
+    },
+  });
+}
+
+export async function uploadBillingClearanceDocument(
+  accountId: string,
+  formData: FormData
+): Promise<ActionResult<ClientDocument>> {
+  return billingUpdate.run({
+    schema: uploadBillingClearanceDocumentSchema,
+    input: {
+      accountId,
+      documentType: formData.get("document_type"),
+      file: formData.get("file"),
+      isAutogenerated: formData.get("is_autogenerated") === "true",
+    },
+    handler: async ({ accountId: validAccountId, documentType, file, isAutogenerated }, { supabase, userId }) => {
+      // Look up primary client and property lot for the account
+      const { data: account, error: accountError } = await supabase
+        .from("ledger_account")
+        .select(`
+          property_id,
+          parties:account_party(client_id, is_primary)
+        `)
+        .eq("account_id", validAccountId)
+        .maybeSingle<{
+          property_id: string;
+          parties: { client_id: string; is_primary: boolean }[];
+        }>();
+
+      if (accountError || !account) {
+        throw new Error(`Ledger account not found: ${accountError?.message ?? "Unknown error"}`);
+      }
+
+      const clientId =
+        account.parties?.find((p) => p.is_primary)?.client_id ||
+        account.parties?.[0]?.client_id;
+
+      if (!clientId) {
+        throw new Error("No client is associated with this billing ledger account.");
+      }
+
+      // Check existing document of the same category for this lot to replace
+      const { data: previous, error: previousError } = await supabase
+        .from("file_attachment")
+        .select("attachment_id, file_path")
+        .eq("client_id", clientId)
+        .eq("property_id", account.property_id)
+        .eq("file_category", documentType)
+        .returns<{ attachment_id: string; file_path: string }[]>();
+
+      if (previousError) {
+        throw new Error(`Failed to check existing clearance documents: ${previousError.message}`);
+      }
+
+      const filePath = await uploadClientDocumentObject(clientId, file);
+
+      const { data, error } = await supabase
+        .from("file_attachment")
+        .insert({
+          entity_type: "client",
+          entity_id: clientId,
+          client_id: clientId,
+          property_id: account.property_id,
+          file_category: documentType,
+          file_path: filePath,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type,
+          metadata: {
+            autogenerated: isAutogenerated,
+            source: isAutogenerated ? "autogenerated" : "manual_upload",
+          },
+          uploaded_by: userId,
+        })
+        .select(CLIENT_DOCUMENT_COLUMNS)
+        .single<FileAttachment>();
+
+      if (error || !data) {
+        await removeClientDocumentObject(filePath).catch((cleanupErr) => {
+          console.error(`Orphaned object ${filePath} after failed insert:`, cleanupErr);
+        });
+        throw new Error(`Failed to save clearance document: ${error?.message ?? "Unknown error"}`);
+      }
+
+      // Remove replaced previous documents if any exist
+      if (previous && previous.length > 0) {
+        const oldIds = previous.map((p) => p.attachment_id);
+        await supabase.from("file_attachment").delete().in("attachment_id", oldIds);
+        await Promise.allSettled(previous.map((p) => removeClientDocumentObject(p.file_path)));
+      }
+
+      return toClientDocument(data);
     },
   });
 }
