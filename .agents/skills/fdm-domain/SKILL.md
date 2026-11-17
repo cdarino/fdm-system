@@ -142,7 +142,7 @@ Staff stated the boundary repeatedly and unambiguously: *"Wala na namo gi-proces
 **Implementation consequences:**
 
 - **Do not build** BIR status tracking, Registry of Deeds monitoring, title-transfer progress, or "delayed processing" flags. These were proposed in a demo and rejected outright.
-- `eCAR` exists in this codebase only as a **document type a buyer may upload**, never as a workflow the company executes.
+- `eCAR` is explicitly excluded from standard document types and must not be modelled as a company workflow or standard upload option.
 - The internal **30-day clearance period is entirely internal** — no agency is involved.
 - The company's obligation ends at: verified full payment, executed Deed of Absolute Sale, and physical handover of the title and documents.
 

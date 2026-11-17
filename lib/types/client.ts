@@ -11,7 +11,6 @@ export const PROPERTY_DOC_TYPES = [
   'Payment History',
   'Certificate of Ownership',
   'Title Copy',
-  'eCAR',
 ] as const;
 export type PropertyDocType = (typeof PROPERTY_DOC_TYPES)[number];
 
@@ -33,7 +32,6 @@ export const DOC_TYPE_LABEL: Record<string, string> = {
   'Payment History': 'Payment history',
   'Certificate of Ownership': 'Certificate of Ownership',
   'Title Copy': 'Copy of the title',
-  eCAR: 'eCAR',
   Other: 'Other',
 };
 
