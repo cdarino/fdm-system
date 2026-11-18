@@ -5,7 +5,6 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   X,
-  DollarSign,
   FileDown,
   Loader2,
   Archive,
@@ -103,11 +102,11 @@ function LotMetricFloatingEditor({
 }: LotMetricFloatingEditorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [rawValue, setRawValue] = useState(String(initialValue));
+  const [rawValue, setRawValue] = useState(initialValue > 0 ? String(initialValue) : '');
 
   function handleOpenChange(open: boolean) {
     if (open) {
-      setRawValue(String(initialValue));
+      setRawValue(initialValue > 0 ? String(initialValue) : '');
     }
     setIsOpen(open);
   }
@@ -346,7 +345,7 @@ export interface PropertyLotDetailViewProps {
 }
 
 export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetailViewProps) {
-  const { createLot, updateLot, archiveLot, unarchiveLot, reopenLot, deleteLot, projectAreas } = usePropertyLots();
+  const { updateLot, archiveLot, unarchiveLot, reopenLot, deleteLot, projectAreas } = usePropertyLots();
   const { isSystemAdmin, hasPermission } = useSession();
   const canDeleteLot = hasPermission('properties.delete');
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -454,25 +453,6 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
       throw new Error(res.error || 'Failed to update title number');
     }
     toast.success('Title number updated');
-  }
-
-  async function handleEnsureRegistered(): Promise<string | null> {
-    if (lot.property_id) return lot.property_id;
-    const res = await createLot({
-      project_area_id: lot.project_area_id,
-      location: lot.location,
-      block_number: lot.block_number,
-      lot_number: lot.lot_number,
-      area_size: currentArea,
-      price_per_sqm: currentPrice,
-      status: 'Open',
-      title_number: currentTitle ?? undefined,
-    });
-    if (!res.success) {
-      toast.error(res.error || 'Failed to open property lot');
-      return null;
-    }
-    return res.data.property_id;
   }
 
   async function handleExportPdf() {
@@ -674,24 +654,26 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-muted-foreground">Area size</p>
                   <p className="truncate text-sm font-medium text-foreground">
-                    {AREA.format(currentArea)} sqm
+                    {currentArea > 0 ? `${AREA.format(currentArea)} sqm` : 'Not set'}
                   </p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => handleCopy(`${AREA.format(currentArea)} sqm`, 'area')}
-                  aria-label="Copy area size"
-                >
-                  {copiedId === 'area' ? (
-                    <Check className="h-3.5 w-3.5 text-success" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </Button>
+                {currentArea > 0 && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => handleCopy(`${AREA.format(currentArea)} sqm`, 'area')}
+                    aria-label="Copy area size"
+                  >
+                    {copiedId === 'area' ? (
+                      <Check className="h-3.5 w-3.5 text-success" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                )}
                 <LotMetricFloatingEditor
                   title="Edit area size"
                   label="Area size (sqm)"
@@ -708,24 +690,26 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-medium text-muted-foreground">Price per sqm</p>
                   <p className="truncate text-sm font-medium text-foreground">
-                    {PESO.format(currentPrice)}/sqm
+                    {currentPrice > 0 ? `${PESO.format(currentPrice)}/sqm` : 'Not set'}
                   </p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => handleCopy(PESO.format(currentPrice), 'price')}
-                  aria-label="Copy price per sqm"
-                >
-                  {copiedId === 'price' ? (
-                    <Check className="h-3.5 w-3.5 text-success" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </Button>
+                {currentPrice > 0 && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => handleCopy(PESO.format(currentPrice), 'price')}
+                    aria-label="Copy price per sqm"
+                  >
+                    {copiedId === 'price' ? (
+                      <Check className="h-3.5 w-3.5 text-success" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                )}
                 <LotMetricFloatingEditor
                   title="Edit price per sqm"
                   label="Price per sqm (₱)"
@@ -744,28 +728,32 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
                     Base contract price
                   </p>
                   <p className="truncate text-sm font-bold text-foreground">
-                    {PESO.format(calculatedTotal)}
+                    {calculatedTotal > 0 ? PESO.format(calculatedTotal) : 'Not set'}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {AREA.format(currentArea)} sqm × {PESO.format(currentPrice)}/sqm
-                  </p>
+                  {calculatedTotal > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      {AREA.format(currentArea)} sqm × {PESO.format(currentPrice)}/sqm
+                    </p>
+                  )}
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                  onClick={() => handleCopy(PESO.format(calculatedTotal), 'total')}
-                  aria-label="Copy base contract price"
-                >
-                  {copiedId === 'total' ? (
-                    <Check className="h-3.5 w-3.5 text-success" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </div>
+              {calculatedTotal > 0 && (
+                <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => handleCopy(PESO.format(calculatedTotal), 'total')}
+                    aria-label="Copy base contract price"
+                  >
+                    {copiedId === 'total' ? (
+                      <Check className="h-3.5 w-3.5 text-success" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </Card>
@@ -1070,7 +1058,6 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
         open={isAssignModalOpen}
         onOpenChange={setIsAssignModalOpen}
         lot={effectiveLotForModal}
-        onEnsureRegistered={handleEnsureRegistered}
       />
 
       {!isRegistered && (
@@ -1082,8 +1069,8 @@ export function PropertyLotDetailView({ lot, onBack, onClose }: PropertyLotDetai
             project_area_id: lot.project_area_id ?? undefined,
             block_number: lot.block_number,
             lot_number: lot.lot_number,
-            area_size: currentArea,
-            price_per_sqm: currentPrice,
+            area_size: currentArea > 0 ? currentArea : undefined,
+            price_per_sqm: currentPrice > 0 ? currentPrice : undefined,
             title_number: currentTitle ?? undefined,
           }}
         />

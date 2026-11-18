@@ -56,3 +56,71 @@ export function lotDestinationHref(
 
   return `/dashboard/properties/map?lot=${encodeURIComponent(lot.property_id)}`;
 }
+
+export interface PreSelectedPlot {
+  projectAreaId: string;
+  blockNumber: number;
+  lotNumber: number;
+  areaSize?: number;
+  pricePerSqm?: number;
+}
+
+export interface ClientAssignLotInput {
+  property_id?: string | null;
+  project_area_id?: string | null;
+  block_number: number;
+  lot_number: number;
+  area_size?: number | null;
+  price_per_sqm?: number | null;
+}
+
+export function buildClientAssignHref(clientId: string, lot: ClientAssignLotInput): string {
+  const params = new URLSearchParams();
+  if (lot.property_id) {
+    params.set('assignProperty', lot.property_id);
+  } else if (lot.project_area_id) {
+    // Unopened plots are registered on final wizard submission once real area and price are set.
+    params.set('assignProjectArea', lot.project_area_id);
+    params.set('assignBlock', String(lot.block_number));
+    params.set('assignLot', String(lot.lot_number));
+    if (typeof lot.area_size === 'number' && lot.area_size > 0) {
+      params.set('assignArea', String(lot.area_size));
+    }
+    if (typeof lot.price_per_sqm === 'number' && lot.price_per_sqm > 0) {
+      params.set('assignPrice', String(lot.price_per_sqm));
+    }
+  }
+  const query = params.toString();
+  return `/dashboard/clients/${encodeURIComponent(clientId)}${query ? `?${query}` : ''}`;
+}
+
+export function parseAssignPlotParams(params?: {
+  assignProjectArea?: string;
+  assignBlock?: string;
+  assignLot?: string;
+  assignArea?: string;
+  assignPrice?: string;
+}): PreSelectedPlot | undefined {
+  if (!params?.assignProjectArea || !params.assignBlock || !params.assignLot) {
+    return undefined;
+  }
+  const blockNumber = parseInt(params.assignBlock, 10);
+  const lotNumber = parseInt(params.assignLot, 10);
+  if (
+    !Number.isFinite(blockNumber) ||
+    blockNumber <= 0 ||
+    !Number.isFinite(lotNumber) ||
+    lotNumber <= 0
+  ) {
+    return undefined;
+  }
+  const parsedArea = params.assignArea ? parseFloat(params.assignArea) : NaN;
+  const parsedPrice = params.assignPrice ? parseFloat(params.assignPrice) : NaN;
+  return {
+    projectAreaId: params.assignProjectArea,
+    blockNumber,
+    lotNumber,
+    areaSize: Number.isFinite(parsedArea) && parsedArea > 0 ? parsedArea : undefined,
+    pricePerSqm: Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : undefined,
+  };
+}

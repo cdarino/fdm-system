@@ -112,9 +112,9 @@ export function ClientDetailSidebar() {
     }
   }
 
-  async function handleUpdateCivilStatus(civilStatus: string, spouseName?: string) {
+  async function handleUpdateCivilStatus(civilStatus: string, spouseName?: string, spouseContact?: string[]) {
     try {
-      await updateCivilStatus(civilStatus as CivilStatus, spouseName);
+      await updateCivilStatus(civilStatus as CivilStatus, spouseName, spouseContact);
       toast.success('Civil status updated');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update civil status');
@@ -199,11 +199,26 @@ export function ClientDetailSidebar() {
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  const hasSpouseContacts = Boolean(client.spouse_contact && client.spouse_contact.length > 0);
+  const spouseContactsText = hasSpouseContacts ? client.spouse_contact!.join(', ') : '';
+
   const civilStatusDisplay = client.civil_status ? (
     client.civil_status === 'Married' ? (
       client.spouse_name ? (
         <span>
           Married <span className="text-muted-foreground">• Spouse:</span> {client.spouse_name}
+          {hasSpouseContacts ? (
+            <>
+              {' '}
+              <span className="text-muted-foreground">• Contact:</span> {spouseContactsText}
+            </>
+          ) : (
+            <>
+              {' '}
+              <span className="text-muted-foreground">• Contact:</span>{' '}
+              <span className="italic text-destructive">Required</span>
+            </>
+          )}
         </span>
       ) : (
         <span>
@@ -220,7 +235,7 @@ export function ClientDetailSidebar() {
 
   const copyCivilStatusText =
     client.civil_status === 'Married' && client.spouse_name
-      ? `Married • Spouse: ${client.spouse_name}`
+      ? `Married • Spouse: ${client.spouse_name}${hasSpouseContacts ? ` • Contact: ${spouseContactsText}` : ''}`
       : client.civil_status || '';
 
   return (
@@ -370,6 +385,7 @@ export function ClientDetailSidebar() {
                 title="Edit civil status"
                 initialCivilStatus={client.civil_status || 'Single'}
                 initialSpouseName={client.spouse_name || ''}
+                initialSpouseContact={client.spouse_contact || []}
                 onSave={handleUpdateCivilStatus}
               />
             </div>

@@ -2,6 +2,9 @@ import { z } from "zod";
 
 /** Matches the storage buckets' own limits, declared in their migrations. */
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+export const MAX_DOCUMENT_MB = MAX_DOCUMENT_BYTES / (1024 * 1024);
+export const DOCUMENT_SIZE_ERROR = `File is larger than ${MAX_DOCUMENT_MB}MB.`;
+export const DOCUMENT_SIZE_HINT = `Maximum file size: ${MAX_DOCUMENT_MB}MB.`;
 export const ALLOWED_DOCUMENT_TYPES = [
   "application/pdf",
   "image/jpeg",

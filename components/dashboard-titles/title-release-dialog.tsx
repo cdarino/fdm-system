@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { useLandTitles } from '@/lib/hooks/use-land-titles';
 import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { calculateStorageFee } from '@/lib/storage-fee';
+import { MAX_DOCUMENT_BYTES } from '@/lib/validations/document';
 import type { LandTitle } from '@/lib/types/title';
 
 interface TitleReleaseDialogProps {
@@ -236,6 +237,7 @@ export function TitleReleaseDialog({
                 if (newFile) setSkipAttachmentConfirmed(false);
               }}
               accept=".pdf,image/*"
+              maxBytes={MAX_DOCUMENT_BYTES}
               buttonLabel="Select scan or photo"
             />
 

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { getLotCallingCardStatus } from '@/lib/utils/lot-card-status';
+import {
+  clientPropertyKey,
+  getLotCallingCardStatus,
+  isClientPropertyClosed,
+  sortClientPropertiesForDisplay,
+} from '@/lib/utils/lot-card-status';
 import type { ClientProperty } from '@/lib/types/client';
 
 function createMockProperty(overrides: Partial<ClientProperty> = {}): ClientProperty {
@@ -298,6 +303,9 @@ describe('getLotCallingCardStatus', () => {
 
   it('derives status for Forfeited account with redemption period', () => {
     const recentForfeit = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const formattedDate = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' }).format(
+      new Date(recentForfeit)
+    );
     const prop = createMockProperty({
       billing_summary: {
         status: 'overdue',
@@ -314,17 +322,23 @@ describe('getLotCallingCardStatus', () => {
         totalCollected: 450000,
         percentPaid: 75,
         forfeitedAt: recentForfeit,
+        forfeitureReason: '3 months default',
       },
     });
     const status = getLotCallingCardStatus(prop);
     expect(status.label).toBe('Forfeited');
     expect(status.tone).toBe('destructive');
-    expect(status.detail).toContain('Redemption period:');
-    expect(status.trailing).toContain('rescinded');
+    expect(status.detail).toContain(formattedDate);
+    expect(status.detail).toContain('grace left');
+    expect(status.detail).not.toContain('3 months default');
+    expect(status.trailing).toContain('150,000 unpaid');
   });
 
   it('derives status for Forfeited account when redemption expired', () => {
     const expiredForfeit = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString();
+    const formattedDate = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' }).format(
+      new Date(expiredForfeit)
+    );
     const prop = createMockProperty({
       billing_summary: {
         status: 'overdue',
@@ -346,7 +360,7 @@ describe('getLotCallingCardStatus', () => {
     const status = getLotCallingCardStatus(prop);
     expect(status.label).toBe('Forfeited');
     expect(status.tone).toBe('destructive');
-    expect(status.detail).toBe('Ownership rescinded · Returned to inventory');
+    expect(status.detail).toBe(`${formattedDate} · ₱150,000 unpaid`);
   });
 
   it('falls back to property pricing for raw subdivision lot', () => {
@@ -359,5 +373,121 @@ describe('getLotCallingCardStatus', () => {
     expect(status.label).toBe('Open');
     expect(status.tone).toBe('success');
     expect(status.detail).toContain('TCP');
+  });
+
+  it('shows concise forfeiture date and unpaid balance for reopened forfeited accounts', () => {
+    const recentForfeit = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const reopenedAt = new Date().toISOString();
+    const fmt = new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium' });
+    const prop = createMockProperty({
+      status: 'Reserved',
+      account_id: 'acc-old-forfeited',
+      account_status: 'Forfeited',
+      reopened_at: reopenedAt,
+      billing_summary: {
+        status: 'overdue',
+        accountStatus: 'Forfeited',
+        overdueNoticeStage: 'forfeited',
+        monthsOverdue: 4,
+        daysUntilDue: 0,
+        currentTermDue: 0,
+        arrearsPrincipal: 20000,
+        totalPenaltyDue: 1000,
+        totalPayableNow: 21000,
+        totalContractPrice: 600000,
+        remainingBalance: 150000,
+        totalCollected: 450000,
+        percentPaid: 75,
+        forfeitedAt: recentForfeit,
+        forfeitureReason: 'Defaulted after final demand',
+      },
+    });
+    const status = getLotCallingCardStatus(prop);
+    expect(status.label).toBe('Forfeited');
+    expect(status.tone).toBe('destructive');
+    expect(status.progress).toBeUndefined();
+    expect(status.detail).toBe(`${fmt.format(new Date(recentForfeit))} · ₱150,000 unpaid`);
+  });
+});
+
+describe('isClientPropertyClosed and sortClientPropertiesForDisplay', () => {
+  it('flags released titles and forfeited accounts as closed, leaving active and in-progress lots open', () => {
+    const released = createMockProperty({
+      property_id: 'prop-released',
+      account_id: 'acc-rel',
+      account_status: 'Active',
+      has_title: true,
+      title_id: 'title-rel',
+      title_status: 'Released',
+    });
+    const inLegal = createMockProperty({
+      property_id: 'prop-legal',
+      account_id: 'acc-leg',
+      account_status: 'Active',
+      has_title: true,
+      title_id: 'title-leg',
+      title_status: 'Ready for Claim',
+    });
+    const forfeited = createMockProperty({
+      property_id: 'prop-forf',
+      status: 'Reserved',
+      account_id: 'acc-old',
+      account_status: 'Forfeited',
+    });
+    const reReserved = createMockProperty({
+      property_id: 'prop-forf',
+      status: 'Reserved',
+      account_id: 'acc-new',
+      account_status: 'Active',
+    });
+
+    expect(isClientPropertyClosed(released)).toBe(true);
+    expect(isClientPropertyClosed(forfeited)).toBe(true);
+    expect(isClientPropertyClosed(inLegal)).toBe(false);
+    expect(isClientPropertyClosed(reReserved)).toBe(false);
+  });
+
+  it('orders closed (released/forfeited) cards last while keeping both accounts for a re-reserved lot', () => {
+    const released = createMockProperty({
+      property_id: 'prop-1',
+      account_id: 'acc-1',
+      account_status: 'Active',
+      has_title: true,
+      title_id: 'title-1',
+      title_status: 'Released',
+    });
+    const oldForfeited = createMockProperty({
+      property_id: 'prop-2',
+      status: 'Reserved',
+      account_id: 'acc-2-old',
+      account_status: 'Forfeited',
+    });
+    const activeReReserved = createMockProperty({
+      property_id: 'prop-2',
+      status: 'Reserved',
+      account_id: 'acc-2-new',
+      account_status: 'Active',
+    });
+    const activeOther = createMockProperty({
+      property_id: 'prop-3',
+      status: 'Reserved',
+      account_id: 'acc-3',
+      account_status: 'Active',
+    });
+
+    const sorted = sortClientPropertiesForDisplay([
+      released,
+      oldForfeited,
+      activeReReserved,
+      activeOther,
+    ]);
+
+    expect(sorted.map((p) => p.account_id)).toEqual([
+      'acc-2-new',
+      'acc-3',
+      'acc-1',
+      'acc-2-old',
+    ]);
+    expect(clientPropertyKey(activeReReserved)).not.toBe(clientPropertyKey(oldForfeited));
   });
 });

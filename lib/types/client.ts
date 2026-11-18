@@ -77,9 +77,10 @@ export interface Client {
   full_name: string;
   address: string | null;
   tin_number: string | null;
-  civil_status?: CivilStatus | null;
-  spouse_name?: string | null;
-  gender?: Gender | null;
+  civil_status: CivilStatus | null;
+  spouse_name: string | null;
+  spouse_contact?: string[] | null;
+  gender: Gender | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -162,10 +163,14 @@ export interface ClientPropertyBillingSummary {
 
 /** A lot on a client's profile, with where its sale stands. */
 export interface ClientProperty extends PropertyLot {
-  /** The client's active account for this lot, if any. */
+  /** The client's ledger account for this lot, if any. */
   account_id?: string | null;
   /** Status of the ledger account */
   account_status?: string | null;
+  /** When the ledger account was created */
+  account_created_at?: string | null;
+  /** When a forfeited account's lot was reopened for sale */
+  reopened_at?: string | null;
   /** When Billing cleared that account as fully paid. */
   cleared_at?: string | null;
   /** Whether Legal has created the land title for this lot. */
@@ -225,6 +230,7 @@ export interface CreateClientInput {
   tin_number?: string | null;
   civil_status?: CivilStatus | null;
   spouse_name?: string | null;
+  spouse_contact?: string[] | null;
   gender?: Gender | null;
   status?: string;
   contacts?: CreateContactInfoInput[];
@@ -236,6 +242,7 @@ export interface UpdateClientInput {
   tin_number?: string | null;
   civil_status?: CivilStatus | null;
   spouse_name?: string | null;
+  spouse_contact?: string[] | null;
   gender?: Gender | null;
   status?: string;
 }
@@ -282,4 +289,3 @@ export interface GetClientsParams {
 }
 
 export type { PaginatedResult } from '@/lib/pagination';
-

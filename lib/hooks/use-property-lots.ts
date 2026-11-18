@@ -97,6 +97,10 @@ export function usePropertyLots() {
   return ctx;
 }
 
+export function useOptionalPropertyLots() {
+  return useContext(PropertyLotsContext);
+}
+
 /** Lot identity as staff say it out loud: "Block 3 Lot 12". */
 export function lotLabel(lot: PropertyLotWithClient): string {
   return `Block ${lot.block_number} Lot ${lot.lot_number}`;
@@ -234,12 +238,28 @@ export function PropertyLotsProvider({
       currentFilters.showArchived ? true : !lot.is_archived,
   });
 
+  // Re-sync lots whenever server-fetched projectAreas refresh (e.g. after router.refresh()).
   useEffect(() => {
+    let isCancelled = false;
     getPropertyLots({ limit: 200, sortBy: 'created_at', sortOrder: 'desc' })
-      .then((result) => setLots(result.data))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load property lots'))
-      .finally(() => setIsLoading(false));
-  }, []);
+      .then((result) => {
+        if (!isCancelled) {
+          setLots(result.data);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!isCancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load property lots');
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false);
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [projectAreas]);
 
   const openDialog = useCallback((dialog: PropertyDialog) => setActiveDialog(dialog), []);
   const closeDialog = useCallback(() => setActiveDialog(null), []);
@@ -351,7 +371,11 @@ export function PropertyLotsProvider({
       const result = await forfeitPropertyLot({ propertyId, reason });
       if (!result.success) return result;
       const updated = result.data;
-      setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
+      setLots((prev) =>
+        prev.some((lot) => lot.property_id === propertyId)
+          ? prev.map((lot) => (lot.property_id === propertyId ? updated : lot))
+          : [updated, ...prev]
+      );
       router.refresh();
       return result;
     },
@@ -363,7 +387,11 @@ export function PropertyLotsProvider({
       const result = await reopenPropertyLotForSale({ propertyId, allowEarlyReopen });
       if (!result.success) return result;
       const updated = result.data;
-      setLots((prev) => prev.map((lot) => (lot.property_id === propertyId ? updated : lot)));
+      setLots((prev) =>
+        prev.some((lot) => lot.property_id === propertyId)
+          ? prev.map((lot) => (lot.property_id === propertyId ? updated : lot))
+          : [updated, ...prev]
+      );
       router.refresh();
       return result;
     },

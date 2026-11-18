@@ -11,6 +11,7 @@ import {
 export type ClientProfileRequirementsInput = Pick<Client, 'full_name' | 'address' | 'tin_number'> & {
   civil_status?: CivilStatus | null;
   spouse_name?: string | null;
+  spouse_contact?: string[] | null;
   gender?: Gender | null;
   contact_info?: Array<{ value?: string | null }>;
 };
@@ -24,7 +25,14 @@ export interface ClientRequirements {
 }
 
 export function isProfileComplete(client: ClientProfileRequirementsInput): boolean {
-  const isSpouseValid = client.civil_status === 'Married' ? Boolean(client.spouse_name?.trim()) : true;
+  const hasSpouseContact =
+    client.spouse_contact !== undefined
+      ? Boolean(client.spouse_contact && client.spouse_contact.some((c) => Boolean(c?.trim())))
+      : true;
+  const isSpouseValid =
+    client.civil_status === 'Married'
+      ? Boolean(client.spouse_name?.trim()) && hasSpouseContact
+      : true;
 
   return Boolean(
     client.full_name?.trim() &&
@@ -51,8 +59,16 @@ export function getMissingProfileFields(client: ClientProfileRequirementsInput):
   }
   if (!client.civil_status) {
     missing.push('Civil status');
-  } else if (client.civil_status === 'Married' && !client.spouse_name?.trim()) {
-    missing.push('Spouse name');
+  } else if (client.civil_status === 'Married') {
+    if (!client.spouse_name?.trim()) {
+      missing.push('Spouse name');
+    }
+    if (
+      client.spouse_contact !== undefined &&
+      (!client.spouse_contact || !client.spouse_contact.some((c) => Boolean(c?.trim())))
+    ) {
+      missing.push('Spouse contact');
+    }
   }
   if (!client.gender) {
     missing.push('Gender');

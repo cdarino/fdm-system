@@ -131,7 +131,7 @@ export function ClientDetailDocuments() {
       },
     ];
 
-    for (const lot of lots) {
+    for (const lot of lotMap.values()) {
       result.push({
         id: lot.property_id,
         label: `Block ${lot.block_number} Lot ${lot.lot_number}`,

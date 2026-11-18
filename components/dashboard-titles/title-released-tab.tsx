@@ -31,6 +31,7 @@ import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { formatMediumDate, formatMediumDateTime } from '@/lib/format-date';
 import { calculateStorageFee } from '@/lib/storage-fee';
 import { getReleasedDate } from '@/lib/title-progress';
+import { MAX_DOCUMENT_BYTES } from '@/lib/validations/document';
 import type { LandTitle } from '@/lib/types/title';
 
 function formatFileSize(bytes: number | null): string | null {
@@ -334,6 +335,7 @@ export function TitleReleasedTab({ title }: TitleReleasedTabProps) {
                   file={newFile}
                   onFileChange={setNewFile}
                   accept="application/pdf,image/*"
+                  maxBytes={MAX_DOCUMENT_BYTES}
                 />
               </div>
             </div>

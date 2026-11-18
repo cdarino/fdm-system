@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { FormField } from '@/components/ui/form-field';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Plus, X } from 'lucide-react';
 import { useClients } from '@/lib/hooks/use-clients-page';
 import { useMutation } from '@/lib/hooks/use-mutation';
 import { toast } from 'sonner';
@@ -36,6 +38,9 @@ export function EditClientModal({
   open: boolean;
 }) {
   const { updateClient, closeDialog } = useClients();
+  const [spouseContacts, setSpouseContacts] = useState<string[]>(
+    client.spouse_contact && client.spouse_contact.length > 0 ? client.spouse_contact : ['']
+  );
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
@@ -45,6 +50,7 @@ export function EditClientModal({
       tin_number: client.tin_number ?? '',
       civil_status: client.civil_status ?? null,
       spouse_name: client.spouse_name ?? '',
+      spouse_contact: client.spouse_contact ?? [],
       gender: client.gender ?? null,
       status: client.status === 'Inactive' ? 'Inactive' : 'Active',
     },
@@ -63,12 +69,16 @@ export function EditClientModal({
 
   useEffect(() => {
     if (open) {
+      setSpouseContacts(
+        client.spouse_contact && client.spouse_contact.length > 0 ? client.spouse_contact : ['']
+      );
       reset({
         full_name: client.full_name,
         address: client.address ?? '',
         tin_number: client.tin_number ?? '',
         civil_status: client.civil_status ?? null,
         spouse_name: client.spouse_name ?? '',
+        spouse_contact: client.spouse_contact ?? [],
         gender: client.gender ?? null,
         status: client.status === 'Inactive' ? 'Inactive' : 'Active',
       });
@@ -82,6 +92,7 @@ export function EditClientModal({
       tin_number: data.tin_number?.trim() || null,
       civil_status: data.civil_status || null,
       spouse_name: data.civil_status === 'Married' ? data.spouse_name?.trim() || null : null,
+      spouse_contact: data.civil_status === 'Married' ? spouseContacts.map((c) => c.trim()) : null,
       gender: data.gender || null,
       status: data.status,
     });
@@ -184,14 +195,74 @@ export function EditClientModal({
           </div>
 
           {currentCivilStatus === 'Married' && (
-            <FormField
-              id="edit-client-spouse"
-              label="Spouse name"
-              placeholder="Maria Santos"
-              hint="Required for married clients"
-              error={errors.spouse_name?.message}
-              {...register('spouse_name')}
-            />
+            <>
+              <FormField
+                id="edit-client-spouse"
+                label="Spouse name"
+                placeholder="Maria Santos"
+                hint="Required for married clients"
+                error={errors.spouse_name?.message}
+                {...register('spouse_name')}
+              />
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">
+                  Spouse contact
+                </Label>
+                <div className="space-y-1.5">
+                  {spouseContacts.map((contact, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <Input
+                        value={contact}
+                        onChange={(e) => {
+                          const updated = [...spouseContacts];
+                          updated[idx] = e.target.value;
+                          setSpouseContacts(updated);
+                        }}
+                        placeholder={idx === 0 ? "e.g. 09171234567 or email" : `Contact ${idx + 1}`}
+                        className="h-9 text-sm flex-1"
+                        maxLength={100}
+                        aria-label={`Spouse contact ${idx + 1}`}
+                      />
+                      {spouseContacts.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => {
+                            setSpouseContacts(spouseContacts.filter((_, i) => i !== idx));
+                          }}
+                          aria-label={`Remove contact ${idx + 1}`}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {spouseContacts[spouseContacts.length - 1]?.trim().length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-full text-xs gap-1 border-dashed text-muted-foreground hover:text-foreground"
+                    onClick={() => setSpouseContacts([...spouseContacts, ''])}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add another contact
+                  </Button>
+                )}
+                {errors.spouse_contact && (
+                  <p className="text-[11px] text-destructive">
+                    {Array.isArray(errors.spouse_contact)
+                      ? (errors.spouse_contact as any)[0]?.message || 'Spouse contact is required'
+                      : errors.spouse_contact.message as string}
+                  </p>
+                )}
+              </div>
+            </>
           )}
 
           <div className="space-y-2">

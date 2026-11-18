@@ -99,7 +99,10 @@ function StatusBar({
         />
         <span className="min-w-0 truncate text-xs font-semibold">{status}</span>
         {!hasProgress && detail && (
-          <span className="ml-auto min-w-0 shrink truncate text-[11px] opacity-80">
+          <span
+            title={typeof detail === "string" ? detail : undefined}
+            className="ml-auto min-w-0 shrink truncate text-[11px] opacity-80"
+          >
             {detail}
           </span>
         )}
@@ -114,7 +117,12 @@ function StatusBar({
             />
           </div>
           <div className="flex items-center justify-between gap-2 text-[11px] opacity-80">
-            <span className="min-w-0 truncate">{detail}</span>
+            <span
+              title={typeof detail === "string" ? detail : undefined}
+              className="min-w-0 truncate"
+            >
+              {detail}
+            </span>
             {trailing && <span className="shrink-0">{trailing}</span>}
           </div>
         </>

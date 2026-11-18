@@ -37,6 +37,7 @@ export interface LandTitle {
     address: string | null;
     civil_status?: string | null;
     spouse_name?: string | null;
+    spouse_contact?: string[] | null;
     tin_number?: string | null;
     /** Selected by `TITLE_SELECT` for the calling cards' contact line. */
     contact_info?: ContactInfo[] | null;

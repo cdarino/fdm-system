@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { reopenPropertyLotForSale } from '@/lib/actions/properties';
+import { useOptionalPropertyLots } from '@/lib/hooks/use-property-lots';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -48,6 +49,7 @@ export interface MapProjectAreaPopupProps {
   plot: LotPlotProperties;
   onViewDetails: () => void;
   onRegisterLot: () => void;
+  onReopenSuccess?: () => void;
 }
 
 export const STATUS_PILL_MAP: Record<string, string> = {
@@ -64,8 +66,10 @@ export function MapProjectAreaPopup({
   plot,
   onViewDetails,
   onRegisterLot,
+  onReopenSuccess,
 }: MapProjectAreaPopupProps) {
   const router = useRouter();
+  const propertyLots = useOptionalPropertyLots();
   const [isReopenOpen, setIsReopenOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
 
@@ -85,14 +89,19 @@ export function MapProjectAreaPopup({
     if (isReopening || !plot.propertyId) return;
     setIsReopening(true);
     try {
-      const res = await reopenPropertyLotForSale({
-        propertyId: plot.propertyId,
-        allowEarlyReopen: isGracePeriodActive,
-      });
+      const res = propertyLots
+        ? await propertyLots.reopenLot(plot.propertyId, isGracePeriodActive)
+        : await reopenPropertyLotForSale({
+            propertyId: plot.propertyId,
+            allowEarlyReopen: isGracePeriodActive,
+          });
       if (res.success) {
         toast.success(`${plot.name} reopened for sale`);
         setIsReopenOpen(false);
-        router.refresh();
+        onReopenSuccess?.();
+        if (!propertyLots) {
+          router.refresh();
+        }
       } else {
         toast.error(res.error);
       }
@@ -108,7 +117,7 @@ export function MapProjectAreaPopup({
 
   // MapLibre drops null GeoJSON properties, so an absent area arrives as undefined rather than
   // null — check the type rather than testing against null.
-  const areaLabel = typeof plot.areaSize === 'number' ? `${plot.areaSize} sqm` : 'Not surveyed';
+  const areaLabel = typeof plot.areaSize === 'number' && plot.areaSize > 0 ? `${plot.areaSize} sqm` : 'Not surveyed';
 
   return (
     <div className="min-w-[220px] p-3 font-sans" style={{ fontFamily: 'var(--font-geist-sans), sans-serif' }}>

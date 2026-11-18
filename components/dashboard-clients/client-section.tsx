@@ -521,7 +521,7 @@ function ClientsContent() {
 }
 
 export function ClientsSection({
-  clients = [],
+  clients,
 }: {
   clients?: ClientListItem[];
 }) {

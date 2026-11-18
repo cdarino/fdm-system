@@ -28,7 +28,7 @@ import {
   PROPERTY_DOC_TYPES,
   type StandardDocType,
 } from '@/lib/types/client';
-import { DOCUMENT_FILE_ACCEPT } from '@/lib/validations/document';
+import { DOCUMENT_FILE_ACCEPT, MAX_DOCUMENT_BYTES } from '@/lib/validations/document';
 
 const CUSTOM_TYPE_VALUE = '__custom__';
 
@@ -164,6 +164,7 @@ export function ClientDocumentUploadModal({
               file={selectedFile}
               onFileChange={setSelectedFile}
               accept={DOCUMENT_FILE_ACCEPT}
+              maxBytes={MAX_DOCUMENT_BYTES}
               disabled={isUploading}
             />
           </div>

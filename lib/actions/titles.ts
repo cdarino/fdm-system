@@ -21,7 +21,7 @@ import type { PaginatedResult } from "@/lib/types/client";
 // scoped to this select rather than added to `LOT_WITH_CLIENT_SELECT`, because
 // that one feeds the property map and is on its hot path.
 const TITLE_SELECT =
-  "*, client:client_id(client_id, full_name, status, address, civil_status, spouse_name, tin_number, contact_info(*), documents:file_attachment!client_id(file_category, property_id)), property:property_id(property_id, location, block_number, lot_number, title_number, area_size, price_per_sqm, status), history:land_title_status_history(history_id, title_id, status, changed_at, changed_by), release_attachment:release_attachment_id(attachment_id, file_path, file_name, file_size, mime_type, uploaded_at)";
+  "*, client:client_id(client_id, full_name, status, address, civil_status, spouse_name, spouse_contact, tin_number, contact_info(*), documents:file_attachment!client_id(file_category, property_id)), property:property_id(property_id, location, block_number, lot_number, title_number, area_size, price_per_sqm, status), history:land_title_status_history(history_id, title_id, status, changed_at, changed_by), release_attachment:release_attachment_id(attachment_id, file_path, file_name, file_size, mime_type, uploaded_at)";
 
 const titleBase = createScope();
 const titleCreate = createScope(["legal.create"]);

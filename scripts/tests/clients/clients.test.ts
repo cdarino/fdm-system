@@ -361,15 +361,17 @@ describe("Client Management Actions", () => {
     expect(restored.archived_at).toBeNull();
   });
 
-  it("creates and updates client with civil_status, spouse_name, and gender", async () => {
+  it("creates and updates client with civil_status, spouse_name, spouse_contact, and gender", async () => {
     const fullName = faker.person.fullName();
     const spouseName = faker.person.fullName();
+    const spouseContact = faker.phone.number();
 
     const client = unwrap(
       await createClient({
         full_name: fullName,
         civil_status: "Married",
         spouse_name: spouseName,
+        spouse_contact: [spouseContact],
         gender: "Female",
         status: "Active",
       })
@@ -378,12 +380,22 @@ describe("Client Management Actions", () => {
 
     expect(client.civil_status).toBe("Married");
     expect(client.spouse_name).toBe(spouseName);
+    expect(client.spouse_contact).toEqual([spouseContact]);
     expect(client.gender).toBe("Female");
 
     const fetched = await getClientById(client.client_id);
     expect(fetched.civil_status).toBe("Married");
     expect(fetched.spouse_name).toBe(spouseName);
+    expect(fetched.spouse_contact).toEqual([spouseContact]);
     expect(fetched.gender).toBe("Female");
+
+    const listedResult = await getClients({ search: fullName, limit: 20 });
+    const listed = listedResult.data.find((c) => c.client_id === client.client_id);
+    expect(listed).toBeDefined();
+    expect(listed?.civil_status).toBe("Married");
+    expect(listed?.spouse_name).toBe(spouseName);
+    expect(listed?.spouse_contact).toEqual([spouseContact]);
+    expect(listed?.gender).toBe("Female");
 
     const updated = unwrap(
       await updateClient(client.client_id, {
@@ -393,24 +405,83 @@ describe("Client Management Actions", () => {
 
     expect(updated.civil_status).toBe("Single");
     expect(updated.spouse_name).toBeNull();
+    expect(updated.spouse_contact).toBeNull();
 
     const fetchedAfter = await getClientById(client.client_id);
     expect(fetchedAfter.civil_status).toBe("Single");
     expect(fetchedAfter.spouse_name).toBeNull();
+    expect(fetchedAfter.spouse_contact).toBeNull();
   });
 
-  it("rejects client creation when status is Married without spouse name", async () => {
-    const result = await createClient({
+  it("rejects client creation when status is Married without spouse name or spouse contact", async () => {
+    const noSpouseNameResult = await createClient({
       full_name: faker.person.fullName(),
       civil_status: "Married",
       spouse_name: "",
+      spouse_contact: ["09171234567"],
       status: "Active",
     });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain("Spouse name is required for married clients");
+    expect(noSpouseNameResult.success).toBe(false);
+    if (!noSpouseNameResult.success) {
+      expect(noSpouseNameResult.error).toContain("Spouse name is required for married clients");
     }
+
+    const noContactResult = await createClient({
+      full_name: faker.person.fullName(),
+      civil_status: "Married",
+      spouse_name: faker.person.fullName(),
+      spouse_contact: [],
+      status: "Active",
+    });
+
+    expect(noContactResult.success).toBe(false);
+    if (!noContactResult.success) {
+      expect(noContactResult.error).toContain("At least one spouse contact is required for married clients");
+    }
+
+    const emptyContactResult = await createClient({
+      full_name: faker.person.fullName(),
+      civil_status: "Married",
+      spouse_name: faker.person.fullName(),
+      spouse_contact: ["   "],
+      status: "Active",
+    });
+
+    expect(emptyContactResult.success).toBe(false);
+    if (!emptyContactResult.success) {
+      expect(emptyContactResult.error).toContain("Spouse contact cannot be empty text");
+    }
+  });
+
+  it("updates married client with multiple dynamic spouse contacts", async () => {
+    const fullName = faker.person.fullName();
+    const spouseName = faker.person.fullName();
+    const initialContact = "09171234567";
+
+    const client = unwrap(
+      await createClient({
+        full_name: fullName,
+        civil_status: "Married",
+        spouse_name: spouseName,
+        spouse_contact: [initialContact],
+        status: "Active",
+      })
+    );
+    testClientIds.push(client.client_id);
+
+    const updated = unwrap(
+      await updateClient(client.client_id, {
+        civil_status: "Married",
+        spouse_name: spouseName,
+        spouse_contact: [initialContact, "spouse@email.com", "09281234567"],
+      })
+    );
+
+    expect(updated.spouse_contact).toEqual([initialContact, "spouse@email.com", "09281234567"]);
+
+    const fetched = await getClientById(client.client_id);
+    expect(fetched.spouse_contact).toEqual([initialContact, "spouse@email.com", "09281234567"]);
   });
 });
 

@@ -123,7 +123,12 @@ import {
   downloadPaymentHistoryPdf,
   generatePaymentHistoryPdf,
 } from "@/lib/reports/pdf-payment-history";
-import { DOCUMENT_FILE_ACCEPT } from "@/lib/validations/document";
+import {
+  DOCUMENT_FILE_ACCEPT,
+  DOCUMENT_SIZE_ERROR,
+  DOCUMENT_SIZE_HINT,
+  MAX_DOCUMENT_BYTES,
+} from "@/lib/validations/document";
 import { printElement } from "@/lib/utils/print";
 
 const NOTICE_STAGES: {
@@ -403,8 +408,10 @@ export function BillingLedgerDetailView({
   const [showClearanceModal, setShowClearanceModal] = useState(false);
   const [clearanceAutoSoa, setClearanceAutoSoa] = useState(true);
   const [clearanceCustomSoaFile, setClearanceCustomSoaFile] = useState<File | null>(null);
+  const [clearanceSoaFileError, setClearanceSoaFileError] = useState<string | null>(null);
   const [clearanceAutoPayments, setClearanceAutoPayments] = useState(true);
   const [clearanceCustomPaymentsFile, setClearanceCustomPaymentsFile] = useState<File | null>(null);
+  const [clearancePaymentsFileError, setClearancePaymentsFileError] = useState<string | null>(null);
   const [selectedDocNotice, setSelectedDocNotice] = useState<OverdueNoticeEvent | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -3033,7 +3040,16 @@ export function BillingLedgerDetailView({
       </Dialog>
 
       {/* Billing Clearance Modal */}
-      <Dialog open={showClearanceModal} onOpenChange={setShowClearanceModal}>
+      <Dialog
+        open={showClearanceModal}
+        onOpenChange={(open) => {
+          setShowClearanceModal(open);
+          if (!open) {
+            setClearanceSoaFileError(null);
+            setClearancePaymentsFileError(null);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg bg-card p-0 gap-0 overflow-hidden text-xs border-border-warm shadow-lg">
           <DialogHeader className="px-5 py-3.5 border-b border-border-warm bg-muted/20">
             <div className="flex items-center space-x-2">
@@ -3145,9 +3161,15 @@ export function BillingLedgerDetailView({
                             accept={DOCUMENT_FILE_ACCEPT}
                             className="hidden"
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) setClearanceCustomSoaFile(file);
+                              const file = e.target.files?.[0] ?? null;
                               e.target.value = "";
+                              if (file && file.size > MAX_DOCUMENT_BYTES) {
+                                setClearanceCustomSoaFile(null);
+                                setClearanceSoaFileError(DOCUMENT_SIZE_ERROR);
+                                return;
+                              }
+                              setClearanceSoaFileError(null);
+                              if (file) setClearanceCustomSoaFile(file);
                             }}
                           />
                           <Button
@@ -3168,7 +3190,10 @@ export function BillingLedgerDetailView({
                               </span>
                               <button
                                 type="button"
-                                onClick={() => setClearanceCustomSoaFile(null)}
+                                onClick={() => {
+                                  setClearanceCustomSoaFile(null);
+                                  setClearanceSoaFileError(null);
+                                }}
                                 className="text-muted-foreground hover:text-destructive ml-1 text-xs"
                               >
                                 &times;
@@ -3176,9 +3201,15 @@ export function BillingLedgerDetailView({
                             </div>
                           )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Upload a signed statement or scanned copy if not using the auto-generated SOA.
-                        </p>
+                        {clearanceSoaFileError ? (
+                          <p role="alert" className="text-xs text-destructive">
+                            {clearanceSoaFileError}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">
+                            Upload a signed statement or scanned copy if not using the auto-generated SOA. {DOCUMENT_SIZE_HINT}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3228,9 +3259,15 @@ export function BillingLedgerDetailView({
                             accept={DOCUMENT_FILE_ACCEPT}
                             className="hidden"
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) setClearanceCustomPaymentsFile(file);
+                              const file = e.target.files?.[0] ?? null;
                               e.target.value = "";
+                              if (file && file.size > MAX_DOCUMENT_BYTES) {
+                                setClearanceCustomPaymentsFile(null);
+                                setClearancePaymentsFileError(DOCUMENT_SIZE_ERROR);
+                                return;
+                              }
+                              setClearancePaymentsFileError(null);
+                              if (file) setClearanceCustomPaymentsFile(file);
                             }}
                           />
                           <Button
@@ -3251,7 +3288,10 @@ export function BillingLedgerDetailView({
                               </span>
                               <button
                                 type="button"
-                                onClick={() => setClearanceCustomPaymentsFile(null)}
+                                onClick={() => {
+                                  setClearanceCustomPaymentsFile(null);
+                                  setClearancePaymentsFileError(null);
+                                }}
                                 className="text-muted-foreground hover:text-destructive ml-1 text-xs"
                               >
                                 &times;
@@ -3259,9 +3299,15 @@ export function BillingLedgerDetailView({
                             </div>
                           )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Upload an external QuickBooks ledger export or scanned payment record.
-                        </p>
+                        {clearancePaymentsFileError ? (
+                          <p role="alert" className="text-xs text-destructive">
+                            {clearancePaymentsFileError}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">
+                            Upload an external QuickBooks ledger export or scanned payment record. {DOCUMENT_SIZE_HINT}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

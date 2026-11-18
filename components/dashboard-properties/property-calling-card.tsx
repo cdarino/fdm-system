@@ -79,6 +79,11 @@ export interface PropertyCallingCardProps {
    * Only the non-compact tiers have a field list to append to; compact ignores
    * it, and `embedded` callers should prefer putting the detail in the parent.
    */
+  /**
+   * Visually fades the entire card to signal a closed record requiring no
+   * further action (e.g. a released title or forfeited reservation).
+   */
+  faded?: boolean;
   children?: React.ReactNode;
   className?: string;
 }
@@ -118,6 +123,7 @@ export function PropertyCallingCard({
   status: statusProp,
   href: hrefProp,
   onClick,
+  faded = false,
   children,
   className,
 }: PropertyCallingCardProps) {
@@ -360,10 +366,12 @@ export function PropertyCallingCard({
       }
       aria-label={`Property ${lotLabel}`}
       className={cn(
-        'group overflow-hidden text-left transition-shadow flex flex-col h-full',
+        'group overflow-hidden text-left transition-[box-shadow,opacity,filter] flex flex-col h-full',
         /** See the note in `ClientCallingCard` on why the lift follows the affordance. */
         (isInteractive || showReveal) && 'hover:shadow-md',
         isInteractive && 'cursor-pointer',
+        faded &&
+          'opacity-60 saturate-50 hover:opacity-85 hover:saturate-100 focus-visible:opacity-85 focus-visible:saturate-100',
         showReveal &&
           isCompact &&
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',

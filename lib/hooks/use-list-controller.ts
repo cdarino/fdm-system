@@ -316,6 +316,9 @@ export function useListController<
     return initial;
   });
 
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+
   // Keep URL-backed filters in sync if searchParams change externally (e.g. navigation)
   useEffect(() => {
     if (!syncUrl) return;
@@ -408,6 +411,7 @@ export function useListController<
 
   const setFilter = useCallback(
     <K extends keyof TFilters>(key: K, value: TFilters[K]) => {
+      if (filtersRef.current[key] === value) return;
       setFiltersState((prev) => {
         if (prev[key] === value) return prev;
         return { ...prev, [key]: value };

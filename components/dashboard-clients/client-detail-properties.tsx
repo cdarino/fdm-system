@@ -6,7 +6,12 @@ import { IconBox } from '@/components/ui/icon-box';
 import { PropertyCallingCard } from '@/components/dashboard-properties/property-calling-card';
 import { lotDestinationHref } from '@/lib/utils/lot-destination';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
-import { getLotCallingCardStatus } from '@/lib/utils/lot-card-status';
+import {
+  clientPropertyKey,
+  getLotCallingCardStatus,
+  isClientPropertyClosed,
+  sortClientPropertiesForDisplay,
+} from '@/lib/utils/lot-card-status';
 
 interface ClientDetailPropertiesProps {
   onOpenAssignProperty: () => void;
@@ -19,7 +24,7 @@ export function ClientDetailProperties({
   canAssign = true,
 }: ClientDetailPropertiesProps) {
   const { client } = useClientDetail();
-  const properties = client.properties || [];
+  const properties = sortClientPropertiesForDisplay(client.properties ?? []);
   const assignDisabledReason = canAssign
     ? undefined
     : 'Only active clients can be assigned a lot. Reactivate this client first.';
@@ -58,10 +63,11 @@ export function ClientDetailProperties({
           <div className="grid gap-3 sm:grid-cols-2">
             {properties.map((property) => (
               <PropertyCallingCard
-                key={property.property_id}
+                key={clientPropertyKey(property)}
                 property={property}
                 href={lotDestinationHref(property, client.client_id)}
                 status={getLotCallingCardStatus(property, client.client_document)}
+                faded={isClientPropertyClosed(property)}
               />
             ))}
           </div>

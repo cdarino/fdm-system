@@ -4,15 +4,17 @@ import { PageContainer } from '@/components/dashboard-layout/page-container';
 import { getClientById } from '@/lib/actions/clients';
 import { verifyPageAccess } from '@/lib/actions/auth-guard';
 import { ClientDetailView } from '@/components/dashboard-clients/client-detail-view';
+import { parseAssignPlotParams, type PreSelectedPlot } from '@/lib/utils/lot-destination';
 
 export const dynamic = 'force-dynamic';
 
 interface ClientDetailContentProps {
   clientId: string;
   assignPropertyId?: string;
+  assignPlot?: PreSelectedPlot;
 }
 
-async function ClientDetailContent({ clientId, assignPropertyId }: ClientDetailContentProps) {
+async function ClientDetailContent({ clientId, assignPropertyId, assignPlot }: ClientDetailContentProps) {
   await verifyPageAccess('clients.read');
 
   let clientDetails;
@@ -27,6 +29,7 @@ async function ClientDetailContent({ clientId, assignPropertyId }: ClientDetailC
     <ClientDetailView
       initialClient={clientDetails}
       assignPropertyId={assignPropertyId}
+      assignPlot={assignPlot}
     />
   );
 }
@@ -46,18 +49,30 @@ function LoadingSkeleton() {
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ assignProperty?: string }>;
+  searchParams?: Promise<{
+    assignProperty?: string;
+    assignProjectArea?: string;
+    assignBlock?: string;
+    assignLot?: string;
+    assignArea?: string;
+    assignPrice?: string;
+  }>;
 }
 
 export default async function ClientDetailPage({ params, searchParams }: PageProps) {
   const { id: clientId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const assignPropertyId = resolvedSearchParams?.assignProperty;
+  const assignPlot = assignPropertyId ? undefined : parseAssignPlotParams(resolvedSearchParams);
 
   return (
     <PageContainer className="lg:overflow-hidden">
       <Suspense fallback={<LoadingSkeleton />}>
-        <ClientDetailContent clientId={clientId} assignPropertyId={assignPropertyId} />
+        <ClientDetailContent
+          clientId={clientId}
+          assignPropertyId={assignPropertyId}
+          assignPlot={assignPlot}
+        />
       </Suspense>
     </PageContainer>
   );

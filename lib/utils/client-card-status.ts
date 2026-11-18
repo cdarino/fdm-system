@@ -1,4 +1,4 @@
-import { DOC_TYPE_LABEL, type ClientActivitySummary, type DocType } from '@/lib/types/client';
+import { getDocumentTypeLabel, type ClientActivitySummary, type DocType } from '@/lib/types/client';
 import { formatActivityTime } from '@/lib/format-activity-time';
 import type { CallingCardStatus } from '@/lib/types/calling-card';
 
@@ -59,7 +59,7 @@ export function clientCardStatus({
     const parts: string[] = [];
     if (missingProfile.length > 0) parts.push(missingProfile.join(', '));
     if (missingDocuments.length > 0) {
-      parts.push(missingDocuments.map((type) => DOC_TYPE_LABEL[type]).join(', '));
+      parts.push(missingDocuments.map((type) => getDocumentTypeLabel(type)).join(', '));
     }
     return {
       label: 'Needs attention',

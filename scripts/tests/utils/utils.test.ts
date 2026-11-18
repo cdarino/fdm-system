@@ -13,6 +13,7 @@ import {
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 import { formatActivityTime } from "@/lib/format-activity-time";
 import { getWelcomeActions } from "@/lib/welcome-actions";
+import { buildClientAssignHref, parseAssignPlotParams } from "@/lib/utils/lot-destination";
 
 describe("Utility and Pure Guard Functions", () => {
   it("getPaginationOffsets computes SQL query range and clamps page/limit", () => {
@@ -168,6 +169,101 @@ describe("Utility and Pure Guard Functions", () => {
     // legal_staff takes precedence over admin_staff
     const legalWithAdmin = getWelcomeActions(false, ["legal_staff", "admin_staff"]);
     expect(legalWithAdmin[0].label).toBe("Title releases");
+  });
+
+  it("buildClientAssignHref links registered lots via assignProperty and closed lots via plot params", () => {
+    expect(
+      buildClientAssignHref("client-1", {
+        property_id: "prop-123",
+        project_area_id: "area-1",
+        block_number: 2,
+        lot_number: 5,
+        area_size: 120,
+        price_per_sqm: 5000,
+      })
+    ).toBe("/dashboard/clients/client-1?assignProperty=prop-123");
+
+    expect(
+      buildClientAssignHref("client-1", {
+        property_id: "",
+        project_area_id: "area-1",
+        block_number: 2,
+        lot_number: 5,
+        area_size: 0,
+        price_per_sqm: 0,
+      })
+    ).toBe("/dashboard/clients/client-1?assignProjectArea=area-1&assignBlock=2&assignLot=5");
+
+    expect(
+      buildClientAssignHref("client-1", {
+        property_id: "",
+        project_area_id: "area-1",
+        block_number: 2,
+        lot_number: 5,
+        area_size: 150,
+        price_per_sqm: 3500,
+      })
+    ).toBe(
+      "/dashboard/clients/client-1?assignProjectArea=area-1&assignBlock=2&assignLot=5&assignArea=150&assignPrice=3500"
+    );
+  });
+
+  it("parseAssignPlotParams validates closed-lot query params and drops non-positive metrics", () => {
+    expect(
+      parseAssignPlotParams({
+        assignProjectArea: "area-1",
+        assignBlock: "3",
+        assignLot: "7",
+      })
+    ).toEqual({
+      projectAreaId: "area-1",
+      blockNumber: 3,
+      lotNumber: 7,
+      areaSize: undefined,
+      pricePerSqm: undefined,
+    });
+
+    expect(
+      parseAssignPlotParams({
+        assignProjectArea: "area-1",
+        assignBlock: "3",
+        assignLot: "7",
+        assignArea: "120.5",
+        assignPrice: "4200",
+      })
+    ).toEqual({
+      projectAreaId: "area-1",
+      blockNumber: 3,
+      lotNumber: 7,
+      areaSize: 120.5,
+      pricePerSqm: 4200,
+    });
+
+    expect(
+      parseAssignPlotParams({
+        assignProjectArea: "area-1",
+        assignBlock: "3",
+        assignLot: "7",
+        assignArea: "0",
+        assignPrice: "-100",
+      })
+    ).toEqual({
+      projectAreaId: "area-1",
+      blockNumber: 3,
+      lotNumber: 7,
+      areaSize: undefined,
+      pricePerSqm: undefined,
+    });
+
+    expect(
+      parseAssignPlotParams({
+        assignProjectArea: "area-1",
+        assignBlock: "0",
+        assignLot: "7",
+      })
+    ).toBeUndefined();
+
+    expect(parseAssignPlotParams(undefined)).toBeUndefined();
   });
 });
 

@@ -6,7 +6,7 @@ import {
   reopenPropertyLotForSale,
 } from "@/lib/actions/properties";
 import { createProjectArea } from "@/lib/actions/project-areas";
-import { createClient } from "@/lib/actions/clients";
+import { createClient, getClientById } from "@/lib/actions/clients";
 import {
   loginAsAdmin,
   hardDeleteTestProperty,
@@ -275,5 +275,71 @@ describe("Property Lot Forfeiture & Reopening Lifecycle", () => {
     expect(reassignedLot.status).toBe("Reserved");
     expect(reassignedLot.client?.client_id).toBe(newClient.client_id);
     expect(reassignedLot.past_accounts?.some((a) => a.status === "Forfeited")).toBe(true);
+  });
+
+  it("keeps both the old forfeited account and the new reservation when the same client re-reserves the same lot", async () => {
+    const projectArea = unwrap(
+      await createProjectArea({
+        name: `Same Client Re-Reserve ${uniqueNameSuffix()}`,
+        boundary: [
+          [0, 0],
+          [0, 10],
+          [10, 10],
+          [10, 0],
+        ],
+      })
+    );
+    testProjectAreaIds.push(projectArea.project_area_id);
+
+    const client = unwrap(
+      await createClient({
+        full_name: `Returning Buyer ${uniqueNameSuffix()}`,
+        civil_status: "Single",
+        gender: "Male",
+        address: "Babak, Samal Island",
+      })
+    );
+    testClientIds.push(client.client_id);
+
+    const lot = unwrap(
+      await createPropertyLot({
+        project_area_id: projectArea.project_area_id,
+        block_number: 5,
+        lot_number: 1,
+        area_size: 150,
+        price_per_sqm: 3500,
+      })
+    );
+    testPropertyIds.push(lot.property_id);
+
+    // First reservation -> forfeit -> reopen -> same client reserves the same lot again
+    unwrap(await assignPropertyClient(lot.property_id, client.client_id));
+    unwrap(
+      await forfeitPropertyLot({
+        propertyId: lot.property_id,
+        reason: "First reservation defaulted",
+      })
+    );
+    unwrap(
+      await reopenPropertyLotForSale({
+        propertyId: lot.property_id,
+        allowEarlyReopen: true,
+      })
+    );
+    unwrap(await assignPropertyClient(lot.property_id, client.client_id));
+
+    const clientDetails = await getClientById(client.client_id);
+    const entriesForLot = (clientDetails.properties ?? []).filter(
+      (p) => p.property_id === lot.property_id
+    );
+
+    expect(entriesForLot).toHaveLength(2);
+    const activeEntry = entriesForLot.find((p) => p.account_status === "Active");
+    const forfeitedEntry = entriesForLot.find((p) => p.account_status === "Forfeited");
+
+    expect(activeEntry).toBeDefined();
+    expect(forfeitedEntry).toBeDefined();
+    expect(activeEntry?.account_id).not.toBe(forfeitedEntry?.account_id);
+    expect(forfeitedEntry?.reopened_at).toBeTruthy();
   });
 });

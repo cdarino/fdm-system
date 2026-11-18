@@ -48,7 +48,11 @@ export interface ClientDetailContextValue {
   client: ClientWithDetails;
   updateAddress: (address: string) => Promise<Client>;
   updateTin: (tinNumber: string) => Promise<Client>;
-  updateCivilStatus: (civilStatus: CivilStatus, spouseName?: string | null) => Promise<Client>;
+  updateCivilStatus: (
+    civilStatus: CivilStatus,
+    spouseName?: string | null,
+    spouseContact?: string[] | null
+  ) => Promise<Client>;
   updateSpouseName: (spouseName: string) => Promise<Client>;
   updateGender: (gender: Gender) => Promise<Client>;
   addContact: (type: string, value: string) => Promise<ContactInfo | null>;
@@ -120,10 +124,22 @@ export function ClientDetailProvider({
   );
 
   const updateCivilStatus = useCallback(
-    async (civilStatus: CivilStatus, spouseName?: string | null): Promise<Client> => {
-      const payload: { civil_status: CivilStatus; spouse_name?: string | null } = {
+    async (
+      civilStatus: CivilStatus,
+      spouseName?: string | null,
+      spouseContact?: string[] | null
+    ): Promise<Client> => {
+      const payload: {
+        civil_status: CivilStatus;
+        spouse_name?: string | null;
+        spouse_contact?: string[] | null;
+      } = {
         civil_status: civilStatus,
         spouse_name: civilStatus === 'Married' ? (spouseName?.trim() || null) : null,
+        spouse_contact:
+          civilStatus === 'Married'
+            ? spouseContact?.map((c) => c.trim()).filter(Boolean) || null
+            : null,
       };
       const result = await updateClientAction(client.client_id, payload);
       if (!result.success) throw new Error(result.error);
@@ -132,6 +148,7 @@ export function ClientDetailProvider({
         ...prev,
         civil_status: result.data.civil_status,
         spouse_name: result.data.spouse_name,
+        spouse_contact: result.data.spouse_contact,
       }));
       notifyActivityUpdated();
       router.refresh();

@@ -10,13 +10,16 @@ import { ClientDetailProperties } from './client-detail-properties';
 import { ClientDetailDocuments } from './client-detail-documents';
 import { PropertyAssignmentWizard } from './property-assignment-wizard';
 import { useClientDetail } from '@/lib/hooks/use-client-detail';
+import type { PreSelectedPlot } from '@/lib/utils/lot-destination';
 
 interface ClientDetailTabsProps {
   assignPropertyId?: string;
+  assignPlot?: PreSelectedPlot;
 }
 
 export function ClientDetailTabs({
   assignPropertyId,
+  assignPlot,
 }: ClientDetailTabsProps) {
   const { client } = useClientDetail();
   const searchParams = useSearchParams();
@@ -24,15 +27,16 @@ export function ClientDetailTabs({
 
   // Inactive and archived clients keep their records but cannot take new lots.
   const canAssign = client.status === 'Active';
+  const hasPreSelectedAssignment = Boolean(assignPropertyId || assignPlot);
   const [activeTab, setActiveTab] = useState<string>(
-    assignPropertyId && canAssign
+    hasPreSelectedAssignment && canAssign
       ? 'assign-property'
       : requestedTab && ['documents', 'properties'].includes(requestedTab)
         ? requestedTab
         : 'documents'
   );
   const [isAssignTabRevealed, setIsAssignTabRevealed] = useState<boolean>(
-    Boolean(assignPropertyId) && canAssign
+    hasPreSelectedAssignment && canAssign
   );
 
   useEffect(() => {
@@ -123,6 +127,7 @@ export function ClientDetailTabs({
               </div>
               <PropertyAssignmentWizard
                 preSelectedPropertyId={assignPropertyId}
+                preSelectedPlot={assignPlot}
                 onSuccess={() => {
                   handleCloseAssign();
                 }}

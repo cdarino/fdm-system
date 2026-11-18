@@ -32,6 +32,7 @@ import { PropertyRowsSkeleton } from '@/components/dashboard-layout/page-skeleto
 import {
   PropertyLotsProvider,
   usePropertyLots,
+  useOptionalPropertyLots,
   lotLabel,
   totalPrice,
 } from '@/lib/hooks/use-property-lots';
@@ -277,15 +278,20 @@ function PropertyLotsSidebarContent({
   const { setFilter } = controller;
 
   // Push an externally selected project area (e.g. a map marker click) into the Project
-  // Area filter, so the map and the list always agree on which area is selected. The first
-  // run is skipped so a ?projectArea= deep link keeps ownership of the initial filter value.
+  // Area filter, so the map and the list always agree on which area is selected.
   const pushedProjectAreaFilterRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
-    const isFirstRun = pushedProjectAreaFilterRef.current === undefined;
-    pushedProjectAreaFilterRef.current = projectAreaFilter;
-    if (isFirstRun) return;
-    setFilter('projectAreaId', projectAreaFilter ?? null);
-  }, [projectAreaFilter, setFilter]);
+    const nextFilter = projectAreaFilter ?? null;
+    if (pushedProjectAreaFilterRef.current === undefined) {
+      pushedProjectAreaFilterRef.current = nextFilter;
+      return;
+    }
+    if (pushedProjectAreaFilterRef.current === nextFilter) return;
+    pushedProjectAreaFilterRef.current = nextFilter;
+    if (controller.filters.projectAreaId !== nextFilter) {
+      setFilter('projectAreaId', nextFilter);
+    }
+  }, [projectAreaFilter, setFilter, controller.filters.projectAreaId]);
 
   const activeSelectedLot = useMemo(() => {
     if (!selectedLot) return null;
@@ -528,6 +534,10 @@ function PropertyLotsSidebarContent({
 }
 
 export function PropertyLotsSidebar(props: PropertyLotsSidebarProps) {
+  const existingProvider = useOptionalPropertyLots();
+  if (existingProvider) {
+    return <PropertyLotsSidebarContent {...props} />;
+  }
   return (
     <PropertyLotsProvider
       projectAreas={props.projectAreas}

@@ -120,8 +120,21 @@ export const updateContactInfoSchema = z
 export const civilStatusSchema = z.enum(CIVIL_STATUSES);
 export const genderSchema = z.enum(GENDERS);
 
+const spouseContactField = z
+  .union([
+    z.array(z.string()),
+    z.string().transform((val) => (val.trim() ? [val.trim()] : [])),
+  ])
+  .nullable()
+  .optional();
+
 function refineSpouseInfo(
-  data: { civil_status?: string | null; spouse_name?: string | null },
+  data: {
+    civil_status?: string | null;
+    spouse_name?: string | null;
+    spouse_contact?: string[] | string | null;
+    spouse_contacts?: string[] | string | null;
+  },
   ctx: z.RefinementCtx
 ) {
   if (data.spouse_name) {
@@ -141,21 +154,87 @@ function refineSpouseInfo(
     }
   }
 
-  if (data.civil_status === "Married" && (!data.spouse_name || !data.spouse_name.trim())) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["spouse_name"],
-      message: "Spouse name is required for married clients",
-    });
+  if (data.civil_status === "Married") {
+    if (!data.spouse_name || !data.spouse_name.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["spouse_name"],
+        message: "Spouse name is required for married clients",
+      });
+    }
+
+    const rawContacts = data.spouse_contact ?? data.spouse_contacts;
+    const contacts = Array.isArray(rawContacts)
+      ? rawContacts
+      : typeof rawContacts === "string" && rawContacts.trim()
+        ? [rawContacts.trim()]
+        : [];
+
+    if (!rawContacts || contacts.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["spouse_contact"],
+        message: "At least one spouse contact is required for married clients",
+      });
+    } else {
+      let hasNonEmpty = false;
+      contacts.forEach((c, idx) => {
+        if (!c || !c.trim()) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["spouse_contact", idx],
+            message: "Spouse contact cannot be empty text",
+          });
+        } else {
+          hasNonEmpty = true;
+          if (c.trim().length > 100) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["spouse_contact", idx],
+              message: "Spouse contact must be 100 characters or fewer",
+            });
+          }
+        }
+      });
+
+      if (!hasNonEmpty) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["spouse_contact"],
+          message: "At least one spouse contact is required for married clients",
+        });
+      }
+    }
   }
 }
 
-function sanitizeSpouseInfo<T extends { civil_status?: string | null; spouse_name?: string | null }>(
-  data: T
-): T {
-  if (data.civil_status !== undefined && data.civil_status !== "Married") {
-    return { ...data, spouse_name: null };
+function sanitizeSpouseInfo<
+  T extends {
+    civil_status?: string | null;
+    spouse_name?: string | null;
+    spouse_contact?: string[] | string | null;
+    spouse_contacts?: string[] | string | null;
   }
+>(data: T): T {
+  if (data.civil_status !== undefined && data.civil_status !== "Married") {
+    const res: Record<string, unknown> = { ...data, spouse_name: null, spouse_contact: null };
+    delete res.spouse_contacts;
+    return res as T;
+  }
+
+  const rawContacts = data.spouse_contact ?? data.spouse_contacts;
+  if (data.civil_status === "Married" && rawContacts !== undefined) {
+    const list = Array.isArray(rawContacts)
+      ? rawContacts
+      : typeof rawContacts === "string"
+        ? [rawContacts]
+        : [];
+    const cleaned = list.map((c) => (typeof c === "string" ? c.trim() : "")).filter(Boolean);
+    const res: Record<string, unknown> = { ...data, spouse_contact: cleaned };
+    delete res.spouse_contacts;
+    return res as T;
+  }
+
   return data;
 }
 
@@ -173,6 +252,8 @@ const baseClientFields = z.object({
     .optional(),
   civil_status: civilStatusSchema.nullable().optional(),
   spouse_name: z.string().trim().nullable().optional(),
+  spouse_contact: spouseContactField,
+  spouse_contacts: spouseContactField,
   gender: genderSchema.nullable().optional(),
   status: z.enum(["Active", "Inactive"]).default("Active"),
 });
@@ -204,6 +285,8 @@ export const updateClientSchema = z
       .optional(),
     civil_status: civilStatusSchema.nullable().optional(),
     spouse_name: z.string().trim().nullable().optional(),
+    spouse_contact: spouseContactField,
+    spouse_contacts: spouseContactField,
     gender: genderSchema.nullable().optional(),
     status: z.enum(["Active", "Inactive", "Archived"]).optional(),
   })

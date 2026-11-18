@@ -1697,6 +1697,7 @@ export function ProjectAreaMap({
             plot={selectedPlot}
             onViewDetails={() => handleViewDetails(selectedPlot)}
             onRegisterLot={() => handleRegisterLot(selectedPlot)}
+            onReopenSuccess={handleClosePopup}
           />
         ),
         popupContainerRef.current

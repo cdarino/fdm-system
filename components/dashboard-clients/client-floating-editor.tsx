@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Pencil, X, Loader2 } from 'lucide-react';
+import { Pencil, X, Loader2, Plus } from 'lucide-react';
 import { CONTACT_TYPES, getContactValueError, PERSON_NAME_PATTERN } from '@/lib/validations/client';
 import { CIVIL_STATUSES } from '@/lib/types/client';
 
@@ -63,7 +63,8 @@ interface CivilStatusModeProps {
   title?: string;
   initialCivilStatus: string;
   initialSpouseName?: string;
-  onSave: (civilStatus: string, spouseName?: string) => Promise<void>;
+  initialSpouseContact?: string[] | null;
+  onSave: (civilStatus: string, spouseName?: string, spouseContact?: string[]) => Promise<void>;
   trigger?: React.ReactNode;
 }
 
@@ -88,11 +89,16 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
     props.mode === 'civil-status' ? props.initialCivilStatus || 'Single' : 'Single';
   const initialSpouse =
     props.mode === 'civil-status' ? props.initialSpouseName || '' : '';
+  const initialSpouseContacts =
+    props.mode === 'civil-status' && props.initialSpouseContact && props.initialSpouseContact.length > 0
+      ? props.initialSpouseContact
+      : [''];
 
   const [value, setValue] = useState(initialVal);
   const [type, setType] = useState(initialTyp);
   const [civilStatus, setCivilStatus] = useState(initialCivil);
   const [spouseName, setSpouseName] = useState(initialSpouse);
+  const [spouseContacts, setSpouseContacts] = useState<string[]>(initialSpouseContacts);
   const [error, setError] = useState<string | null>(null);
 
   // Synchronize field inputs whenever the popover opens.
@@ -102,6 +108,7 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
       setType(initialTyp);
       setCivilStatus(initialCivil);
       setSpouseName(initialSpouse);
+      setSpouseContacts(initialSpouseContacts);
       setError(null);
     }
     setIsOpen(open);
@@ -133,6 +140,15 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
         setError('Spouse name can only contain letters, spaces, periods, commas, apostrophes, and hyphens');
         return;
       }
+      if (spouseContacts.length === 0) {
+        setError('At least one spouse contact is required for married clients');
+        return;
+      }
+      const emptyIdx = spouseContacts.findIndex((c) => !c.trim());
+      if (emptyIdx !== -1) {
+        setError('Spouse contact cannot be empty text');
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -140,7 +156,8 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
       if (props.mode === 'civil-status') {
         await props.onSave(
           civilStatus,
-          civilStatus === 'Married' ? spouseName.trim() : undefined
+          civilStatus === 'Married' ? spouseName.trim() : undefined,
+          civilStatus === 'Married' ? spouseContacts.map((c) => c.trim()) : undefined
         );
       } else if (props.mode === 'text' || props.mode === 'select') {
         await props.onSave(value);
@@ -181,7 +198,7 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
         side="right"
         align="start"
         sideOffset={8}
-        className="w-72 space-y-3 p-3"
+        className="w-80 space-y-3 p-3"
       >
         <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
           <p className="text-xs font-semibold text-foreground">{title}</p>
@@ -225,30 +242,92 @@ export function ClientFloatingEditor(props: ClientFloatingEditorProps) {
               </div>
 
               {civilStatus === 'Married' && (
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    Spouse name
-                  </label>
-                  <Input
-                    autoFocus
-                    value={spouseName}
-                    onChange={(e) => {
-                      setSpouseName(e.target.value);
-                      setError(null);
-                    }}
-                    placeholder="e.g. Maria Santos"
-                    className="h-8 text-xs"
-                    maxLength={100}
-                    aria-invalid={Boolean(error)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleSubmit();
-                      }
-                    }}
-                  />
+                <>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">
+                      Spouse name
+                    </label>
+                    <Input
+                      autoFocus
+                      value={spouseName}
+                      onChange={(e) => {
+                        setSpouseName(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="e.g. Maria Santos"
+                      className="h-8 text-xs"
+                      maxLength={100}
+                      aria-invalid={Boolean(error && error.toLowerCase().includes('name'))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSubmit();
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-medium text-muted-foreground">
+                      Spouse contact
+                    </label>
+                    <div className="space-y-1.5">
+                      {spouseContacts.map((contact, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5">
+                          <Input
+                            value={contact}
+                            onChange={(e) => {
+                              const updated = [...spouseContacts];
+                              updated[idx] = e.target.value;
+                              setSpouseContacts(updated);
+                              setError(null);
+                            }}
+                            placeholder={idx === 0 ? "e.g. 09171234567 or email" : `Contact ${idx + 1}`}
+                            className="h-8 text-xs flex-1"
+                            maxLength={100}
+                            aria-label={`Spouse contact ${idx + 1}`}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSubmit();
+                              }
+                            }}
+                          />
+                          {spouseContacts.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => {
+                                setSpouseContacts(spouseContacts.filter((_, i) => i !== idx));
+                                setError(null);
+                              }}
+                              aria-label={`Remove contact ${idx + 1}`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {spouseContacts[spouseContacts.length - 1]?.trim().length > 0 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 w-full text-xs gap-1 border-dashed text-muted-foreground hover:text-foreground"
+                        onClick={() => setSpouseContacts((prev) => [...prev, ''])}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add another contact
+                      </Button>
+                    )}
+                  </div>
+
                   {error && <p className="text-[11px] text-destructive">{error}</p>}
-                </div>
+                </>
               )}
             </div>
           ) : props.mode === 'select' ? (

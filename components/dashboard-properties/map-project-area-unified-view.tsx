@@ -18,6 +18,7 @@ import { LoadingButton } from '@/components/ui/loading-button';
 import { PanelLeftOpen, PenTool, AlertTriangle } from 'lucide-react';
 import { ProjectAreaMap } from './map-project-area';
 import { PropertyLotsSidebar } from './property-lots-sidebar';
+import { PropertyLotsProvider } from '@/lib/hooks/use-property-lots';
 import {
   MapProjectAreaEditor,
   type SelectedPlotInfo,
@@ -61,6 +62,7 @@ export function ProjectAreaMapUnifiedView({ projectAreas }: ProjectAreaMapUnifie
   const router = useRouter();
   const searchParams = useSearchParams();
   const targetLotId = searchParams.get('lot');
+  const targetProjectAreaId = searchParams.get('projectArea');
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [hoveredLotKey, setHoveredLotKey] = useState<string | null>(null);
@@ -92,8 +94,12 @@ export function ProjectAreaMapUnifiedView({ projectAreas }: ProjectAreaMapUnifie
         }
       }
     }
-    // No auto-selection: an empty selection is the "all project areas" view, and clicking a
-    // marker or picking one in the editor is what makes a project area active.
+    if (
+      targetProjectAreaId &&
+      projectAreas.some((p) => p.project_area_id === targetProjectAreaId)
+    ) {
+      return targetProjectAreaId;
+    }
     return null;
   });
 
@@ -168,6 +174,16 @@ export function ProjectAreaMapUnifiedView({ projectAreas }: ProjectAreaMapUnifie
       }
     }
   }, [targetLotId, projectAreas]);
+
+  // Sync active project area from URL param
+  useEffect(() => {
+    if (!targetProjectAreaId) return;
+    if (projectAreas.some((p) => p.project_area_id === targetProjectAreaId)) {
+      setActiveProjectAreaId((current) =>
+        current === targetProjectAreaId ? current : targetProjectAreaId
+      );
+    }
+  }, [targetProjectAreaId, projectAreas]);
 
   // Check localStorage for saved draft when active projectArea changes in editor mode
   useEffect(() => {
@@ -862,7 +878,12 @@ export function ProjectAreaMapUnifiedView({ projectAreas }: ProjectAreaMapUnifie
   );
 
   return (
-    <TooltipProvider delayDuration={200}>
+    <PropertyLotsProvider
+      projectAreas={projectAreas}
+      truncationMode="cap"
+      onProjectAreaFilterChange={handleSelectProjectArea}
+    >
+      <TooltipProvider delayDuration={200}>
       <div className="relative flex flex-1 h-full min-h-0 w-full flex-col overflow-hidden">
         {/* Background: Edge-to-edge interactive MapLibre canvas */}
         <div className="absolute inset-0 h-full w-full flex flex-col">
@@ -1093,5 +1114,6 @@ export function ProjectAreaMapUnifiedView({ projectAreas }: ProjectAreaMapUnifie
         </AlertDialog>
       </div>
     </TooltipProvider>
+    </PropertyLotsProvider>
   );
 }

@@ -89,9 +89,11 @@ function isClientIncomplete(
   return !requirements.profileComplete || missingDocClientIds.has(client.client_id);
 }
 
+const EMPTY_CLIENTS: ClientListItem[] = [];
+
 export function ClientsProvider({
   children,
-  initialClients = [],
+  initialClients = EMPTY_CLIENTS,
 }: {
   children: ReactNode;
   initialClients?: ClientListItem[];
@@ -102,6 +104,11 @@ export function ClientsProvider({
   const [clients, setClients] = useState<ClientListItem[]>(initialClients);
   const [activeDialog, setActiveDialog] = useState<ClientDialog>(null);
   const [missingDocumentAlerts, setMissingDocumentAlerts] = useState<ClientDocumentNotification[]>([]);
+
+  // Sync state when server re-renders with updated client rows
+  useEffect(() => {
+    setClients(initialClients);
+  }, [initialClients]);
 
   const missingDocClientIds = useMemo(
     () =>

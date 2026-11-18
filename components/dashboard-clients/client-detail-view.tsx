@@ -4,13 +4,15 @@ import { ClientDetailProvider } from '@/lib/hooks/use-client-detail';
 import { ClientDetailSidebar } from './client-detail-sidebar';
 import { ClientDetailTabs } from './client-detail-tabs';
 import type { ClientWithDetails } from '@/lib/types/client';
+import type { PreSelectedPlot } from '@/lib/utils/lot-destination';
 
 interface ClientDetailViewProps {
   initialClient: ClientWithDetails;
   assignPropertyId?: string;
+  assignPlot?: PreSelectedPlot;
 }
 
-export function ClientDetailView({ initialClient, assignPropertyId }: ClientDetailViewProps) {
+export function ClientDetailView({ initialClient, assignPropertyId, assignPlot }: ClientDetailViewProps) {
   return (
     <ClientDetailProvider initialClient={initialClient}>
       <div className="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3">
@@ -19,7 +21,7 @@ export function ClientDetailView({ initialClient, assignPropertyId }: ClientDeta
         </div>
 
         <div className="min-w-0 lg:h-full lg:min-h-0 lg:col-span-2">
-          <ClientDetailTabs assignPropertyId={assignPropertyId} />
+          <ClientDetailTabs assignPropertyId={assignPropertyId} assignPlot={assignPlot} />
         </div>
       </div>
     </ClientDetailProvider>

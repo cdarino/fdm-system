@@ -48,7 +48,7 @@ import { formatMediumDate } from '@/lib/format-date';
 import { useLandTitles } from '@/lib/hooks/use-land-titles';
 import { useOcrQueue } from '@/lib/hooks/use-ocr-queue';
 import { getDocPrepState, getReleasedDate } from '@/lib/title-progress';
-import { DOCUMENT_FILE_ACCEPT } from '@/lib/validations/document';
+import { DOCUMENT_FILE_ACCEPT, DOCUMENT_SIZE_ERROR, MAX_DOCUMENT_BYTES } from '@/lib/validations/document';
 import {
   DOC_TYPE_LABEL,
   getDocumentTypeLabel,
@@ -173,6 +173,12 @@ export function TitlePacketTab({
     const type = pendingTypeRef.current;
     event.target.value = '';
     if (!file || !type) return;
+
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      pendingTypeRef.current = null;
+      toast.error(DOCUMENT_SIZE_ERROR);
+      return;
+    }
 
     setBusyDocType(type);
     try {

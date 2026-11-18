@@ -21,6 +21,44 @@ const PESO = new Intl.NumberFormat('en-PH', {
   maximumFractionDigits: 0,
 });
 
+export function isClientPropertyForfeited(property: ClientProperty): boolean {
+  const b = property.billing_summary;
+  if (
+    property.account_status === 'Forfeited' ||
+    b?.accountStatus === 'Forfeited' ||
+    b?.overdueNoticeStage === 'forfeited'
+  ) {
+    return true;
+  }
+
+  // Prefer explicit non-forfeited account status over shared lot status
+  if (property.account_id && (property.account_status || b?.accountStatus)) {
+    return false;
+  }
+
+  return property.status === 'Forfeited';
+}
+
+export function isClientPropertyClosed(property: ClientProperty): boolean {
+  if (property.has_title && property.title_status === 'Released') {
+    return true;
+  }
+
+  return isClientPropertyForfeited(property);
+}
+
+export function sortClientPropertiesForDisplay(properties: ClientProperty[]): ClientProperty[] {
+  return [...properties].sort(
+    (a, b) => Number(isClientPropertyClosed(a)) - Number(isClientPropertyClosed(b))
+  );
+}
+
+export function clientPropertyKey(property: ClientProperty): string {
+  if (property.account_id) return `${property.property_id}:account:${property.account_id}`;
+  if (property.title_id) return `${property.property_id}:title:${property.title_id}`;
+  return property.property_id;
+}
+
 /**
  * Derives the calling card's status bar based on domain ownership:
  * 1. Legal processing (Titled lot)
@@ -95,11 +133,7 @@ export function getLotCallingCardStatus(
   // 3. Billing ledger processing
   const b = property.billing_summary;
   const hasAccount = Boolean(property.account_id || b);
-  const isForfeited =
-    property.status === 'Forfeited' ||
-    property.account_status === 'Forfeited' ||
-    b?.accountStatus === 'Forfeited' ||
-    b?.overdueNoticeStage === 'forfeited';
+  const isForfeited = isClientPropertyForfeited(property);
 
   if (hasAccount || isForfeited) {
     const tcp = Number(
@@ -118,10 +152,17 @@ export function getLotCallingCardStatus(
 
     // 3.1 Forfeited state
     if (isForfeited) {
-      const forfeitedDate = b?.forfeitedAt;
-      if (forfeitedDate) {
+      const forfeitedDate = b?.forfeitedAt ?? null;
+      const parsedForfeitedDate = forfeitedDate ? new Date(forfeitedDate) : null;
+      const hasValidForfeitedDate =
+        parsedForfeitedDate !== null && !Number.isNaN(parsedForfeitedDate.getTime());
+      const formattedForfeitedDate = hasValidForfeitedDate
+        ? DATE_FORMAT.format(parsedForfeitedDate)
+        : null;
+
+      if (hasValidForfeitedDate && !property.reopened_at) {
         const daysElapsed = Math.floor(
-          (Date.now() - new Date(forfeitedDate).getTime()) / (1000 * 60 * 60 * 24)
+          (Date.now() - parsedForfeitedDate.getTime()) / (1000 * 60 * 60 * 24)
         );
         const daysLeft = 30 - daysElapsed;
         if (daysLeft > 0) {
@@ -129,16 +170,27 @@ export function getLotCallingCardStatus(
           return {
             label: 'Forfeited',
             tone: 'destructive',
-            detail: `Redemption period: ${daysLeft}d left`,
+            detail: `${formattedForfeitedDate} · ${daysLeft}d grace left`,
             progress: redemptionPct,
-            trailing: remaining > 0 ? `${PESO.format(remaining)} rescinded` : undefined,
+            trailing: remaining > 0 ? `${PESO.format(remaining)} unpaid` : undefined,
           };
         }
       }
+
+      const detailParts: string[] = [];
+      if (formattedForfeitedDate) {
+        detailParts.push(formattedForfeitedDate);
+      }
+      if (remaining > 0) {
+        detailParts.push(`${PESO.format(remaining)} unpaid`);
+      } else if (property.reopened_at) {
+        detailParts.push('Reopened');
+      }
+
       return {
         label: 'Forfeited',
         tone: 'destructive',
-        detail: 'Ownership rescinded · Returned to inventory',
+        detail: detailParts.length > 0 ? detailParts.join(' · ') : 'Ownership rescinded',
       };
     }
 

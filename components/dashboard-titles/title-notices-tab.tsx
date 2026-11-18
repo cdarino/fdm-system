@@ -51,7 +51,12 @@ import { TitleReleaseDialog } from './title-release-dialog';
 import { generateNoticePdf } from '@/lib/reports/pdf-notice-letter';
 import { calculateStorageFee } from '@/lib/storage-fee';
 import { getReleasedDate, noticeOrdinal } from '@/lib/title-progress';
-import { DOCUMENT_FILE_ACCEPT } from '@/lib/validations/document';
+import {
+  DOCUMENT_FILE_ACCEPT,
+  DOCUMENT_SIZE_ERROR,
+  DOCUMENT_SIZE_HINT,
+  MAX_DOCUMENT_BYTES,
+} from '@/lib/validations/document';
 import type { LandTitle, LandTitleNotice, TitleStatus } from '@/lib/types/title';
 
 interface TitleNoticesTabProps {
@@ -94,6 +99,7 @@ export function TitleNoticesTab({
   const [noticeStatusChoice, setNoticeStatusChoice] = useState<'received' | 'returned_to_sender'>('received');
   const [statusNotesInput, setStatusNotesInput] = useState('');
   const [statusFileInput, setStatusFileInput] = useState<File | null>(null);
+  const [statusFileError, setStatusFileError] = useState<string | null>(null);
 
   const [isGeneratingNotice, setIsGeneratingNotice] = useState<number | null>(null);
 
@@ -470,89 +476,110 @@ export function TitleNoticesTab({
             </div>
 
             {canEditNotices && (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center pt-0.5">
-                <div className="w-full sm:w-44 shrink-0">
-                  <Select
-                    value={noticeStatusChoice}
-                    onValueChange={(val) => {
-                      setNoticeStatusChoice(val as 'received' | 'returned_to_sender');
-                      setStatusFileInput(null);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="received">Received (Waybill)</SelectItem>
-                      <SelectItem value="returned_to_sender">Returned to Sender</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <input
-                  ref={statusFileInputRef}
-                  type="file"
-                  accept={DOCUMENT_FILE_ACCEPT}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    setStatusFileInput(file);
-                    e.target.value = '';
-                  }}
-                />
-
-                {!statusFileInput ? (
-                  <Button
-                    type="button"
-                    variant="quiet"
-                    size="sm"
-                    onClick={() => statusFileInputRef.current?.click()}
-                    className="h-8 text-xs gap-1 px-2.5 shrink-0 border border-border"
-                  >
-                    <Upload className="h-3 w-3" />
-                    Upload {noticeStatusChoice === 'received' ? 'Waybill' : 'RTS Scan'}
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-1.5 h-8 px-2 rounded-md border border-border bg-muted text-xs shrink-0 max-w-[180px]">
-                    <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <span className="truncate text-foreground font-mono text-[11px]" title={statusFileInput.name}>
-                      {statusFileInput.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setStatusFileInput(null)}
-                      className="text-muted-foreground hover:text-foreground p-0.5 rounded-xs"
-                      title="Remove file"
+              <div className="space-y-1.5 pt-0.5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="w-full sm:w-44 shrink-0">
+                    <Select
+                      value={noticeStatusChoice}
+                      onValueChange={(val) => {
+                        setNoticeStatusChoice(val as 'received' | 'returned_to_sender');
+                        setStatusFileInput(null);
+                        setStatusFileError(null);
+                      }}
                     >
-                      <X className="h-3 w-3" />
-                    </button>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="received">Received (Waybill)</SelectItem>
+                        <SelectItem value="returned_to_sender">Returned to Sender</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
 
-                <Input
-                  placeholder={
-                    noticeStatusChoice === 'received'
-                      ? 'Waybill # / remarks'
-                      : 'RTS reason / remarks'
-                  }
-                  value={statusNotesInput}
-                  onChange={(e) => setStatusNotesInput(e.target.value)}
-                  className="h-8 text-xs flex-1 min-w-[120px]"
-                />
+                  <input
+                    ref={statusFileInputRef}
+                    type="file"
+                    accept={DOCUMENT_FILE_ACCEPT}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      e.target.value = '';
+                      if (file && file.size > MAX_DOCUMENT_BYTES) {
+                        setStatusFileInput(null);
+                        setStatusFileError(DOCUMENT_SIZE_ERROR);
+                        return;
+                      }
+                      setStatusFileError(null);
+                      setStatusFileInput(file);
+                    }}
+                  />
 
-                <Button
-                  size="sm"
-                  disabled={!statusFileInput || isResolvingNotice}
-                  onClick={() => void runResolveNotice(ongoingNotice.notice_number as 1 | 2 | 3)}
-                  className="h-8 text-xs gap-1.5 px-3 shrink-0 font-medium"
-                >
-                  {isResolvingNotice ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                  {!statusFileInput ? (
+                    <Button
+                      type="button"
+                      variant="quiet"
+                      size="sm"
+                      onClick={() => statusFileInputRef.current?.click()}
+                      className="h-8 text-xs gap-1 px-2.5 shrink-0 border border-border"
+                    >
+                      <Upload className="h-3 w-3" />
+                      Upload {noticeStatusChoice === 'received' ? 'Waybill' : 'RTS Scan'}
+                    </Button>
                   ) : (
-                    <CheckCircle2 className="h-3 w-3" />
+                    <div className="flex items-center gap-1.5 h-8 px-2 rounded-md border border-border bg-muted text-xs shrink-0 max-w-[180px]">
+                      <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <span className="truncate text-foreground font-mono text-[11px]" title={statusFileInput.name}>
+                        {statusFileInput.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStatusFileInput(null);
+                          setStatusFileError(null);
+                        }}
+                        className="text-muted-foreground hover:text-foreground p-0.5 rounded-xs"
+                        title="Remove file"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
                   )}
-                  Save Status
-                </Button>
+
+                  <Input
+                    placeholder={
+                      noticeStatusChoice === 'received'
+                        ? 'Waybill # / remarks'
+                        : 'RTS reason / remarks'
+                    }
+                    value={statusNotesInput}
+                    onChange={(e) => setStatusNotesInput(e.target.value)}
+                    className="h-8 text-xs flex-1 min-w-[120px]"
+                  />
+
+                  <Button
+                    size="sm"
+                    disabled={!statusFileInput || isResolvingNotice}
+                    onClick={() => void runResolveNotice(ongoingNotice.notice_number as 1 | 2 | 3)}
+                    className="h-8 text-xs gap-1.5 px-3 shrink-0 font-medium"
+                  >
+                    {isResolvingNotice ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-3 w-3" />
+                    )}
+                    Save Status
+                  </Button>
+                </div>
+                {statusFileError ? (
+                  <p role="alert" className="text-xs text-destructive">
+                    {statusFileError}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {DOCUMENT_SIZE_HINT}
+                  </p>
+                )}
               </div>
             )}
           </div>

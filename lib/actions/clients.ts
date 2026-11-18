@@ -187,6 +187,10 @@ export async function getClients(
           full_name: item.full_name,
           address: item.address,
           tin_number: item.tin_number,
+          civil_status: item.civil_status ?? null,
+          spouse_name: item.spouse_name ?? null,
+          spouse_contact: item.spouse_contact ?? null,
+          gender: item.gender ?? null,
           status: item.status,
           created_at: item.created_at,
           updated_at: item.updated_at,
@@ -202,7 +206,8 @@ export async function getClients(
   });
 }
 
-// Resolves lots via active ledger account party or land_title
+// Resolves lots via ledger account parties and land titles, preserving separate
+// entries when a client has multiple accounts on the same lot.
 async function resolveClientProperties(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   clientId: string
@@ -238,10 +243,13 @@ async function resolveClientProperties(
     new Set((partyResult.data ?? []).map((row) => row.account_id).filter(Boolean))
   );
 
-  const accounts = new Map<
-    string,
-    { raw: RawAccountBillingData; summary: ReturnType<typeof buildClientPropertyBillingSummary> }
-  >();
+  type RawClientAccount = RawAccountBillingData & { reopened_at?: string | null };
+  type AccountEntry = {
+    raw: RawClientAccount;
+    summary: ReturnType<typeof buildClientPropertyBillingSummary>;
+  };
+
+  const accountsByProperty = new Map<string, AccountEntry[]>();
 
   if (accountIds.length > 0) {
     const { data: accountsData, error: accountsErr } = await supabase
@@ -263,6 +271,7 @@ async function resolveClientProperties(
         cleared_by,
         forfeited_at,
         forfeiture_reason,
+        reopened_at,
         contract_policies,
         overdue_notice_stage,
         payments:billing_payment(
@@ -287,16 +296,26 @@ async function resolveClientProperties(
           penalty_due
         )
       `)
-      .in("account_id", accountIds);
+      .in("account_id", accountIds)
+      .order("created_at", { ascending: false });
 
     if (accountsErr) {
       console.error(`Failed to fetch ledger accounts for client ${clientId}:`, accountsErr.message);
     } else {
-      for (const row of (accountsData ?? []) as unknown as RawAccountBillingData[]) {
+      for (const row of (accountsData ?? []) as unknown as RawClientAccount[]) {
         if (row.property_id) {
           const summary = buildClientPropertyBillingSummary(row);
-          accounts.set(row.property_id, { raw: row, summary });
+          const list = accountsByProperty.get(row.property_id) ?? [];
+          list.push({ raw: row, summary });
+          accountsByProperty.set(row.property_id, list);
         }
+      }
+
+      for (const list of accountsByProperty.values()) {
+        list.sort(
+          (a, b) =>
+            new Date(b.raw.created_at ?? 0).getTime() - new Date(a.raw.created_at ?? 0).getTime()
+        );
       }
     }
   }
@@ -316,7 +335,7 @@ async function resolveClientProperties(
     if (row.property_id) titleMap.set(row.property_id, row);
   }
 
-  const propertyIds = Array.from(new Set([...accounts.keys(), ...titleMap.keys()]));
+  const propertyIds = Array.from(new Set([...accountsByProperty.keys(), ...titleMap.keys()]));
 
   if (propertyIds.length === 0) return [];
 
@@ -331,15 +350,19 @@ async function resolveClientProperties(
     return [];
   }
 
-  return (data ?? []).map((lot) => {
-    const accEntry = accounts.get(lot.property_id);
+  const buildEntry = (
+    lot: PropertyLot,
+    accEntry?: AccountEntry,
+    title?: TitleRef
+  ): ClientProperty => {
     const account = accEntry?.raw;
     const summary = accEntry?.summary;
-    const title = titleMap.get(lot.property_id);
     return {
       ...lot,
       account_id: account?.account_id ?? null,
       account_status: account?.status ?? null,
+      account_created_at: account?.created_at ?? null,
+      reopened_at: account?.reopened_at ?? null,
       cleared_at: account?.cleared_at ?? null,
       total_contract_price: account ? Number(account.total_contract_price) : null,
       remaining_balance: summary ? summary.remainingBalance : account ? Number(account.remaining_balance) : null,
@@ -353,7 +376,37 @@ async function resolveClientProperties(
       title_created_at: title?.created_at ?? null,
       title_updated_at: title?.updated_at ?? null,
     };
-  });
+  };
+
+  const resolved: ClientProperty[] = [];
+  for (const lot of data ?? []) {
+    const lotAccounts = accountsByProperty.get(lot.property_id) ?? [];
+    const title = titleMap.get(lot.property_id);
+
+    if (lotAccounts.length === 0) {
+      resolved.push(buildEntry(lot, undefined, title));
+      continue;
+    }
+
+    // Attach the lot's land title only to the newest non-forfeited, non-cancelled account
+    const titleOwnerIndex = title
+      ? lotAccounts.findIndex(
+          ({ raw }) => raw.status !== "Forfeited" && raw.status !== "Cancelled"
+        )
+      : -1;
+
+    lotAccounts.forEach((accEntry, index) => {
+      resolved.push(
+        buildEntry(lot, accEntry, index === titleOwnerIndex ? title : undefined)
+      );
+    });
+
+    if (title && titleOwnerIndex === -1) {
+      resolved.push(buildEntry(lot, undefined, title));
+    }
+  }
+
+  return resolved;
 }
 
 export async function getClientById(clientId: string): Promise<ClientWithDetails> {
@@ -401,6 +454,7 @@ export async function createClient(input: unknown): Promise<ActionResult<Client>
           tin_number: validatedInput.tin_number ?? null,
           civil_status: validatedInput.civil_status ?? null,
           spouse_name: validatedInput.spouse_name ?? null,
+          spouse_contact: validatedInput.spouse_contact ?? null,
           gender: validatedInput.gender ?? null,
           status: validatedInput.status ?? "Active",
         })
