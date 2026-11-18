@@ -126,10 +126,12 @@ export function FileTreeFolder({
 export interface FileTreeItemProps {
   label: React.ReactNode;
   secondaryLabel?: React.ReactNode;
+  badge?: React.ReactNode;
   description?: React.ReactNode;
+  icon?: React.ReactNode;
   depth?: 1 | 2;
   loading?: boolean;
-  onClick: () => void;
+  onClick?: () => void;
   ariaLabel?: string;
   hoverActions?: React.ReactNode;
   pinnedActions?: React.ReactNode;
@@ -139,7 +141,9 @@ export interface FileTreeItemProps {
 export function FileTreeItem({
   label,
   secondaryLabel,
+  badge,
   description,
+  icon,
   depth = 1,
   loading = false,
   onClick,
@@ -148,21 +152,28 @@ export function FileTreeItem({
   pinnedActions,
   className,
 }: FileTreeItemProps) {
+  const isInteractive = Boolean(onClick);
+
   return (
     <div
       data-slot="file-tree-item"
-      role="button"
-      tabIndex={0}
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
       aria-label={ariaLabel}
       onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick();
-        }
-      }}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
       className={cn(
-        'group cursor-pointer select-none py-1.5 text-sm transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none',
+        'group select-none py-1.5 text-sm transition-colors hover:bg-row-hover',
+        isInteractive && 'cursor-pointer focus-visible:bg-row-hover focus-visible:outline-none',
         depth === 1 ? 'pl-10 pr-3' : 'pl-[68px] pr-3',
         className
       )}
@@ -172,9 +183,21 @@ export function FileTreeItem({
           {loading ? (
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
           ) : (
-            <FileText className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+            icon ?? (
+              <FileText
+                className={cn(
+                  'h-4 w-4 shrink-0 text-muted-foreground transition-colors',
+                  isInteractive && 'group-hover:text-primary'
+                )}
+              />
+            )
           )}
-          <span className="truncate text-sm font-normal text-foreground transition-colors group-hover:text-primary">
+          <span
+            className={cn(
+              'truncate text-sm font-normal text-foreground transition-colors',
+              isInteractive && 'group-hover:text-primary'
+            )}
+          >
             {label}
           </span>
           {secondaryLabel && (
@@ -182,6 +205,7 @@ export function FileTreeItem({
               · {secondaryLabel}
             </span>
           )}
+          {badge}
         </div>
 
         {(hoverActions || pinnedActions) && (

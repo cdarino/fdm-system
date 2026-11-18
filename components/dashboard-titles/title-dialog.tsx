@@ -36,6 +36,7 @@ export function TitleDialog({
     closeDialog,
     updateActiveDialogItem,
     loadDocuments,
+    loadReferenceDocuments,
     loadNotices,
     updateTitle,
   } = useLandTitles();
@@ -44,6 +45,7 @@ export function TitleDialog({
   const [activeItem, setActiveItem] = useState<TitleDialogItem | null>(currentItem);
 
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
+  const [referenceDocuments, setReferenceDocuments] = useState<ClientDocument[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
 
   const [notices, setNotices] = useState<LandTitleNotice[]>([]);
@@ -79,15 +81,23 @@ export function TitleDialog({
     if (!open || !activeTitle?.title_id) return;
     let cancelled = false;
     setDocuments([]);
+    setReferenceDocuments([]);
     setIsLoadingDocs(true);
-    loadDocuments(activeTitle.title_id)
-      .then((docs) => !cancelled && setDocuments(docs))
+    Promise.all([
+      loadDocuments(activeTitle.title_id),
+      loadReferenceDocuments(activeTitle.title_id),
+    ])
+      .then(([docs, refDocs]) => {
+        if (cancelled) return;
+        setDocuments(docs);
+        setReferenceDocuments(refDocs);
+      })
       .catch((err) => !cancelled && toast.error(err instanceof Error ? err.message : 'Failed to load docs'))
       .finally(() => !cancelled && setIsLoadingDocs(false));
     return () => {
       cancelled = true;
     };
-  }, [open, activeTitle?.title_id, loadDocuments]);
+  }, [open, activeTitle?.title_id, loadDocuments, loadReferenceDocuments]);
 
   useEffect(() => {
     if (!open || !activeTitle?.title_id) return;
@@ -235,6 +245,7 @@ export function TitleDialog({
         <TitlePacketTab
           title={activeTitle}
           documents={documents}
+          referenceDocuments={referenceDocuments}
           onDocumentsChange={setDocuments}
           isLoadingDocs={isLoadingDocs}
           isExecutiveSigned={isExecutiveSigned}

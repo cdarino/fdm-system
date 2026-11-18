@@ -29,6 +29,7 @@ import {
   deleteReleaseDocument,
   getReleaseDocumentUrl,
   getReleaseDocuments,
+  getTitleReferenceDocuments,
   uploadReleaseDocument,
 } from '@/lib/actions/release-documents';
 import {
@@ -160,6 +161,7 @@ export interface LandTitlesContextValue {
   revertClearance: (accountId: string) => Promise<ActionResult<LedgerAccount>>;
   updateTitleNumber: (propertyId: string, titleNumber: string) => Promise<void>;
   loadDocuments: (titleId: string) => Promise<ClientDocument[]>;
+  loadReferenceDocuments: (titleId: string) => Promise<ClientDocument[]>;
   uploadDocument: (titleId: string, documentType: ReleaseDocumentType, file: File) => Promise<ClientDocument>;
   removeDocument: (document: ClientDocument) => Promise<void>;
   getDocumentUrl: (documentId: string) => Promise<string>;
@@ -516,6 +518,11 @@ export function LandTitlesProvider({
 
   const loadDocuments = useCallback((titleId: string) => getReleaseDocuments(titleId), []);
 
+  const loadReferenceDocuments = useCallback(
+    (titleId: string) => getTitleReferenceDocuments(titleId),
+    []
+  );
+
   const uploadDocument = useCallback(
     async (titleId: string, documentType: ReleaseDocumentType, file: File): Promise<ClientDocument> => {
       const formData = new FormData();
@@ -654,6 +661,7 @@ export function LandTitlesProvider({
     revertClearance,
     updateTitleNumber,
     loadDocuments,
+    loadReferenceDocuments,
     uploadDocument,
     removeDocument,
     getDocumentUrl,

@@ -6,6 +6,7 @@ import {
   getMissingReleaseDocumentsForTitle,
   getReleaseDocumentUrl,
   getReleaseDocuments,
+  getTitleReferenceDocuments,
   uploadReleaseDocument,
 } from "@/lib/actions/release-documents";
 import { assignPropertyFullyPaid, createPropertyLot } from "@/lib/actions/properties";
@@ -138,6 +139,39 @@ describe("Release documents are client documents", () => {
     const validId = unwrap(await uploadClientDocument(clientId, pdfForm("Valid ID", "id.pdf")));
     expect((await deleteReleaseDocument(validId.document_id)).success).toBe(false);
     expect((await uploadReleaseDocument(titleId, pdfForm("Valid ID"))).success).toBe(false);
+  });
+
+  it("exposes client Valid ID and non-packet docs as read-only reference documents for the lot", async () => {
+    const customPersonal = unwrap(
+      await uploadClientDocument(clientId, pdfForm("Marriage Certificate", "marriage.pdf"))
+    );
+    const customThisLot = unwrap(
+      await uploadClientDocument(clientId, pdfForm("Survey Plan", "survey.pdf", lotId))
+    );
+    const otherLot = await soldLotWithTitle("Ref Other Lot");
+    const customOtherLot = unwrap(
+      await uploadClientDocument(clientId, pdfForm("Other Lot Memo", "other.pdf", otherLot.lotId))
+    );
+
+    const refs = await getTitleReferenceDocuments(titleId);
+    const refIds = refs.map((d) => d.document_id);
+
+    expect(refs.some((d) => d.document_type === "Valid ID")).toBe(true);
+    expect(refIds).toContain(customPersonal.document_id);
+    expect(refIds).toContain(customThisLot.document_id);
+    expect(refIds).not.toContain(customOtherLot.document_id);
+    expect(refs.some((d) => d.document_type === "SOA" || d.document_type === "Contract")).toBe(false);
+    // Valid ID must sort first ahead of custom categories
+    expect(refs[0]?.document_type).toBe("Valid ID");
+
+    await logoutUser();
+    await withTemporaryUser({ roleNames: ["legal_staff"] }, async () => {
+      const legalRefs = await getTitleReferenceDocuments(titleId);
+      const validIdDoc = legalRefs.find((d) => d.document_type === "Valid ID");
+      expect(validIdDoc).toBeDefined();
+      expect(await getReleaseDocumentUrl(validIdDoc!.document_id)).toMatch(/^https?:\/\//);
+    });
+    await loginAsAdmin();
   });
 
   it("only lets Legal upload release documents", async () => {

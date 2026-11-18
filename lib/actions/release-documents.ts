@@ -13,7 +13,7 @@ import {
 } from "@/lib/storage/client-documents";
 import { documentsForLot, getMissingReleaseDocuments } from "@/lib/utils/release-requirements";
 import { CLIENT_DOCUMENT_COLUMNS, toClientDocuments, toClientDocument } from "@/lib/attachments";
-import type { ClientDocument } from "@/lib/types/client";
+import { compareDocumentsByCategory, type ClientDocument } from "@/lib/types/client";
 import {
   RELEASE_DOCUMENT_TYPES,
   type FileAttachment,
@@ -81,6 +81,32 @@ export async function getReleaseDocuments(titleId: string): Promise<ClientDocume
     input: titleId,
     handler: async (validId, { supabase }) =>
       fetchReleaseDocuments(supabase, await loadTitle(supabase, validId)),
+  });
+}
+
+// Read-only client reference docs (Valid ID and extra files) relevant to this lot.
+export async function getTitleReferenceDocuments(titleId: string): Promise<ClientDocument[]> {
+  return releaseRead.query({
+    schema: uuidSchema,
+    input: titleId,
+    handler: async (validId, { supabase }) => {
+      const title = await loadTitle(supabase, validId);
+      const { data, error } = await supabase
+        .from("file_attachment")
+        .select(CLIENT_DOCUMENT_COLUMNS)
+        .eq("client_id", title.client_id)
+        .order("uploaded_at", { ascending: false })
+        .returns<FileAttachment[]>();
+
+      if (error) {
+        throw new Error(`Failed to fetch client reference documents: ${error.message}`);
+      }
+
+      const releaseTypes = new Set<string>(RELEASE_DOCUMENT_TYPES);
+      return documentsForLot(toClientDocuments(data), title.property_id)
+        .filter((doc) => !releaseTypes.has(doc.document_type))
+        .sort(compareDocumentsByCategory);
+    },
   });
 }
 
