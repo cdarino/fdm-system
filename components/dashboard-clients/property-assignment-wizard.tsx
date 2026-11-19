@@ -128,7 +128,7 @@ export function PropertyAssignmentWizard({
   const [totalContractPrice, setTotalContractPrice] = useState<string>('');
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [downpayment, setDownpayment] = useState<string>('0');
-  const [termMonths, setTermMonths] = useState<number>(36);
+  const [termMonths, setTermMonths] = useState<number | ''>(36);
   const [firstDueDate, setFirstDueDate] = useState<string>(() => {
     const d = new Date();
     d.setMonth(d.getMonth() + 1);
@@ -136,13 +136,16 @@ export function PropertyAssignmentWizard({
     const m = String(d.getMonth() + 1).padStart(2, '0');
     return `${y}-${m}-25`;
   });
-  const [dueDay, setDueDay] = useState<number>(25);
-  const [penaltyRate, setPenaltyRate] = useState<number>(3.5);
+  const [dueDay, setDueDay] = useState<number | ''>(25);
+  const [penaltyRate, setPenaltyRate] = useState<number | ''>(3.5);
 
   const numericTcp = parseFloat(totalContractPrice) || 0;
   const numericDp = parseFloat(downpayment) || 0;
   const financedPrincipal = Math.max(0, numericTcp - numericDp);
-  const computedMonthly = termMonths > 0 ? +(financedPrincipal / termMonths).toFixed(2) : 0;
+  const computedMonthly =
+    typeof termMonths === 'number' && termMonths > 0
+      ? +(financedPrincipal / termMonths).toFixed(2)
+      : 0;
 
   const handleFirstDueDateChange = (dateVal: string) => {
     setFirstDueDate(dateVal);
@@ -409,8 +412,19 @@ export function PropertyAssignmentWizard({
         toast.error('Downpayment cannot be negative');
         return;
       }
-      if (termMonths < 1 || termMonths > 120) {
+      const numericTerm = typeof termMonths === 'number' ? termMonths : parseInt(termMonths, 10);
+      if (termMonths === '' || isNaN(numericTerm) || numericTerm < 1 || numericTerm > 120) {
         toast.error('Terms must be between 1 and 120 months');
+        return;
+      }
+      const numericDueDay = typeof dueDay === 'number' ? dueDay : parseInt(dueDay, 10);
+      if (dueDay === '' || isNaN(numericDueDay) || numericDueDay < 1 || numericDueDay > 31) {
+        toast.error('Monthly due day must be between 1 and 31');
+        return;
+      }
+      const numericPenalty = typeof penaltyRate === 'number' ? penaltyRate : parseFloat(penaltyRate);
+      if (penaltyRate === '' || isNaN(numericPenalty) || numericPenalty < 0 || numericPenalty > 100) {
+        toast.error('Monthly late penalty must be between 0% and 100%');
         return;
       }
       if (!firstDueDate) {
@@ -449,16 +463,19 @@ export function PropertyAssignmentWizard({
       if (selectedStage === 'account-settlement') {
         const tcp = parseFloat(totalContractPrice);
         const dp = parseFloat(downpayment) || 0;
+        const numericTerm = typeof termMonths === 'number' ? termMonths : parseInt(termMonths, 10);
+        const numericDueDay = typeof dueDay === 'number' ? dueDay : parseInt(dueDay, 10);
+        const numericPenalty = typeof penaltyRate === 'number' ? penaltyRate : parseFloat(penaltyRate);
 
         const result = await createBillingLedger({
           clientId: client.client_id,
           propertyId: targetPropertyId,
           contractPrice: tcp,
           downpayment: dp,
-          termMonths,
+          termMonths: numericTerm,
           firstDueDate,
-          dueDay,
-          penaltyRate,
+          dueDay: numericDueDay,
+          penaltyRate: numericPenalty,
         });
 
         if (!result.success) {
@@ -633,6 +650,7 @@ export function PropertyAssignmentWizard({
                       type="number"
                       min={1}
                       step={1}
+                      allowDecimals={false}
                       placeholder="e.g. 1"
                       disabled={!selectedProjectAreaId || isLoadingProjectArea}
                       value={blockInput}
@@ -650,6 +668,7 @@ export function PropertyAssignmentWizard({
                       type="number"
                       min={1}
                       step={1}
+                      allowDecimals={false}
                       placeholder="e.g. 5"
                       disabled={!selectedProjectAreaId || isLoadingProjectArea}
                       value={lotInput}
@@ -1007,8 +1026,10 @@ export function PropertyAssignmentWizard({
                     type="number"
                     min={1}
                     max={120}
+                    step={1}
+                    allowDecimals={false}
                     value={termMonths}
-                    onChange={(e) => setTermMonths(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    onChange={(e) => setTermMonths(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
                     className="font-mono text-xs tabular-nums"
                   />
                 </div>
@@ -1035,8 +1056,10 @@ export function PropertyAssignmentWizard({
                     type="number"
                     min={1}
                     max={31}
+                    step={1}
+                    allowDecimals={false}
                     value={dueDay}
-                    onChange={(e) => setDueDay(Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+                    onChange={(e) => setDueDay(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
                     className="font-mono text-xs tabular-nums"
                   />
                 </div>
@@ -1052,7 +1075,7 @@ export function PropertyAssignmentWizard({
                     min={0}
                     max={100}
                     value={penaltyRate}
-                    onChange={(e) => setPenaltyRate(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setPenaltyRate(e.target.value === '' ? '' : parseFloat(e.target.value))}
                     className="font-mono text-xs tabular-nums"
                   />
                 </div>
@@ -1184,6 +1207,7 @@ export function PropertyAssignmentWizard({
             setIsEditingPrice(false);
             setDownpayment('0');
             setTermMonths(36);
+            setDueDay(25);
             setPenaltyRate(3.5);
           }}
           disabled={!hasAnyInput && !isSubmitting}

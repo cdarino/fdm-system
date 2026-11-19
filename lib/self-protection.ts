@@ -23,6 +23,9 @@ export const SELF_DELETE_ERROR =
 export const SELF_DEMOTE_ERROR =
   "You cannot remove your own system administrator role. Ask another system administrator to do it.";
 
+export const SELF_SET_PASSWORD_ERROR =
+  "You cannot set a temporary password on your own account. Use the profile or password reset workflow instead.";
+
 /**
  * @returns an error message if the change is blocked, otherwise null.
  */
@@ -38,6 +41,11 @@ export function checkSelfDeactivate(
 
 export function checkSelfDelete(callerId: string, targetUserId: string): string | null {
   if (callerId.toLowerCase() === targetUserId.toLowerCase()) return SELF_DELETE_ERROR;
+  return null;
+}
+
+export function checkSelfSetPassword(callerId: string, targetUserId: string): string | null {
+  if (callerId.toLowerCase() === targetUserId.toLowerCase()) return SELF_SET_PASSWORD_ERROR;
   return null;
 }
 

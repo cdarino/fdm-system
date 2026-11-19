@@ -6,11 +6,13 @@ import {
   updateUserProfile,
   toggleUser,
   deleteUser,
+  setUserTemporaryPassword,
 } from "@/lib/actions/admin-user";
 import { getActiveRoles } from "@/lib/actions/admin-roles";
-import { SELF_DEACTIVATE_ERROR, SELF_DELETE_ERROR } from "@/lib/self-protection";
+import { SELF_DEACTIVATE_ERROR, SELF_DELETE_ERROR, SELF_SET_PASSWORD_ERROR } from "@/lib/self-protection";
 import {
   loginAsAdmin,
+  loginAs,
   logoutUser,
   getTestAdminClient,
   createTemporaryUser,
@@ -200,6 +202,37 @@ describe("Admin User Management Actions", () => {
       const found = listRes.users.find((u) => u.id === targetUser.id);
       expect(found?.isBanned).toBe(false);
     }
+  });
+
+  it("setUserTemporaryPassword blocks admin from setting temporary password on self", async () => {
+    const adminSession = await loginAsAdmin();
+    const adminId = adminSession.user.id;
+
+    const res = await setUserTemporaryPassword(adminId, "NewTempPass123!");
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(SELF_SET_PASSWORD_ERROR);
+    }
+  });
+
+  it("setUserTemporaryPassword rejects password shorter than 6 characters", async () => {
+    await loginAsAdmin();
+    const res = await setUserTemporaryPassword(targetUser.id, "12345");
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error).toMatch(/at least 6 characters/i);
+    }
+  });
+
+  it("setUserTemporaryPassword sets temporary password for target user and allows login", async () => {
+    await loginAsAdmin();
+    const newTempPassword = "ValidTempPassword456!";
+    const res = await setUserTemporaryPassword(targetUser.id, newTempPassword);
+    expect(res.success).toBe(true);
+
+    await logoutUser();
+    const loginRes = await loginAs(targetUser.email, newTempPassword);
+    expect(loginRes.user.id).toBe(targetUser.id);
   });
 
   it("deleteUser blocks admin from deleting their own account", async () => {

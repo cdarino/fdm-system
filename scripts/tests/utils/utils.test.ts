@@ -6,9 +6,11 @@ import {
   checkSelfDeactivate,
   checkSelfDelete,
   checkSelfDemote,
+  checkSelfSetPassword,
   SELF_DEACTIVATE_ERROR,
   SELF_DELETE_ERROR,
   SELF_DEMOTE_ERROR,
+  SELF_SET_PASSWORD_ERROR,
 } from "@/lib/self-protection";
 import { getPaginationOffsets, buildPaginatedResult } from "@/lib/pagination";
 import { formatActivityTime } from "@/lib/format-activity-time";
@@ -74,6 +76,12 @@ describe("Utility and Pure Guard Functions", () => {
     const callerId = "user-123";
     expect(checkSelfDelete(callerId, callerId)).toBe(SELF_DELETE_ERROR);
     expect(checkSelfDelete(callerId, "other-user")).toBe(null);
+  });
+
+  it("checkSelfSetPassword blocks an admin from setting temporary password on self", () => {
+    const callerId = "user-123";
+    expect(checkSelfSetPassword(callerId, callerId)).toBe(SELF_SET_PASSWORD_ERROR);
+    expect(checkSelfSetPassword(callerId, "other-user")).toBe(null);
   });
 
   it("checkSelfDemote prevents an admin from stripping their own system_admin role", () => {

@@ -7,6 +7,7 @@ import { Card, CardTableFooter, CardStickyHeader } from '@/components/ui/card';
 import { FilterToolbar } from '@/components/ui/filter-toolbar';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { FormField } from '@/components/ui/form-field';
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useDialogPresence } from '@/lib/hooks/use-dialog-presence';
 import { RoleCheckboxList } from './role-checkbox-list';
@@ -22,6 +23,11 @@ import {
   UserRoundX,
   SearchX,
   ShieldCheck,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -119,6 +125,7 @@ function selfProtection(user: UserListItem, currentUserId: string) {
     isSelf,
     canToggle: !(isSelf && !user.isBanned),
     canDelete: !isSelf,
+    canSetPassword: !isSelf,
   };
 }
 
@@ -392,6 +399,139 @@ function EditNameDialog({ user, open }: { user: UserListItem; open: boolean }) {
   );
 }
 
+function SetTemporaryPasswordDialog({ user, open }: { user: UserListItem; open: boolean }) {
+  const { setUserTemporaryPassword, closeDialog } = useAdminUsers();
+  const { state, execute } = useMutation(setUserTemporaryPassword, {
+    onSuccess: () => {
+      closeDialog();
+      toast.success('Temporary password set successfully');
+    },
+  });
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  function handleGenerate() {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*';
+    let generated = '';
+    for (let i = 0; i < 12; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPassword(generated);
+    setShowPassword(true);
+    setValidationError(null);
+  }
+
+  async function handleCopy() {
+    if (!password) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(password);
+        setCopied(true);
+        toast.info('Temporary password copied to clipboard');
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      // Ignore clipboard write failures in unsupported environments
+    }
+  }
+
+  function handleSave() {
+    if (!password || password.length < 6) {
+      setValidationError('Password must be at least 6 characters');
+      return;
+    }
+    setValidationError(null);
+    execute(user.id, password);
+  }
+
+  const displayError = validationError || (state.status === 'error' ? state.error : null);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && closeDialog()}>
+      <DialogContent className="max-w-md bg-card">
+        <DialogHeader>
+          <DialogTitle>Set Temporary Password</DialogTitle>
+        </DialogHeader>
+        <UserIdentity user={user} />
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Assign a temporary password for this user so they can access their account.
+          </p>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="temp-password" className="text-xs font-medium text-foreground">
+                Temporary Password
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={state.status === 'pending'}
+                className="text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+              >
+                Generate random
+              </button>
+            </div>
+            <div className="relative">
+              <Input
+                id="temp-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (validationError && e.target.value.length >= 6) {
+                    setValidationError(null);
+                  }
+                }}
+                placeholder="••••••••"
+                disabled={state.status === 'pending'}
+                className="pr-20 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-ring focus:ring-ring rounded-lg"
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-1.5 gap-0.5">
+                {password && (
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    title="Copy password"
+                    aria-label="Copy password"
+                  >
+                    {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
+          </div>
+        </div>
+        {displayError && <p className="text-xs text-destructive">{displayError}</p>}
+        <DialogFooter>
+          <Button variant="quiet" onClick={closeDialog} disabled={state.status === 'pending'}>
+            Cancel
+          </Button>
+          <LoadingButton
+            isLoading={state.status === 'pending'}
+            disabled={!password || password.length < 6}
+            onClick={handleSave}
+          >
+            Save Password
+          </LoadingButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Table                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -399,7 +539,7 @@ function EditNameDialog({ user, open }: { user: UserListItem; open: boolean }) {
 /** The full per-user action set, reachable without expanding the row. */
 function UserActionsMenu({ user }: { user: UserListItem }) {
   const { openDialog, currentUserId } = useAdminUsers();
-  const { isSelf, canToggle, canDelete } = selfProtection(user, currentUserId);
+  const { isSelf, canToggle, canDelete, canSetPassword } = selfProtection(user, currentUserId);
 
   return (
     <DropdownMenu>
@@ -431,6 +571,13 @@ function UserActionsMenu({ user }: { user: UserListItem }) {
         >
           Edit roles
         </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!canSetPassword}
+          icon={<KeyRound className="h-4 w-4" />}
+          onSelect={(e) => { e.preventDefault(); openDialog({ type: 'set-password', user }); }}
+        >
+          Set temporary password
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={!canToggle}
@@ -449,7 +596,7 @@ function UserActionsMenu({ user }: { user: UserListItem }) {
         </DropdownMenuItem>
         {isSelf && (
           <p className="px-2 py-1.5 text-xs text-muted-foreground">
-            This is your own account, so it cannot be deactivated or deleted here.
+            This is your own account, so it cannot be deactivated, deleted, or assigned a temporary password here.
           </p>
         )}
       </DropdownMenuContent>
@@ -549,7 +696,7 @@ function DetailField({ label, children }: { label: string; children: ReactNode }
  */
 function UserDetailRow({ user }: { user: UserListItem }) {
   const { openDialog, currentUserId } = useAdminUsers();
-  const { isSelf, canToggle, canDelete } = selfProtection(user, currentUserId);
+  const { isSelf, canToggle, canDelete, canSetPassword } = selfProtection(user, currentUserId);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // A row near the bottom of the scroll area would otherwise open its panel
@@ -604,6 +751,15 @@ function UserDetailRow({ user }: { user: UserListItem }) {
               <ShieldCheck className="h-3.5 w-3.5" />
               Edit roles
             </Button>
+            <Button
+              size="sm"
+              variant="quiet"
+              disabled={!canSetPassword}
+              onClick={() => openDialog({ type: 'set-password', user })}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Set temporary password
+            </Button>
 
             <span className="grow" />
 
@@ -630,7 +786,7 @@ function UserDetailRow({ user }: { user: UserListItem }) {
 
           {isSelf && (
             <p className="mt-3 text-xs text-muted-foreground">
-              This is your own account. Ask another system administrator to deactivate or delete it.
+              This is your own account. Ask another system administrator to deactivate, delete, or set a temporary password for it.
             </p>
           )}
         </div>
@@ -850,6 +1006,7 @@ function UserManagementContent() {
       {dialog?.type === 'create' && <CreateUserModal open={isDialogOpen} />}
       {dialog?.type === 'edit-name' && <EditNameDialog key={dialog.user.id} open={isDialogOpen} user={dialog.user} />}
       {dialog?.type === 'edit-roles' && <EditRolesDialog key={dialog.user.id} open={isDialogOpen} user={dialog.user} />}
+      {dialog?.type === 'set-password' && <SetTemporaryPasswordDialog key={dialog.user.id} open={isDialogOpen} user={dialog.user} />}
       {dialog?.type === 'toggle' && <ToggleUserDialog key={dialog.user.id} open={isDialogOpen} user={dialog.user} />}
       {dialog?.type === 'delete' && <DeleteUserDialog key={dialog.user.id} open={isDialogOpen} user={dialog.user} />}
     </>

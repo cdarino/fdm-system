@@ -4,12 +4,13 @@ import { createScope } from "@/lib/actions/action-handler";
 import type { ActionResult } from "@/lib/actions/action-result";
 import { AuthError } from "@supabase/supabase-js";
 import type { RbacRole } from "@/lib/actions/admin-roles";
-import { checkSelfDeactivate, checkSelfDelete } from "@/lib/self-protection";
+import { checkSelfDeactivate, checkSelfDelete, checkSelfSetPassword } from "@/lib/self-protection";
 import { uuidSchema } from "@/lib/validations/client";
 import {
   createUserSchema,
   updateUserProfileActionSchema,
   toggleUserActionSchema,
+  setUserTemporaryPasswordActionSchema,
 } from "@/lib/validations/user";
 
 export interface RegisterUserParams {
@@ -41,6 +42,7 @@ export type ListUsersResult = {
 
 export type DeleteUserResult = { success: true };
 export type UpdateUserProfileResult = { success: true };
+export type SetUserTemporaryPasswordResult = { success: true };
 
 const adminRead = createScope(["system.read"], { admin: true });
 const adminCreate = adminRead.extend(["system.create"]);
@@ -251,6 +253,32 @@ export async function updateUserProfile(
           first_name: first,
           last_name: last,
         },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true };
+    },
+  });
+}
+
+export async function setUserTemporaryPassword(
+  userId: string,
+  password: string
+): Promise<ActionResult<SetUserTemporaryPasswordResult>> {
+  return adminUpdate.run({
+    schema: setUserTemporaryPasswordActionSchema,
+    input: { userId, password },
+    handler: async ({ userId: targetUserId, password: newPassword }, { supabase: adminClient, userId: callerId }) => {
+      const selfError = checkSelfSetPassword(callerId, targetUserId);
+      if (selfError) {
+        throw new Error(selfError);
+      }
+
+      const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
+        password: newPassword,
       });
 
       if (error) {

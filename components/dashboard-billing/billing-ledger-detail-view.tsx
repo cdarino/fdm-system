@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/tooltip";
 import { LedgerStatusBadge } from "@/components/dashboard-billing/ledger-status-badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -372,18 +373,18 @@ export function BillingLedgerDetailView({
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [payDate, setPayDate] = useState(asOfDate);
-  const [payAmount, setPayAmount] = useState<number>(0);
+  const [payAmount, setPayAmount] = useState<number | "">(0);
   const [payReceipt, setPayReceipt] = useState("");
   const [payMethod, setPayMethod] = useState<"cash" | "check" | "bank_transfer">("cash");
   const [waivePenalty, setWaivePenalty] = useState(false);
   const [payNotes, setPayNotes] = useState("");
 
   const [showPoliciesModal, setShowPoliciesModal] = useState(false);
-  const [polPenaltyRate, setPolPenaltyRate] = useState<number>(3.5);
+  const [polPenaltyRate, setPolPenaltyRate] = useState<number | "">(3.5);
   const [polEnableAmnesty, setPolEnableAmnesty] = useState<boolean>(false);
   const [polAmnestyMonths, setPolAmnestyMonths] = useState<number>(12);
   const [polEnablePostMaturityRate, setPolEnablePostMaturityRate] = useState<boolean>(false);
-  const [polPostMaturityRate, setPolPostMaturityRate] = useState<number>(2.0);
+  const [polPostMaturityRate, setPolPostMaturityRate] = useState<number | "">(2.0);
 
   const [showRecordNoticeModal, setShowRecordNoticeModal] = useState(false);
   const [recordNoticeStage, setRecordNoticeStage] = useState<"first_notice" | "second_notice" | "final_demand">("first_notice");
@@ -508,11 +509,13 @@ export function BillingLedgerDetailView({
   const forfeitureDate = ledger.forfeitedAt || forfeitureNotice?.date;
   const forfeitureReason = ledger.forfeitureReason || forfeitureNotice?.notes;
 
+  const numericPayAmount = typeof payAmount === "number" ? payAmount : Number(payAmount) || 0;
+
   const allocationPreview = useMemo(() => {
-    if (!summary || payAmount <= 0) {
+    if (!summary || numericPayAmount <= 0) {
       return { penalty: 0, principal: 0, waived: 0, excess: 0, remainingDueAfter: summary?.totalPayableNow || 0 };
     }
-    let remaining = payAmount;
+    let remaining = numericPayAmount;
     let penalty = 0;
     let waived = 0;
 
@@ -535,7 +538,7 @@ export function BillingLedgerDetailView({
       excess,
       remainingDueAfter: +(remainingPenaltyAfter + remainingInstallmentAfter).toFixed(2),
     };
-  }, [summary, payAmount, waivePenalty]);
+  }, [summary, numericPayAmount, waivePenalty]);
 
   const displayedJournal = useMemo(() => {
     if (!summary) return [];
@@ -562,14 +565,21 @@ export function BillingLedgerDetailView({
       toast.error("This ledger account is currently view-only.");
       return;
     }
-    if (payAmount <= 0 || !payReceipt.trim()) return;
+    if (payAmount === "" || numericPayAmount <= 0) {
+      toast.error("Please enter a valid payment amount greater than 0");
+      return;
+    }
+    if (!payReceipt.trim()) {
+      toast.error("Receipt reference number is required");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const result = await postBillingPayment({
         accountId: ledger.id,
         paymentDate: payDate,
-        amount: payAmount,
+        amount: numericPayAmount,
         receiptNumber: payReceipt.trim().toUpperCase(),
         paymentMethod: payMethod,
         waivePenalty,
@@ -584,7 +594,7 @@ export function BillingLedgerDetailView({
       const newPayment = {
         id: result.data.paymentId,
         date: payDate,
-        amount: payAmount,
+        amount: numericPayAmount,
         receiptNo: payReceipt.trim().toUpperCase(),
         method: payMethod,
         waivePenalty,
@@ -644,15 +654,31 @@ export function BillingLedgerDetailView({
   const handleSavePolicies = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLedgerLocked) return;
+
+    const numericPenalty = typeof polPenaltyRate === "number" ? polPenaltyRate : Number(polPenaltyRate);
+    if (polPenaltyRate === "" || isNaN(numericPenalty) || numericPenalty < 0 || numericPenalty > 100) {
+      toast.error("Please enter a valid penalty rate between 0% and 100%");
+      return;
+    }
+
+    const numericPostMaturity = typeof polPostMaturityRate === "number" ? polPostMaturityRate : Number(polPostMaturityRate);
+    if (
+      polEnablePostMaturityRate &&
+      (polPostMaturityRate === "" || isNaN(numericPostMaturity) || numericPostMaturity < 0 || numericPostMaturity > 100)
+    ) {
+      toast.error("Please enter a valid post-maturity penalty rate between 0% and 100%");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await updateBillingPolicies({
         accountId: ledger.id,
-        penaltyRate: polPenaltyRate,
+        penaltyRate: numericPenalty,
         enableMaturityAmnesty: polEnableAmnesty,
         amnestyMonths: polEnableAmnesty ? polAmnestyMonths : undefined,
         enablePostMaturityReducedRate: polEnablePostMaturityRate,
-        postMaturityPenaltyRate: polEnablePostMaturityRate ? polPostMaturityRate : undefined,
+        postMaturityPenaltyRate: polEnablePostMaturityRate ? numericPostMaturity : undefined,
       });
 
       if (!result.success) {
@@ -662,12 +688,12 @@ export function BillingLedgerDetailView({
 
       setLedger((prev) => ({
         ...prev,
-        penaltyRate: +(polPenaltyRate / 100).toFixed(4),
+        penaltyRate: +(numericPenalty / 100).toFixed(4),
         policies: {
           enableMaturityAmnesty: polEnableAmnesty,
           amnestyMonths: polEnableAmnesty ? polAmnestyMonths : undefined,
           enablePostMaturityReducedRate: polEnablePostMaturityRate,
-          postMaturityPenaltyRate: polEnablePostMaturityRate ? +(polPostMaturityRate / 100).toFixed(4) : undefined,
+          postMaturityPenaltyRate: polEnablePostMaturityRate ? +(numericPostMaturity / 100).toFixed(4) : undefined,
         },
       }));
 
@@ -2210,13 +2236,13 @@ export function BillingLedgerDetailView({
                   <label className="block text-xs uppercase font-medium text-muted-foreground mb-1">
                     Amount Paid (PHP)
                   </label>
-                  <input
+                  <Input
                     type="number"
                     required
                     min={1}
                     step="any"
                     value={payAmount}
-                    onChange={(e) => setPayAmount(Number(e.target.value))}
+                    onChange={(e) => setPayAmount(e.target.value === "" ? "" : Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 border border-border-warm rounded-lg bg-card text-foreground font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
                   />
                 </div>
@@ -2367,15 +2393,15 @@ export function BillingLedgerDetailView({
                     />
                   </div>
                   <div className="flex items-center space-x-1.5 shrink-0">
-                    <input
+                    <Input
                       type="number"
                       step="0.1"
                       min="0"
                       max="100"
                       required
                       value={polPenaltyRate}
-                      onChange={(e) => setPolPenaltyRate(Number(e.target.value))}
-                      className="w-18 px-2 py-1 border border-border-warm rounded bg-card text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      onChange={(e) => setPolPenaltyRate(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-20 px-2 py-1 border border-border-warm rounded bg-card text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-8"
                     />
                     <span className="text-muted-foreground font-medium">% / mo</span>
                   </div>
@@ -2421,15 +2447,15 @@ export function BillingLedgerDetailView({
                     <div className="pl-3 border-l-2 border-border-warm flex items-center justify-between pt-1">
                       <span className="text-[11px] text-muted-foreground font-medium">Reduced rate:</span>
                       <div className="flex items-center space-x-1.5">
-                        <input
+                        <Input
                           type="number"
                           step="0.1"
                           min="0"
                           max="100"
                           required
                           value={polPostMaturityRate}
-                          onChange={(e) => setPolPostMaturityRate(Number(e.target.value))}
-                          className="w-18 px-2 py-1 border border-border-warm rounded bg-card text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          onChange={(e) => setPolPostMaturityRate(e.target.value === "" ? "" : Number(e.target.value))}
+                          className="w-20 px-2 py-1 border border-border-warm rounded bg-card text-right font-mono font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary h-8"
                         />
                         <span className="text-muted-foreground font-medium">% / mo</span>
                       </div>
@@ -2444,18 +2470,24 @@ export function BillingLedgerDetailView({
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>During the contract period:</span>
-                  <span className="font-mono font-semibold text-foreground">{polPenaltyRate.toFixed(1)}% / mo</span>
+                  <span className="font-mono font-semibold text-foreground">
+                    {typeof polPenaltyRate === "number" ? `${polPenaltyRate.toFixed(1)}% / mo` : "—"}
+                  </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>First 12 months after maturity:</span>
                   <span className={`font-mono font-semibold ${polEnableAmnesty ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
-                    {polEnableAmnesty ? "0.0% (Amnesty active)" : `${polPenaltyRate.toFixed(1)}% / mo`}
+                    {polEnableAmnesty ? "0.0% (Amnesty active)" : typeof polPenaltyRate === "number" ? `${polPenaltyRate.toFixed(1)}% / mo` : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>After month 12:</span>
                   <span className={`font-mono font-semibold ${polEnablePostMaturityRate ? "text-blue-700 dark:text-blue-300" : "text-foreground"}`}>
-                    {polEnablePostMaturityRate ? `${polPostMaturityRate.toFixed(1)}% / mo (Reduced)` : `${polPenaltyRate.toFixed(1)}% / mo`}
+                    {polEnablePostMaturityRate
+                      ? `${typeof polPostMaturityRate === "number" ? polPostMaturityRate.toFixed(1) : "—"}% / mo (Reduced)`
+                      : typeof polPenaltyRate === "number"
+                      ? `${polPenaltyRate.toFixed(1)}% / mo`
+                      : "—"}
                   </span>
                 </div>
               </div>
@@ -3247,7 +3279,7 @@ export function BillingLedgerDetailView({
 
                     {clearanceAutoPayments ? (
                       <p className="text-[11px] text-muted-foreground pl-6">
-                        Generates the payment history and delivers it directly to Legal's turnover packet. 
+                        Generates the payment history and delivers it directly to Legal&apos;s turnover packet. 
                         Uncheck if you wish to upload a different file.
                       </p>
                     ) : (

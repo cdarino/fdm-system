@@ -10,8 +10,15 @@ import {
   toggleUser as toggleUserAction,
   deleteUser as deleteUserAction,
   updateUserProfile as updateUserProfileAction,
+  setUserTemporaryPassword as setUserTemporaryPasswordAction,
 } from '@/lib/actions/admin-user';
-import type { UserListItem, RegisterUserParams, UpdateUserProfileResult, DeleteUserResult } from '@/lib/actions/admin-user';
+import type {
+  UserListItem,
+  RegisterUserParams,
+  UpdateUserProfileResult,
+  DeleteUserResult,
+  SetUserTemporaryPasswordResult,
+} from '@/lib/actions/admin-user';
 import { getActiveRoles, setUserRoles as setUserRolesAction } from '@/lib/actions/admin-roles';
 import type { RbacRole, SetUserRolesResult } from '@/lib/actions/admin-roles';
 import { roleLabel } from '@/lib/role-labels';
@@ -22,6 +29,7 @@ export type AdminDialog =
   | { type: 'create' }
   | { type: 'edit-name'; user: UserListItem }
   | { type: 'edit-roles'; user: UserListItem }
+  | { type: 'set-password'; user: UserListItem }
   | { type: 'toggle'; user: UserListItem }
   | { type: 'delete'; user: UserListItem }
   | null;
@@ -49,6 +57,7 @@ interface AdminUsersContextValue {
   createUser: (params: RegisterUserParams) => Promise<ActionResult<{ userId: string }>>;
   updateUserName: (userId: string, firstName: string, lastName: string) => Promise<ActionResult<UpdateUserProfileResult>>;
   updateUserRoles: (userId: string, roleIds: string[]) => Promise<ActionResult<SetUserRolesResult>>;
+  setUserTemporaryPassword: (userId: string, password: string) => Promise<ActionResult<SetUserTemporaryPasswordResult>>;
   toggleUserStatus: (userId: string, isBanned: boolean) => Promise<ActionResult<{ success: true }>>;
   deleteUser: (userId: string) => Promise<ActionResult<DeleteUserResult>>;
 }
@@ -168,6 +177,13 @@ export function AdminUsersProvider({
     return result;
   }
 
+  async function setUserTemporaryPassword(userId: string, password: string): Promise<ActionResult<SetUserTemporaryPasswordResult>> {
+    const result = await setUserTemporaryPasswordAction(userId, password);
+    if (!result.success) return result;
+    router.refresh();
+    return result;
+  }
+
   async function toggleUserStatus(userId: string, isBanned: boolean): Promise<ActionResult<{ success: true }>> {
     const result = await toggleUserAction(userId, isBanned);
     if (!result.success) return result;
@@ -207,6 +223,7 @@ export function AdminUsersProvider({
     createUser,
     updateUserName,
     updateUserRoles,
+    setUserTemporaryPassword,
     toggleUserStatus,
     deleteUser,
   };

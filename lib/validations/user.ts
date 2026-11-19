@@ -28,5 +28,14 @@ export const setUserRolesActionSchema = z.object({
   roleIds: z.array(z.string().uuid("Invalid role ID")).default([]),
 });
 
+export const setUserTemporaryPasswordSchema = z.object({
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const setUserTemporaryPasswordActionSchema = setUserTemporaryPasswordSchema.extend({
+  userId: uuidSchema,
+});
+
 export type CreateUserFormData = z.input<typeof createUserSchema>;
 export type UpdateUserProfileFormData = z.infer<typeof updateUserProfileSchema>;
+export type SetUserTemporaryPasswordFormData = z.infer<typeof setUserTemporaryPasswordSchema>;

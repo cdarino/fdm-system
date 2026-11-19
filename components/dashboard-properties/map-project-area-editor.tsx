@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -625,6 +624,8 @@ export function MapProjectAreaEditor({
                   id="draft-blk"
                   type="number"
                   min={1}
+                  step={1}
+                  allowDecimals={false}
                   required
                   autoFocus
                   value={lotBlock}
@@ -641,6 +642,8 @@ export function MapProjectAreaEditor({
                   id="draft-lot"
                   type="number"
                   min={1}
+                  step={1}
+                  allowDecimals={false}
                   required
                   value={lotNumber}
                   onChange={(e) => setLotNumber(e.target.value)}
