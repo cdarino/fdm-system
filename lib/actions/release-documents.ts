@@ -7,7 +7,6 @@ import type { ActionResult } from "@/lib/actions/action-result";
 import { uuidSchema } from "@/lib/validations/client";
 import { documentFileSchema } from "@/lib/validations/document";
 import {
-  createClientDocumentUrl,
   removeClientDocumentObject,
   uploadClientDocumentObject,
 } from "@/lib/storage/client-documents";
@@ -196,15 +195,15 @@ export async function getReleaseDocumentUrl(documentId: string): Promise<string>
     handler: async (validId, { supabase }) => {
       const { data, error } = await supabase
         .from("file_attachment")
-        .select("file_path")
+        .select("attachment_id")
         .eq("attachment_id", validId)
-        .single<{ file_path: string }>();
+        .single<{ attachment_id: string }>();
 
       if (error || !data) {
         throw new Error(`Document not found: ${error?.message ?? "Unknown error"}`);
       }
 
-      return createClientDocumentUrl(data.file_path);
+      return `/api/documents/${validId}`;
     },
   });
 }

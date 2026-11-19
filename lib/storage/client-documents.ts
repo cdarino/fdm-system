@@ -61,14 +61,11 @@ export async function uploadClientDocumentObject(
 
 /**
  * Short-lived URL for viewing or downloading one document.
- *
- * The bucket is private, so there is no permanent public URL to store. A link
- * is minted per view and expires, which is what keeps a leaked URL from being
- * a lasting exposure of someone's ID or deed.
  */
 export async function createClientDocumentUrl(
   path: string,
-  expiresInSeconds = 60
+  expiresInSeconds = 60,
+  options?: { contentDisposition?: string; contentType?: string }
 ): Promise<string> {
   const client = getStorageClient();
   const bucket = getStorageBucket();
@@ -76,7 +73,12 @@ export async function createClientDocumentUrl(
   try {
     return await getSignedUrl(
       client,
-      new GetObjectCommand({ Bucket: bucket, Key: path }),
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: path,
+        ResponseContentDisposition: options?.contentDisposition,
+        ResponseContentType: options?.contentType,
+      }),
       { expiresIn: expiresInSeconds }
     );
   } catch (err) {

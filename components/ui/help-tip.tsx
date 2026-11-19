@@ -20,8 +20,7 @@ export function HelpTip({ text, title, className }: HelpTipProps) {
     <TooltipProvider delayDuration={150}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
-            type="button"
+          <span
             tabIndex={-1}
             aria-label={title || "Help info"}
             onClick={(e) => e.stopPropagation()}
@@ -31,7 +30,7 @@ export function HelpTip({ text, title, className }: HelpTipProps) {
             )}
           >
             ?
-          </button>
+          </span>
         </TooltipTrigger>
         <TooltipContent side="top" align="center" className="w-60 p-2.5 space-y-1">
           {title && (

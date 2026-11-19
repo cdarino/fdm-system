@@ -10,7 +10,6 @@ import {
   deleteTitleNoticeRtsSchema,
 } from "@/lib/validations/title-notice";
 import {
-  createClientDocumentUrl,
   removeClientDocumentObject,
   uploadClientDocumentObject,
 } from "@/lib/storage/client-documents";
@@ -237,15 +236,15 @@ export async function getTitleNoticeRtsUrl(attachmentId: string): Promise<string
     handler: async (validId, { supabase }) => {
       const { data, error } = await supabase
         .from("file_attachment")
-        .select("file_path")
+        .select("attachment_id")
         .eq("attachment_id", validId)
-        .single<{ file_path: string }>();
+        .single<{ attachment_id: string }>();
 
       if (error || !data) {
         throw new Error(`Proof attachment not found: ${error?.message ?? "Unknown error"}`);
       }
 
-      return createClientDocumentUrl(data.file_path);
+      return `/api/documents/${validId}`;
     },
   });
 }

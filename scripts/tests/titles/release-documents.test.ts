@@ -91,7 +91,7 @@ describe("Release documents are client documents", () => {
     const client = await getClientById(clientId);
     expect(client.client_document.some((d) => d.document_id === soa.document_id)).toBe(true);
     expect(await getMissingReleaseDocumentsForTitle(titleId)).not.toContain("SOA");
-    expect(await getReleaseDocumentUrl(soa.document_id)).toMatch(/^https?:\/\//);
+    expect(await getReleaseDocumentUrl(soa.document_id)).toMatch(/^\/api\/documents\/[0-9a-f-]+/);
   });
 
   it("uploads from the client profile count toward the release packet", async () => {
@@ -169,7 +169,7 @@ describe("Release documents are client documents", () => {
       const legalRefs = await getTitleReferenceDocuments(titleId);
       const validIdDoc = legalRefs.find((d) => d.document_type === "Valid ID");
       expect(validIdDoc).toBeDefined();
-      expect(await getReleaseDocumentUrl(validIdDoc!.document_id)).toMatch(/^https?:\/\//);
+      expect(await getReleaseDocumentUrl(validIdDoc!.document_id)).toMatch(/^\/api\/documents\/[0-9a-f-]+/);
     });
     await loginAsAdmin();
   });

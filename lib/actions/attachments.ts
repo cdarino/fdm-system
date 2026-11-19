@@ -6,7 +6,6 @@ import { requireAnyPermission } from "@/lib/actions/auth-guard";
 import { uuidSchema } from "@/lib/validations/client";
 import { uploadAttachmentSchema } from "@/lib/validations/attachment";
 import {
-  createClientDocumentUrl,
   removeClientDocumentObject,
   uploadClientDocumentObject,
 } from "@/lib/storage/client-documents";
@@ -84,15 +83,15 @@ export async function getAttachmentUrl(attachmentId: string): Promise<string> {
 
       const { data, error } = await supabase
         .from("file_attachment")
-        .select("file_path")
+        .select("attachment_id")
         .eq("attachment_id", validId)
-        .single<{ file_path: string }>();
+        .single<{ attachment_id: string }>();
 
       if (error || !data) {
         throw new Error(`Attachment not found: ${error?.message ?? "Unknown error"}`);
       }
 
-      return createClientDocumentUrl(data.file_path);
+      return `/api/documents/${validId}`;
     },
   });
 }

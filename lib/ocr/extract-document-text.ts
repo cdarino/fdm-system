@@ -13,9 +13,6 @@
  * first and that bitmap is what gets read.
  */
 
-/** Beyond this, OCR takes long enough that staff would sit waiting on a tab. */
-const MAX_PDF_PAGES = 10;
-
 /** Scanner output is often 150 DPI; upscaling materially improves accuracy. */
 const PDF_RENDER_SCALE = 2;
 
@@ -41,7 +38,7 @@ export async function tryExtractNativePdfText(file: File): Promise<ExtractionRes
 
     const buffer = await file.arrayBuffer();
     const pdf = await pdfjs.getDocument({ data: buffer }).promise;
-    const pageCount = Math.min(pdf.numPages, MAX_PDF_PAGES);
+    const pageCount = pdf.numPages;
     const pages: string[] = [];
 
     for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
@@ -61,7 +58,7 @@ export async function tryExtractNativePdfText(file: File): Promise<ExtractionRes
       return {
         text: tidyExtractedText(combined),
         pageCount,
-        truncated: pdf.numPages > MAX_PDF_PAGES,
+        truncated: false,
         isNativeText: true,
       };
     }
@@ -84,7 +81,7 @@ async function renderPdfToCanvases(file: File): Promise<HTMLCanvasElement[]> {
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: buffer }).promise;
-  const pageCount = Math.min(pdf.numPages, MAX_PDF_PAGES);
+  const pageCount = pdf.numPages;
   const canvases: HTMLCanvasElement[] = [];
 
   for (let pageNumber = 1; pageNumber <= pageCount; pageNumber++) {
@@ -153,7 +150,7 @@ export async function extractDocumentText(
       return {
         text: tidyExtractedText(combinedText),
         pageCount: canvases.length,
-        truncated: canvases.length === MAX_PDF_PAGES,
+        truncated: false,
         isNativeText: false,
       };
     }

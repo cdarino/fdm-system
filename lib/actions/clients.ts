@@ -51,7 +51,6 @@ import { toClientDocument, toClientDocuments, CLIENT_DOCUMENT_COLUMNS } from "@/
 import { deleteEntityIndex } from "@/lib/actions/search-index";
 import {
   uploadClientDocumentObject,
-  createClientDocumentUrl,
   removeClientDocumentObject,
 } from "@/lib/storage/client-documents";
 import { documentFileSchema } from "@/lib/validations/document";
@@ -761,15 +760,15 @@ export async function getClientDocumentUrl(documentId: string): Promise<string> 
     handler: async (validId, { supabase }) => {
       const { data, error } = await supabase
         .from("file_attachment")
-        .select("file_path")
+        .select("attachment_id")
         .eq("attachment_id", validId)
-        .single<{ file_path: string }>();
+        .single<{ attachment_id: string }>();
 
       if (error || !data) {
         throw new Error(`Document not found: ${error?.message ?? "Unknown error"}`);
       }
 
-      return createClientDocumentUrl(data.file_path);
+      return `/api/documents/${validId}`;
     },
   });
 }
